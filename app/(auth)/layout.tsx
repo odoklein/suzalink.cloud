@@ -1,12 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import "./globals.css";
+import "../globals.css";
 import { AuthProvider } from "@/lib/auth-context";
-import { Sidebar } from "@/components/Sidebar";
 import { Toaster } from "@/components/ui/sonner";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { BellIcon } from "@heroicons/react/24/outline";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -19,11 +15,11 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Suzalink CRM",
-  description: "Modern CRM for business management",
+  title: "Suzalink CRM - Authentication",
+  description: "Login and register for Suzalink CRM",
 };
 
-export default function RootLayout({
+export default function AuthLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
@@ -38,4 +34,4 @@ export default function RootLayout({
       </body>
     </html>
   );
-}
+} 
