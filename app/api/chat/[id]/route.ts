@@ -6,8 +6,8 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
-  const chatId = params.id;
+export async function GET(req: NextRequest, context: any) {
+  const chatId = context.params.id;
   const userId = req.headers.get('x-user-id');
   if (!chatId) {
     return NextResponse.json({ error: 'Missing chat id' }, { status: 400 });

@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '../../../../../lib/supabase';
 
 // GET: List all client prospects for a client
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
-  const { id } = params;
+export async function GET(req: NextRequest, context: any) {
+  const { id } = context.params;
   try {
     const { data, error } = await supabase
       .from('client_prospects')
@@ -17,8 +17,8 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 }
 
 // POST: Add new client prospects (single or bulk)
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
-  const { id } = params;
+export async function POST(req: NextRequest, context: any) {
+  const { id } = context.params;
   try {
     const body = await req.json();
     let prospects = [];
@@ -38,8 +38,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 }
 
 // PUT: Bulk update (e.g., status)
-export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
-  const { id } = params;
+export async function PUT(req: NextRequest, context: any) {
+  const { id } = context.params;
   try {
     const body = await req.json();
     const { ids, status } = body;
@@ -60,8 +60,8 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 }
 
 // DELETE: Bulk delete
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
-  const { id } = params;
+export async function DELETE(req: NextRequest, context: any) {
+  const { id } = context.params;
   try {
     const body = await req.json();
     const { ids } = body;

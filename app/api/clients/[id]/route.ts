@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '../../../../lib/supabase';
 
 // GET: Get a single client by id
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
-  const { id } = params;
+export async function GET(req: NextRequest, context: any) {
+  const { id } = context.params;
   const { data, error } = await supabase.from('clients').select('*').eq('id', id).single();
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 404 });
@@ -12,8 +12,8 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 }
 
 // PUT: Update a client by id
-export async function PUT(req: NextRequest, { params }: { params: { id: string } }) {
-  const { id } = params;
+export async function PUT(req: NextRequest, context: any) {
+  const { id } = context.params;
   const body = await req.json();
   const { name, contact_email, company, status, region } = body;
   const updateFields: any = { };
@@ -33,8 +33,8 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
 }
 
 // DELETE: Delete a client by id
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
-  const { id } = params;
+export async function DELETE(req: NextRequest, context: any) {
+  const { id } = context.params;
   const { error } = await supabase.from('clients').delete().eq('id', id);
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

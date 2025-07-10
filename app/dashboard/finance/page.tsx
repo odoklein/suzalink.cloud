@@ -50,6 +50,7 @@ export default function FinancePage() {
   const [deleteLoading, setDeleteLoading] = useState(false);
 
   useEffect(() => {
+    if (!user) return;
     setLoading(true);
     supabase
       .from("finance")
@@ -126,6 +127,7 @@ export default function FinancePage() {
   }
 
   async function handleDelete(id: string) {
+    if (!user) return;
     setDeleteLoading(true);
     await supabase.from("finance").delete().eq("id", id);
     setDeleteId(null);

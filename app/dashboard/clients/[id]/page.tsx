@@ -316,7 +316,7 @@ export default function ClientDetailPage() {
                     </div>
                     <div className="flex-1">
                       <div className="flex items-center gap-2 mb-1">
-                        <Badge variant="outline">{HISTORY_TYPE_LABELS[entry.type]}</Badge>
+                        <Badge variant="default">{HISTORY_TYPE_LABELS[entry.type as keyof typeof HISTORY_TYPE_LABELS]}</Badge>
                         <span className="text-sm text-gray-500">{entry.date}</span>
                       </div>
                       <p className="font-medium mb-1">{entry.description}</p>
