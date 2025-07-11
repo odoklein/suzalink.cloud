@@ -117,7 +117,28 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-normal;
+  }
+  h1 {
+    @apply text-3xl font-bold;
+  }
+  h2 {
+    @apply text-2xl font-bold;
+  }
+  h3 {
+    @apply text-xl font-semibold;
+  }
+  h4 {
+    @apply text-lg font-medium;
+  }
+  h5 {
+    @apply text-base font-medium;
+  }
+  h6 {
+    @apply text-base font-normal;
+  }
+  p, span, li, label, input, textarea, select, button {
+    @apply font-normal;
   }
 }
 

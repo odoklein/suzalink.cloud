@@ -40,6 +40,7 @@ export default function ProjectsPage() {
   const [filterClient, setFilterClient] = useState<string>("all");
   const [sortBy, setSortBy] = useState<string>("created_at");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+  const [deleteModal, setDeleteModal] = useState<{ open: boolean, projectId: string | null }>({ open: false, projectId: null });
 
   useEffect(() => {
     if (!user) return;
@@ -142,7 +143,6 @@ export default function ProjectsPage() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("Delete this project?")) return;
     const { error } = await supabase.from("projects").delete().eq("id", id);
     if (error) {
       toast.error("Failed to delete project", { description: error.message });
@@ -259,7 +259,7 @@ export default function ProjectsPage() {
                   <div className="text-gray-600 text-sm min-h-[32px] mb-2">{project.description || <span className="italic text-gray-300">No description</span>}</div>
                   <div className="flex gap-2 mt-2">
                     <Button size="sm" variant="outline" onClick={e => { e.stopPropagation(); openEdit(project); }}>Edit</Button>
-                    <Button size="sm" variant="destructive" onClick={e => { e.stopPropagation(); handleDelete(project.id); }}>Delete</Button>
+                    <Button size="sm" variant="destructive" onClick={e => { e.stopPropagation(); setDeleteModal({ open: true, projectId: project.id }); }}>Delete</Button>
                   </div>
                 </CardContent>
               </Card>
@@ -366,6 +366,26 @@ export default function ProjectsPage() {
               <Button type="submit">{editing ? "Save" : "Create"}</Button>
             </div>
           </form>
+        </DialogContent>
+      </Dialog>
+      {/* Delete Confirmation Modal */}
+      <Dialog open={deleteModal.open} onOpenChange={open => setDeleteModal(d => ({ ...d, open }))}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete Project</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this project? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2 mt-4">
+            <Button variant="outline" onClick={() => setDeleteModal({ open: false, projectId: null })}>Cancel</Button>
+            <Button variant="destructive" onClick={async () => {
+              if (deleteModal.projectId) {
+                await handleDelete(deleteModal.projectId);
+              }
+              setDeleteModal({ open: false, projectId: null });
+            }}>Delete</Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
