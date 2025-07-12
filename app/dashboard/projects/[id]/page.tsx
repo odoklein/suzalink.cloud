@@ -24,6 +24,9 @@ import {
   DropResult,
 } from "@hello-pangea/dnd";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
+import { MoreHorizontal } from 'lucide-react';
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu';
+import { FolderKanban, CalendarClock, List, Table, Filter } from 'lucide-react';
 
 const TASK_STATUSES = [
   { value: "todo", label: "To Do" },
@@ -52,6 +55,18 @@ const STATUS_META: Record<string, any> = {
   },
 };
 
+// Color map for section/status
+const STATUS_COLORS: Record<string, string> = {
+  todo: 'bg-blue-500 text-white',
+  doing: 'bg-purple-500 text-white',
+  done: 'bg-green-500 text-white',
+};
+const SECTION_BORDER_COLORS: Record<string, string> = {
+  todo: 'border-l-4 border-blue-500',
+  doing: 'border-l-4 border-purple-500',
+  done: 'border-l-4 border-green-500',
+};
+
 export default function ProjectDetailPage() {
   const { id } = useParams();
   const router = useRouter();
@@ -71,6 +86,10 @@ export default function ProjectDetailPage() {
   const [deleteModal, setDeleteModal] = useState<{ open: boolean, taskId: string | null }>({ open: false, taskId: null });
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<any>(null);
+  const [view, setView] = useState<'board' | 'timeline' | 'list' | 'table' | 'filter'>('list');
+  // Add state for filters
+  const [filterStatus, setFilterStatus] = useState<string>("");
+  const [filterAssignee, setFilterAssignee] = useState<string>("");
 
   useEffect(() => {
     if (!id) return;
@@ -193,6 +212,21 @@ export default function ProjectDetailPage() {
     fetchTasks();
   }
 
+  // Group tasks by status for sectioned list
+  const groupedTasks = TASK_STATUSES.map(({ value, label }) => ({
+    value,
+    label,
+    tasks: tasks.filter(t => t && t.status === value),
+  }));
+
+  // Filtered tasks for Filter view
+  const filteredTasks = tasks.filter(task => {
+    return (
+      (!filterStatus || task.status === filterStatus) &&
+      (!filterAssignee || task.assignee_id === filterAssignee)
+    );
+  });
+
   if (!project) return <div className="text-gray-400 p-8">Project not found.</div>;
 
   return (
@@ -202,119 +236,311 @@ export default function ProjectDetailPage() {
         <h2 className="text-2xl font-bold text-gray-800">{project.title}</h2>
         <span className="text-gray-500">{project.description}</span>
       </div>
-      <DragDropContext
-        onDragEnd={async (result: DropResult) => {
-          const { destination, source, draggableId } = result;
-          if (!destination) return;
-          if (
-            destination.droppableId === source.droppableId &&
-            destination.index === source.index
-          ) {
-            return;
-          }
-          const task = tasks.find((t) => t.id === draggableId);
-          if (!task) return;
-          if (task.status !== destination.droppableId) {
-            await supabase
-              .from("tasks")
-              .update({ status: destination.droppableId })
-              .eq("id", task.id);
-            fetchTasks();
-          }
-        }}
-      >
-        <div className="flex gap-6 overflow-x-auto">
-          {TASK_STATUSES.map(({ value, label }) => {
-            const meta = STATUS_META[value];
-            const Icon = meta.icon;
-            return (
-              <Droppable droppableId={value} key={value}>
-                {(provided) => (
-                  <div
-                    ref={provided.innerRef}
-                    {...provided.droppableProps}
-                    className={`flex-1 min-w-[340px] bg-white rounded-2xl p-4 shadow-sm border ${meta.border} flex flex-col`}
-                  >
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="flex items-center gap-2 text-lg font-semibold">
-                        <span className={`inline-flex items-center justify-center rounded-full ${meta.color} w-8 h-8`}>
-                          <Icon className="w-5 h-5" />
-                        </span>
-                        <span>{label}</span>
-                      </div>
-                      <Button size="icon" variant="ghost" className="rounded-full" onClick={() => openCreate(value)}>
-                        +
-                      </Button>
-                    </div>
-                    <div className="flex flex-col gap-4">
-                      {loading ? (
-                        <div className="text-gray-400">Loading...</div>
-                      ) : tasks.filter(t => t && t.status === value).length === 0 ? (
-                        <div className="text-gray-300 italic">No tasks</div>
-                      ) : (
-                        tasks.filter(t => t && t.status === value).map((task, idx) => {
-                          try {
-                            return (
-                              <Draggable draggableId={task.id} index={idx} key={task.id}>
-                                {(provided) => (
-                                  <div
-                                    ref={provided.innerRef}
-                                    {...provided.draggableProps}
-                                    {...provided.dragHandleProps}
-                                    onClick={e => {
-                                      // Prevent drawer open if Edit/Delete is clicked
-                                      if ((e.target as HTMLElement).closest("button")) return;
-                                      setSelectedTask(task);
-                                      setDrawerOpen(true);
-                                    }}
-                                    style={{ cursor: "pointer" }}
-                                  >
-                                    <Card className="rounded-xl shadow group border border-gray-100 hover:shadow-md transition-shadow bg-gray-50">
-                                      <CardHeader className="pb-2">
-                                        <div className="flex items-center gap-2">
-                                          <span className="font-semibold text-base text-gray-800">{task.title}</span>
-                                          <span className={`ml-auto px-2 py-0.5 rounded text-xs font-medium ${meta.color}`}>{meta.label}</span>
-                                        </div>
-                                      </CardHeader>
-                                      <CardContent className="pt-0">
-                                        <div className="flex items-center gap-2 text-xs text-gray-400 mb-1">
-                                          {task.assignee_id && users.length > 0 ? (
-                                            <span>👤 {users.find(u => u.id === task.assignee_id)?.full_name || "Unknown"}</span>
-                                          ) : (
-                                            <span className="italic">No assignee</span>
-                                          )}
-                                          {task.due_date && (
-                                            <span className="ml-auto">📅 {task.due_date}</span>
-                                          )}
-                                        </div>
-                                        <div className="text-gray-600 text-sm min-h-[32px] mb-2">
-                                          {task.description || <span className="italic text-gray-300">No description</span>}
-                                        </div>
-                                        <div className="flex gap-2 mt-2">
-                                          <Button size="sm" variant="outline" className="rounded" onClick={e => { e.stopPropagation(); openEdit(task); }}>Edit</Button>
-                                          <Button size="sm" variant="destructive" className="rounded" onClick={e => { e.stopPropagation(); openDelete(task.id); }}>Delete</Button>
-                                        </div>
-                                      </CardContent>
-                                    </Card>
-                                  </div>
-                                )}
-                              </Draggable>
-                            );
-                          } catch (err) {
-                            console.error('Error rendering task:', task, err);
-                            return null;
-                          }
-                        })
-                      )}
-                      {provided.placeholder}
-                    </div>
+      {/* View Switcher */}
+      <div className="flex items-center gap-2 mb-6 px-8">
+        <Button
+          variant={view === 'board' ? 'default' : 'outline'}
+          className="flex items-center gap-2 rounded-full px-4 py-2"
+          onClick={() => setView('board')}
+        >
+          <FolderKanban className="w-4 h-4" /> Board
+        </Button>
+        <Button
+          variant={view === 'timeline' ? 'default' : 'outline'}
+          className="flex items-center gap-2 rounded-full px-4 py-2"
+          onClick={() => setView('timeline')}
+        >
+          <CalendarClock className="w-4 h-4" /> Timeline
+        </Button>
+        <Button
+          variant={view === 'list' ? 'default' : 'outline'}
+          className="flex items-center gap-2 rounded-full px-4 py-2"
+          onClick={() => setView('list')}
+        >
+          <List className="w-4 h-4" /> List
+        </Button>
+        <Button
+          variant={view === 'table' ? 'default' : 'outline'}
+          className="flex items-center gap-2 rounded-full px-4 py-2"
+          onClick={() => setView('table')}
+        >
+          <Table className="w-4 h-4" /> Table
+        </Button>
+        <Button
+          variant={view === 'filter' ? 'default' : 'outline'}
+          className="flex items-center gap-2 rounded-full px-4 py-2"
+          onClick={() => setView('filter')}
+        >
+          <Filter className="w-4 h-4" /> Filter
+        </Button>
+      </div>
+      {view === 'list' && (
+        <div className="w-full px-8">
+          <div className="bg-white rounded-2xl shadow border p-0">
+            {groupedTasks.map((section, idx) => (
+              <div key={section.value} className="mb-8">
+                {/* Section Header */}
+                <div className={`flex items-center justify-between px-6 py-4 rounded-t-2xl bg-gray-50 border-b border-gray-200 ${SECTION_BORDER_COLORS[section.value] || ''}`} style={{ minHeight: 64 }}>
+                  <div className="flex items-center gap-3 text-lg font-bold">
+                    <span className={`inline-flex items-center justify-center rounded-full w-8 h-8 font-semibold ${STATUS_COLORS[section.value] || 'bg-gray-300 text-white'}`}>{section.label[0]}</span>
+                    <span>{section.label}</span>
+                    <span className={`ml-2 text-xs font-semibold rounded px-2 py-0.5 ${STATUS_COLORS[section.value] || 'bg-gray-300 text-white'}`}>{section.tasks.length}</span>
                   </div>
-                )}
-              </Droppable>
-            );
-          })}
+                  <Button size="sm" variant="outline" className="rounded" onClick={() => openCreate(section.value)}>
+                    + Add Task
+                  </Button>
+                </div>
+                {/* Table Header */}
+                <div className="grid grid-cols-6 gap-2 px-6 py-2 text-xs text-gray-500 font-medium border-b border-gray-100 bg-gray-50">
+                  <div className="col-span-2">Name</div>
+                  <div>Start Date</div>
+                  <div>Due Date</div>
+                  <div>Priority</div>
+                  <div>People</div>
+                </div>
+                {/* Task Rows */}
+                <div className="flex flex-col gap-0">
+                  {loading ? (
+                    <div className="text-gray-400 px-6 py-4">Loading...</div>
+                  ) : section.tasks.length === 0 ? (
+                    <div className="text-gray-300 italic px-6 py-4">No tasks</div>
+                  ) : (
+                    section.tasks.map((task, idx) => (
+                      <div
+                        key={task.id}
+                        className="hover:bg-gray-50 transition group border-b border-gray-100 last:border-b-0 cursor-pointer"
+                        style={{ minHeight: 56, display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr', alignItems: 'center', padding: '0 1.5rem' }}
+                        onClick={(e: React.MouseEvent<HTMLDivElement>) => {
+                          if ((e.target as HTMLElement).closest('button')) return;
+                          setSelectedTask(task);
+                          setDrawerOpen(true);
+                        }}
+                      >
+                        {/* Name */}
+                        <div className="flex items-center gap-2 col-span-2 py-3">
+                          <span className="font-medium text-gray-800">{task.title}</span>
+                          <span className={`ml-2 px-2 py-0.5 rounded text-xs font-medium ${STATUS_COLORS[section.value] || 'bg-gray-300 text-white'}`}>{section.label}</span>
+                        </div>
+                        {/* Start Date (not in data, so leave blank or use created_at if available) */}
+                        <div className="text-gray-600 text-sm">-</div>
+                        {/* Due Date */}
+                        <div className="text-gray-600 text-sm">{task.due_date || <span className="italic text-gray-300">No due</span>}</div>
+                        {/* Priority (not in data, so show Normal) */}
+                        <div>
+                          <span className="inline-block px-2 py-0.5 rounded bg-gray-200 text-xs text-gray-700">Normal</span>
+                        </div>
+                        {/* People */}
+                        <div className="flex items-center gap-2">
+                          {task.assignee_id && users.length > 0 ? (
+                            <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-gray-200 text-gray-700 text-xs font-semibold">
+                              {users.find(u => u.id === task.assignee_id)?.full_name?.[0] || '?'}
+                            </span>
+                          ) : (
+                            <span className="italic text-gray-300">-</span>
+                          )}
+                          {/* Actions menu */}
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button size="icon" variant="ghost" className="ml-1 opacity-60 group-hover:opacity-100"><MoreHorizontal className="w-5 h-5" /></Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={(e: React.MouseEvent) => { e.stopPropagation(); openEdit(task); }}>Edit</DropdownMenuItem>
+                              <DropdownMenuItem onClick={(e: React.MouseEvent) => { e.stopPropagation(); openDelete(task.id); }}>Delete</DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
-      </DragDropContext>
+      )}
+      {view === 'board' && (
+        <div className="w-full px-8">
+          <DragDropContext
+            onDragEnd={async (result: DropResult) => {
+              const { destination, source, draggableId } = result;
+              if (!destination) return;
+              if (
+                destination.droppableId === source.droppableId &&
+                destination.index === source.index
+              ) {
+                return;
+              }
+              const task = tasks.find((t) => t.id === draggableId);
+              if (!task) return;
+              if (task.status !== destination.droppableId) {
+                await supabase
+                  .from("tasks")
+                  .update({ status: destination.droppableId })
+                  .eq("id", task.id);
+                fetchTasks();
+              }
+            }}
+          >
+            <div className="flex gap-6">
+              {groupedTasks.map((section) => (
+                <Droppable droppableId={section.value} key={section.value}>
+                  {(provided) => (
+                    <div
+                      ref={provided.innerRef}
+                      {...provided.droppableProps}
+                      className="flex-1 min-w-[320px] bg-gray-50 rounded-xl p-4 border border-gray-200"
+                    >
+                      <div className={`flex items-center gap-2 mb-4 font-bold text-lg ${STATUS_COLORS[section.value]}`}>{section.label} <span className="ml-2 text-xs font-semibold rounded px-2 py-0.5 bg-white/30">{section.tasks.length}</span></div>
+                      <div className="flex flex-col gap-4">
+                        {section.tasks.length === 0 ? (
+                          <div className="text-gray-300 italic">No tasks</div>
+                        ) : (
+                          section.tasks.map((task, idx) => (
+                            <Draggable draggableId={task.id} index={idx} key={task.id}>
+                              {(provided) => (
+                                <div
+                                  ref={provided.innerRef}
+                                  {...provided.draggableProps}
+                                  {...provided.dragHandleProps}
+                                  className="bg-white rounded-lg shadow-sm p-4 border border-gray-100 mb-2"
+                                >
+                                  <div className="font-medium text-gray-800">{task.title}</div>
+                                  <div className="text-xs text-gray-500 mt-1">Due: {task.due_date || <span className="italic text-gray-300">No due</span>}</div>
+                                </div>
+                              )}
+                            </Draggable>
+                          ))
+                        )}
+                        {provided.placeholder}
+                      </div>
+                    </div>
+                  )}
+                </Droppable>
+              ))}
+            </div>
+          </DragDropContext>
+        </div>
+      )}
+      {view === 'timeline' && (
+        <div className="w-full px-8">
+          <div className="bg-white rounded-2xl shadow border p-6">
+            <div className="font-bold text-lg mb-4">Timeline</div>
+            <div className="relative flex items-end gap-8 overflow-x-auto h-40">
+              {/* Time axis */}
+              <div className="absolute left-0 right-0 top-1/2 border-t border-gray-200 z-0" style={{height: 1}} />
+              {/* Today marker */}
+              <div className="absolute left-1/2 top-0 bottom-0 w-0.5 bg-blue-400 z-10" style={{transform: 'translateX(-50%)'}} />
+              {/* Tasks on timeline */}
+              {tasks
+                .filter(t => t.due_date)
+                .sort((a, b) => (a.due_date || '').localeCompare(b.due_date || ''))
+                .map((task, idx) => {
+                  // Calculate position: simple linear for demo (should use real date math for production)
+                  const left = `${10 + idx * 120}px`;
+                  return (
+                    <div
+                      key={task.id}
+                      className={`absolute z-20`}
+                      style={{ left, bottom: '40px' }}
+                    >
+                      <div className={`rounded-full px-4 py-2 font-medium text-white shadow ${STATUS_COLORS[task.status] || 'bg-gray-400'}`}>{task.title}</div>
+                      <div className="text-xs text-gray-500 text-center mt-1">{task.due_date}</div>
+                    </div>
+                  );
+                })}
+            </div>
+          </div>
+        </div>
+      )}
+      {view === 'table' && (
+        <div className="w-full px-8">
+          <div className="bg-white rounded-2xl shadow border p-0">
+            <div className="grid grid-cols-6 gap-2 px-6 py-2 text-xs text-gray-500 font-medium border-b border-gray-100 bg-gray-50">
+              <div className="col-span-2">Name</div>
+              <div>Status</div>
+              <div>Start Date</div>
+              <div>Due Date</div>
+              <div>Priority</div>
+              <div>People</div>
+            </div>
+            <div className="flex flex-col gap-0">
+              {tasks.length === 0 ? (
+                <div className="text-gray-300 italic px-6 py-4">No tasks</div>
+              ) : (
+                tasks.map((task) => (
+                  <div key={task.id} className="grid grid-cols-6 gap-2 px-6 py-3 border-b border-gray-100 items-center">
+                    <div className="col-span-2 font-medium text-gray-800">{task.title}</div>
+                    <div><span className={`px-2 py-0.5 rounded text-xs font-medium ${STATUS_COLORS[task.status] || 'bg-gray-300 text-white'}`}>{TASK_STATUSES.find(s => s.value === task.status)?.label || task.status}</span></div>
+                    <div>-</div>
+                    <div>{task.due_date || <span className="italic text-gray-300">No due</span>}</div>
+                    <div><span className="inline-block px-2 py-0.5 rounded bg-gray-200 text-xs text-gray-700">Normal</span></div>
+                    <div>{task.assignee_id && users.length > 0 ? (
+                      <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-gray-200 text-gray-700 text-xs font-semibold">{users.find(u => u.id === task.assignee_id)?.full_name?.[0] || '?'}</span>
+                    ) : (
+                      <span className="italic text-gray-300">-</span>
+                    )}</div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+      {view === 'filter' && (
+        <div className="w-full px-8 flex gap-8">
+          <div className="bg-white rounded-2xl shadow border p-6 min-w-[260px]">
+            <div className="font-bold text-lg mb-4">Filter Tasks</div>
+            {/* Real filter options */}
+            <div className="mb-4">
+              <label className="block text-xs font-medium mb-1">Status</label>
+              <select className="w-full border rounded px-2 py-1" value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
+                <option value="">All</option>
+                {TASK_STATUSES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+              </select>
+            </div>
+            <div className="mb-4">
+              <label className="block text-xs font-medium mb-1">Assignee</label>
+              <select className="w-full border rounded px-2 py-1" value={filterAssignee} onChange={e => setFilterAssignee(e.target.value)}>
+                <option value="">All</option>
+                {users.map(u => <option key={u.id} value={u.id}>{u.full_name}</option>)}
+              </select>
+            </div>
+            {/* Add more filters as needed */}
+          </div>
+          <div className="flex-1">
+            <div className="bg-white rounded-2xl shadow border p-0">
+              <div className="grid grid-cols-6 gap-2 px-6 py-2 text-xs text-gray-500 font-medium border-b border-gray-100 bg-gray-50">
+                <div className="col-span-2">Name</div>
+                <div>Status</div>
+                <div>Start Date</div>
+                <div>Due Date</div>
+                <div>Priority</div>
+                <div>People</div>
+              </div>
+              <div className="flex flex-col gap-0">
+                {filteredTasks.length === 0 ? (
+                  <div className="text-gray-300 italic px-6 py-4">No tasks</div>
+                ) : (
+                  filteredTasks.map((task) => (
+                    <div key={task.id} className="grid grid-cols-6 gap-2 px-6 py-3 border-b border-gray-100 items-center">
+                      <div className="col-span-2 font-medium text-gray-800">{task.title}</div>
+                      <div><span className={`px-2 py-0.5 rounded text-xs font-medium ${STATUS_COLORS[task.status] || 'bg-gray-300 text-white'}`}>{TASK_STATUSES.find(s => s.value === task.status)?.label || task.status}</span></div>
+                      <div>-</div>
+                      <div>{task.due_date || <span className="italic text-gray-300">No due</span>}</div>
+                      <div><span className="inline-block px-2 py-0.5 rounded bg-gray-200 text-xs text-gray-700">Normal</span></div>
+                      <div>{task.assignee_id && users.length > 0 ? (
+                        <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-gray-200 text-gray-700 text-xs font-semibold">{users.find(u => u.id === task.assignee_id)?.full_name?.[0] || '?'}</span>
+                      ) : (
+                        <span className="italic text-gray-300">-</span>
+                      )}</div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>

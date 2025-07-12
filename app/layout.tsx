@@ -7,6 +7,7 @@ import { Toaster } from "@/components/ui/sonner";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { BellIcon } from "@heroicons/react/24/outline";
+import ReactQueryProvider from '@/components/ReactQueryProvider';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -32,8 +33,10 @@ export default function RootLayout({
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased bg-[#FFFFFF]`}>
         <AuthProvider>
-          {children}
-          <Toaster />
+          <ReactQueryProvider>
+            {children}
+            <Toaster />
+          </ReactQueryProvider>
         </AuthProvider>
       </body>
     </html>

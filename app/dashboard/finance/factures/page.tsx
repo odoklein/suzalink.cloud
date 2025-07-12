@@ -1,322 +1,270 @@
 "use client";
 import React, { useState, useEffect } from "react";
-import { Dialog, DialogTrigger, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
+import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
-import { format } from "date-fns";
-import { supabase } from "@/lib/supabase";
-import { Loader2 } from "lucide-react";
-import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
-import fontkit from "@pdf-lib/fontkit";
+import { Button } from "@/components/ui/button";
+import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
 
-type Client = { id: string; name: string; company?: string; contact_email?: string };
-type Service = { title: string; quantity: number; unitPrice: number };
+const currencyOptions = [
+  { value: "USD", label: "US Dollar" },
+  { value: "EUR", label: "Euro" },
+  { value: "GBP", label: "British Pound" },
+];
 
 export default function FacturesPage() {
-  const [open, setOpen] = useState(false);
-  const [clients, setClients] = useState<Client[]>([]);
-  const [selectedClient, setSelectedClient] = useState<string>("");
-  const [services, setServices] = useState<Service[]>([
-    { title: "", quantity: 1, unitPrice: 0 }
-  ]);
-  const [date, setDate] = useState<string>(format(new Date(), "yyyy-MM-dd"));
-  const [saving, setSaving] = useState(false);
-  const [clientsLoading, setClientsLoading] = useState(false);
-  const [clientsError, setClientsError] = useState<string | null>(null);
-  const [invoiceNumber, setInvoiceNumber] = useState("");
-  const [factures, setFactures] = useState<any[]>([]);
-  const [facturesLoading, setFacturesLoading] = useState(false);
+  const [form, setForm] = useState({
+    client: "",
+    address: "",
+    invoiceNumber: "",
+    currency: "USD",
+    issuedDate: "",
+    dueDate: "",
+    items: [
+      { name: "", qty: 1, cost: 0 }
+    ],
+    tax: 0,
+    discount: 0,
+    notes: ""
+  });
+  const [clients, setClients] = useState<{ id: string; name: string; contact_email: string }[]>([]);
+  const [clientSearch, setClientSearch] = useState("");
 
   useEffect(() => {
     async function fetchClients() {
-      setClientsLoading(true);
-      setClientsError(null);
       try {
         const res = await fetch("/api/clients");
         if (!res.ok) throw new Error("Failed to fetch clients");
-        const data = await res.json();
-        setClients(
-          data.map((c: any) => ({
-            id: c.id,
-            name: c.name,
-            company: c.company,
-            contact_email: c.contact_email,
-          }))
-        );
-      } catch (e: any) {
-        setClientsError(e.message);
-      } finally {
-        setClientsLoading(false);
+        const { data } = await res.json();
+        setClients((data || []).map((c: any) => ({ id: c.id, name: c.name, contact_email: c.contact_email })));
+      } catch (e) {
+        setClients([]);
       }
     }
     fetchClients();
   }, []);
 
-  const handleServiceChange = (idx: number, field: keyof Service, value: string | number) => {
-    setServices(services =>
-      services.map((s, i) =>
-        i === idx ? { ...s, [field]: field === "quantity" || field === "unitPrice" ? Number(value) : value } : s
+  // Handlers for form changes
+  const handleItemChange = (idx: number, field: string, value: string | number) => {
+    setForm(f => ({
+      ...f,
+      items: f.items.map((item, i) =>
+        i === idx ? { ...item, [field]: field === "qty" || field === "cost" ? Number(value) : value } : item
       )
-    );
+    }));
   };
+  const addItem = () => setForm(f => ({ ...f, items: [...f.items, { name: "", qty: 1, cost: 0 }] }));
+  const removeItem = (idx: number) => setForm(f => ({ ...f, items: f.items.filter((_, i) => i !== idx) }));
 
-  const addService = () => setServices([...services, { title: "", quantity: 1, unitPrice: 0 }]);
-  const removeService = (idx: number) => setServices(services => services.filter((_, i) => i !== idx));
-
-  const subtotal = services.reduce((sum, s) => sum + (s.quantity * s.unitPrice), 0);
-  const total = subtotal; // Add taxes/discounts if needed
-
-  // Fetch factures on mount and after save
-  const fetchFactures = async () => {
-    setFacturesLoading(true);
-    const { data, error } = await supabase
-      .from("factures")
-      .select("id, client_id, services, date, subtotal, total, invoice_number")
-      .order("date", { ascending: false });
-    if (!error && data) setFactures(data);
-    setFacturesLoading(false);
-  };
-
-  useEffect(() => {
-    fetchFactures();
-  }, []);
-
-  const handleSave = async () => {
-    setSaving(true);
-    const { error } = await supabase.from("factures").insert([
-      {
-        client_id: selectedClient,
-        services,
-        date,
-        subtotal,
-        total,
-        invoice_number: invoiceNumber,
-      }
-    ]);
-    setSaving(false);
-    if (!error) {
-      setOpen(false);
-      fetchFactures();
-    }
-    // TODO: show toast/notification
-  };
-
-  const handleDownloadPDF = async () => {
-    const templateUrl = "/A4 - 1.pdf";
-    const existingPdfBytes = await fetch(templateUrl).then(res => res.arrayBuffer());
-    const pdfDoc = await PDFDocument.load(existingPdfBytes);
-    pdfDoc.registerFontkit(fontkit);
-    const helveticaFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
-    const page = pdfDoc.getPages()[0];
-
-    // Get selected client details
-    const client = clients.find(c => c.id === selectedClient);
-    const clientName = client?.name || "";
-
-    // Overwrite the client box (top right, adjust x/y as needed)
-    page.drawRectangle({ x: 370, y: 710, width: 180, height: 45, color: rgb(1, 1, 1) }); // white out the box
-    page.drawText(clientName, { x: 400, y: 735, size: 13, font: helveticaFont, color: rgb(0,0,0) });
-
-    // Overwrite the invoice number box (left of client box)
-    page.drawRectangle({ x: 120, y: 690, width: 120, height: 30, color: rgb(1, 1, 1) });
-    page.drawText(invoiceNumber, { x: 130, y: 705, size: 12, font: helveticaFont, color: rgb(0,0,0) });
-
-    // Overwrite the date area (adjust x/y as needed)
-    page.drawRectangle({ x: 65, y: 670, width: 200, height: 20, color: rgb(1, 1, 1) }); // white out the old text
-    page.drawText(date, { x: 70, y: 675, size: 12, font: helveticaFont, color: rgb(0,0,0) });
-
-    // Draw pricing table in the center white area
-    // Table layout
-    const tableX = 80; // left margin of the table (centered in white area)
-    const tableY = 570; // start y (top of table)
-    const colTitle = tableX;
-    const colQty = tableX + 200;
-    const colUnit = tableX + 260;
-    const colTotal = tableX + 340;
-    const rowHeight = 28;
-    // Table headers
-    page.drawText("Service", { x: colTitle, y: tableY, size: 12, font: helveticaFont, color: rgb(0,0,0) });
-    page.drawText("Qty", { x: colQty, y: tableY, size: 12, font: helveticaFont, color: rgb(0,0,0) });
-    page.drawText("Unit Price", { x: colUnit, y: tableY, size: 12, font: helveticaFont, color: rgb(0,0,0) });
-    page.drawText("Total", { x: colTotal, y: tableY, size: 12, font: helveticaFont, color: rgb(0,0,0) });
-    // Table rows
-    services.forEach((s, i) => {
-      const y = tableY - (i + 1) * rowHeight;
-      page.drawText(s.title, { x: colTitle, y, size: 11, font: helveticaFont, color: rgb(0,0,0) });
-      page.drawText(String(s.quantity), { x: colQty, y, size: 11, font: helveticaFont, color: rgb(0,0,0) });
-      page.drawText(String(s.unitPrice), { x: colUnit, y, size: 11, font: helveticaFont, color: rgb(0,0,0) });
-      page.drawText((s.quantity * s.unitPrice).toFixed(2), { x: colTotal, y, size: 11, font: helveticaFont, color: rgb(0,0,0) });
-    });
-    // Subtotal and total below the table
-    const summaryY = tableY - (services.length + 1) * rowHeight;
-    page.drawText(`Subtotal: ${subtotal.toFixed(2)}`, { x: colTotal, y: summaryY, size: 12, font: helveticaFont, color: rgb(0,0,0) });
-    page.drawText(`Total: ${total.toFixed(2)}`, { x: colTotal, y: summaryY - 20, size: 13, font: helveticaFont, color: rgb(0,0,0) });
-    // Download
-    const pdfBytes = await pdfDoc.save();
-    const blob = new Blob([pdfBytes], { type: "application/pdf" });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = `facture_${date}.pdf`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
-  // Mock factures data
-  const mockFactures = [
-    {
-      id: "1",
-      client: "Acme Corp",
-      date: "2024-06-01",
-      total: 1200.5,
-      services: [
-        { title: "Consulting", quantity: 2, unitPrice: 500 },
-        { title: "Hosting", quantity: 1, unitPrice: 200.5 },
-      ],
-    },
-    {
-      id: "2",
-      client: "Beta LLC",
-      date: "2024-06-03",
-      total: 800,
-      services: [
-        { title: "Design", quantity: 4, unitPrice: 200 },
-      ],
-    },
-  ];
+  const subtotal = form.items.reduce((sum, item) => sum + item.qty * item.cost, 0);
+  const taxAmount = subtotal * (form.tax / 100);
+  const total = subtotal + taxAmount - form.discount;
 
   return (
-    <div className="p-8">
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold">Factures</h1>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button>+ New Facture</Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl w-full">
-            <DialogTitle>New Facture</DialogTitle>
-            <DialogDescription>Fill in the invoice details below.</DialogDescription>
-            <form className="space-y-6" onSubmit={e => { e.preventDefault(); handleSave(); }}>
-              <div className="flex flex-col gap-2">
-                <Label>Client</Label>
-                <Select value={selectedClient} onValueChange={setSelectedClient} required>
-                  <SelectTrigger>
-                    <SelectValue placeholder={clientsLoading ? "Loading..." : clientsError ? clientsError : "Select client"} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {clientsLoading ? (
-                      <div className="flex items-center gap-2 p-2 text-gray-500"><Loader2 className="animate-spin w-4 h-4" /> Loading...</div>
-                    ) : clientsError ? (
-                      <div className="p-2 text-red-500">{clientsError}</div>
-                    ) : clients.length === 0 ? (
-                      <div className="p-2 text-gray-500">No clients found</div>
-                    ) : (
-                      clients.map((c) => (
-                        <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                      ))
-                    )}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex flex-col gap-2">
-                <Label>Date</Label>
-                <Input type="date" value={date} onChange={e => setDate(e.target.value)} required />
-              </div>
-              <div className="flex flex-col gap-2">
-                <Label>Invoice Number</Label>
-                <Input
-                  type="text"
-                  placeholder="Enter invoice number"
-                  value={invoiceNumber}
-                  onChange={e => setInvoiceNumber(e.target.value)}
-                />
-              </div>
-              <div className="border rounded p-4 bg-muted">
-                <div className="font-semibold mb-2">Services</div>
-                {services.map((service, idx) => (
-                  <div key={idx} className="flex gap-2 items-center mb-2">
-                    <Input
-                      placeholder="Title"
-                      value={service.title}
-                      onChange={e => handleServiceChange(idx, "title", e.target.value)}
-                      className="w-1/3"
-                      required
-                    />
-                    <Input
-                      type="number"
-                      min={1}
-                      placeholder="Qty"
-                      value={service.quantity}
-                      onChange={e => handleServiceChange(idx, "quantity", e.target.value)}
-                      className="w-1/6"
-                      required
-                    />
-                    <Input
-                      type="number"
-                      min={0}
-                      step={0.01}
-                      placeholder="Unit Price"
-                      value={service.unitPrice}
-                      onChange={e => handleServiceChange(idx, "unitPrice", e.target.value)}
-                      className="w-1/4"
-                      required
-                    />
-                    <span className="w-1/6 text-right">{(service.quantity * service.unitPrice).toFixed(2)}</span>
-                    {services.length > 1 && (
-                      <Button type="button" variant="ghost" size="icon" onClick={() => removeService(idx)}>
-                        &times;
-                      </Button>
-                    )}
-                  </div>
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6">
+      {/* Invoice Form */}
+      <Card className="p-4">
+        <CardHeader className="mb-4">Invoice details</CardHeader>
+        <CardContent>
+          <div className="mb-4">
+            <label className="block mb-1 font-medium">Bill to</label>
+            <Select value={form.client} onValueChange={val => {
+              const client = clients.find(c => c.id === val);
+              setForm(f => ({
+                ...f,
+                client: client ? client.id : "",
+                address: client ? client.contact_email : ""
+              }));
+            }}>
+              <SelectTrigger className="mb-2">
+                <SelectValue placeholder="Search or select client" />
+              </SelectTrigger>
+              <SelectContent>
+                <div className="p-2">
+                  <Input
+                    placeholder="Search clients..."
+                    value={clientSearch}
+                    onChange={e => setClientSearch(e.target.value)}
+                    className="mb-2"
+                  />
+                </div>
+                {clients.filter(c =>
+                  c.name.toLowerCase().includes(clientSearch.toLowerCase()) ||
+                  c.contact_email.toLowerCase().includes(clientSearch.toLowerCase())
+                ).map(c => (
+                  <SelectItem key={c.id} value={c.id}>
+                    <div className="flex flex-col">
+                      <span className="font-medium">{c.name}</span>
+                      <span className="text-xs text-gray-500">{c.contact_email}</span>
+                    </div>
+                  </SelectItem>
                 ))}
-                <Button type="button" variant="outline" onClick={addService} className="mt-2">+ Add Service</Button>
-              </div>
-              <div className="flex flex-col items-end gap-1">
-                <div className="flex gap-8 text-lg">
-                  <span>Subtotal:</span>
-                  <span className="font-mono">{subtotal.toFixed(2)}</span>
-                </div>
-                <div className="flex gap-8 text-xl font-bold">
-                  <span>Total:</span>
-                  <span className="font-mono">{total.toFixed(2)}</span>
-                </div>
-              </div>
-              <div className="flex gap-2 justify-end mt-4">
-                <Button type="submit" disabled={saving}>Save</Button>
-                <Button type="button" variant="secondary">Send to Email</Button>
-                <Button type="button" variant="outline" onClick={handleDownloadPDF}>Download PDF</Button>
-              </div>
-            </form>
-          </DialogContent>
-        </Dialog>
-      </div>
-      {/* List of factures can go here */}
-      <div className="mt-10">
-        <h2 className="text-xl font-semibold mb-4">Factures List</h2>
-        {facturesLoading ? (
-          <div className="text-gray-500">Loading...</div>
-        ) : factures.length === 0 ? (
-          <div className="text-muted-foreground">No factures yet.</div>
-        ) : (
-          <div className="space-y-4">
-            {factures.map(f => {
-              const client = clients.find(c => c.id === f.client_id);
-              return (
-                <div key={f.id} className="border rounded-lg p-4 bg-white shadow flex flex-col md:flex-row md:items-center md:justify-between gap-2">
-                  <div>
-                    <div className="font-bold text-lg">{f.invoice_number || "No Number"}</div>
-                    <div className="text-gray-500 text-sm">Client: {client ? client.name : f.client_id}</div>
-                    <div className="text-gray-500 text-sm">Date: {f.date?.slice(0, 10)}</div>
-                  </div>
-                  <div className="text-xl font-mono font-bold">{f.total?.toFixed(2)}</div>
-                </div>
-              );
-            })}
+                {clients.length === 0 && (
+                  <div className="p-2 text-gray-400">No clients found</div>
+                )}
+              </SelectContent>
+            </Select>
           </div>
-        )}
-      </div>
+          <div className="flex gap-2 mb-4">
+            <Input
+              placeholder="Invoice Number"
+              value={form.invoiceNumber}
+              onChange={e => setForm(f => ({ ...f, invoiceNumber: e.target.value }))}
+            />
+            <Select value={form.currency} onValueChange={val => setForm(f => ({ ...f, currency: val }))}>
+              <SelectTrigger className="w-40">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {currencyOptions.map(opt => (
+                  <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex gap-2 mb-4">
+            <Input
+              type="date"
+              placeholder="Issued Date"
+              value={form.issuedDate}
+              onChange={e => setForm(f => ({ ...f, issuedDate: e.target.value }))}
+            />
+            <Input
+              type="date"
+              placeholder="Due Date"
+              value={form.dueDate}
+              onChange={e => setForm(f => ({ ...f, dueDate: e.target.value }))}
+            />
+          </div>
+          <div className="mb-4">
+            <div className="font-semibold mb-2">Items details</div>
+            <div className="border rounded-lg overflow-hidden">
+              <div className="grid grid-cols-4 gap-2 p-2 bg-muted text-xs font-medium">
+                <div>Item</div>
+                <div>QTY</div>
+                <div>Cost</div>
+                <div>Total</div>
+              </div>
+              {form.items.map((item, idx) => (
+                <div key={idx} className="grid grid-cols-4 gap-2 p-2 border-t items-center">
+                  <Input
+                    placeholder="Item name"
+                    value={item.name}
+                    onChange={e => handleItemChange(idx, "name", e.target.value)}
+                  />
+                  <Input
+                    type="number"
+                    min={1}
+                    value={item.qty}
+                    onChange={e => handleItemChange(idx, "qty", e.target.value)}
+                  />
+                  <Input
+                    type="number"
+                    min={0}
+                    value={item.cost}
+                    onChange={e => handleItemChange(idx, "cost", e.target.value)}
+                  />
+                  <div className="text-right font-mono">{(item.qty * item.cost).toLocaleString()}</div>
+                  <Button type="button" variant="ghost" size="icon" onClick={() => removeItem(idx)} disabled={form.items.length === 1}>
+                    <span className="text-red-500">&times;</span>
+                  </Button>
+                </div>
+              ))}
+            </div>
+            <Button type="button" variant="outline" className="mt-2" onClick={addItem}>+ Add item</Button>
+          </div>
+          <div className="flex gap-2 mb-4">
+            <Input
+              type="number"
+              min={0}
+              placeholder="Tax %"
+              value={form.tax}
+              onChange={e => setForm(f => ({ ...f, tax: Number(e.target.value) }))}
+            />
+            <Input
+              type="number"
+              min={0}
+              placeholder="Discount"
+              value={form.discount}
+              onChange={e => setForm(f => ({ ...f, discount: Number(e.target.value) }))}
+            />
+          </div>
+          <Input
+            placeholder="Notes"
+            value={form.notes}
+            onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
+            className="mb-2"
+          />
+        </CardContent>
+      </Card>
+      {/* Invoice Preview */}
+      <Card className="p-4">
+        <CardHeader className="mb-4">Preview</CardHeader>
+        <CardContent>
+          <div className="mb-4">
+            <div className="text-2xl font-bold mb-2">Invoice</div>
+            <div className="flex justify-between text-sm mb-2">
+              <div>
+                <div className="font-medium">Invoice Number</div>
+                <div>#{form.invoiceNumber || "---"}</div>
+              </div>
+              <div>
+                <div className="font-medium">Billed to</div>
+                <div>{form.client || "---"}</div>
+                <div className="text-xs text-gray-500">{form.address || "---"}</div>
+              </div>
+            </div>
+            <div className="flex justify-between text-sm mb-2">
+              <div>
+                <div className="font-medium">Issued</div>
+                <div>{form.issuedDate || "---"}</div>
+              </div>
+              <div>
+                <div className="font-medium">Due</div>
+                <div>{form.dueDate || "---"}</div>
+              </div>
+            </div>
+          </div>
+          <div className="mb-4">
+            <div className="font-semibold mb-2">Items</div>
+            <div className="grid grid-cols-4 gap-2 text-xs font-medium bg-muted p-2 rounded">
+              <div>Item</div>
+              <div>QTY</div>
+              <div>Rate</div>
+              <div>Total</div>
+            </div>
+            {form.items.map((item, idx) => (
+              <div key={idx} className="grid grid-cols-4 gap-2 p-2 border-b last:border-b-0 items-center">
+                <div>{item.name || <span className="text-gray-400">---</span>}</div>
+                <div>{item.qty}</div>
+                <div>{item.cost.toLocaleString()}</div>
+                <div>{(item.qty * item.cost).toLocaleString()}</div>
+              </div>
+            ))}
+          </div>
+          <div className="flex flex-col items-end gap-1 mb-2">
+            <div className="flex gap-8 text-lg">
+              <span>Subtotal:</span>
+              <span className="font-mono">{subtotal.toLocaleString()}</span>
+            </div>
+            <div className="flex gap-8 text-lg">
+              <span>Tax:</span>
+              <span className="font-mono">{taxAmount.toLocaleString()}</span>
+            </div>
+            <div className="flex gap-8 text-lg">
+              <span>Discount:</span>
+              <span className="font-mono">{form.discount.toLocaleString()}</span>
+            </div>
+            <div className="flex gap-8 text-xl font-bold">
+              <span>Total:</span>
+              <span className="font-mono">{total.toLocaleString()}</span>
+            </div>
+          </div>
+          <div className="mt-4">
+            <div className="font-medium mb-1">Notes:</div>
+            <div className="text-gray-600 text-sm whitespace-pre-line">{form.notes || "---"}</div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 } 

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function ProspectsFoldersPage() {
   const [folders, setFolders] = useState<any[]>([]);
@@ -69,7 +70,15 @@ export default function ProspectsFoldersPage() {
         <Button onClick={() => handleOpenModal()}>+ New Folder</Button>
       </div>
       {loading ? (
-        <div className="p-8 text-center text-gray-500">Loading...</div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {[...Array(6)].map((_, i) => (
+            <Card key={i} className="p-6">
+              <Skeleton className="h-6 w-1/2 mb-4" /> {/* Title */}
+              <Skeleton className="h-4 w-2/3 mb-2" /> {/* Description */}
+              <Skeleton className="h-4 w-1/3" /> {/* Date */}
+            </Card>
+          ))}
+        </div>
       ) : error ? (
         <div className="p-8 text-center text-red-500">{error}</div>
       ) : (

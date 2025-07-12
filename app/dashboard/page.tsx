@@ -15,6 +15,7 @@ import {
   DocumentArrowUpIcon,
   ChartBarIcon
 } from "@heroicons/react/24/outline";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function DashboardPage() {
   const [stats, setStats] = useState({
@@ -87,7 +88,7 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold text-blue-900 mb-1">
-                {stats.loading ? "..." : stats.prospects.toLocaleString()}
+                {stats.loading ? <Skeleton className="h-8 w-16" /> : stats.prospects.toLocaleString()}
               </div>
               <div className="flex items-center text-sm text-blue-600">
                 <ArrowTrendingUpIcon className="h-4 w-4 mr-1" />
@@ -106,7 +107,7 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold text-green-900 mb-1">
-                {stats.loading ? "..." : stats.clients.toLocaleString()}
+                {stats.loading ? <Skeleton className="h-8 w-16" /> : stats.clients.toLocaleString()}
               </div>
               <div className="flex items-center text-sm text-green-600">
                 <ArrowTrendingUpIcon className="h-4 w-4 mr-1" />
@@ -125,7 +126,7 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold text-purple-900 mb-1">
-                {stats.loading ? "..." : `$${stats.income.toLocaleString()}`}
+                {stats.loading ? <Skeleton className="h-8 w-24" /> : `$${stats.income.toLocaleString()}`}
               </div>
               <div className="flex items-center text-sm text-purple-600">
                 <ArrowTrendingUpIcon className="h-4 w-4 mr-1" />
@@ -144,7 +145,7 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold text-orange-900 mb-1">
-                {stats.loading ? "..." : `$${stats.expenses.toLocaleString()}`}
+                {stats.loading ? <Skeleton className="h-8 w-24" /> : `$${stats.expenses.toLocaleString()}`}
               </div>
               <div className="flex items-center text-sm text-orange-600">
                 <ArrowTrendingUpIcon className="h-4 w-4 mr-1" />
@@ -164,7 +165,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="text-4xl font-bold text-emerald-900 mb-1">
-              {stats.loading ? "..." : `$${balance.toLocaleString()}`}
+              {stats.loading ? <Skeleton className="h-10 w-32" /> : `$${balance.toLocaleString()}`}
             </div>
             <div className="text-sm text-emerald-600">
               This Month

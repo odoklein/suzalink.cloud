@@ -3,6 +3,7 @@ import { useAuth } from "@/lib/auth-context";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ShieldCheckIcon, UserIcon, EnvelopeIcon, CalendarIcon } from "@heroicons/react/24/outline";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function ProfilePage() {
   const { userProfile } = useAuth();
@@ -23,7 +24,14 @@ export default function ProfilePage() {
   if (!userProfile) {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        <span>Loading...</span>
+        <Card className="max-w-2xl w-full p-8">
+          <Skeleton className="h-8 w-1/3 mb-6" /> {/* Title */}
+          <Skeleton className="h-6 w-1/2 mb-4" /> {/* Subtitle */}
+          <Skeleton className="h-5 w-1/4 mb-4" /> {/* Email */}
+          <Skeleton className="h-5 w-1/4 mb-4" /> {/* Full Name */}
+          <Skeleton className="h-5 w-1/4 mb-4" /> {/* Role */}
+          <Skeleton className="h-5 w-1/4" /> {/* Member Since */}
+        </Card>
       </div>
     );
   }

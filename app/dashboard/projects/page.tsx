@@ -17,13 +17,11 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { ChevronDown } from "lucide-react";
+import { useQuery } from '@tanstack/react-query';
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function ProjectsPage() {
   const { user } = useAuth();
-  const [projects, setProjects] = useState<any[]>([]);
-  const [clients, setClients] = useState<any[]>([]);
-  const [users, setUsers] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({
     title: "",
@@ -42,45 +40,76 @@ export default function ProjectsPage() {
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [deleteModal, setDeleteModal] = useState<{ open: boolean, projectId: string | null }>({ open: false, projectId: null });
 
-  useEffect(() => {
-    if (!user) return;
-    fetchProjects();
-    fetchClients();
-    fetchUsers();
-    // eslint-disable-next-line
-  }, [user, filterStatus, filterClient, sortBy, sortDir]);
+  // Fetch projects with React Query
+  const {
+    data: projects = [] as any[],
+    isLoading: loadingProjects,
+    isError: errorProjects,
+    refetch: refetchProjects
+  } = useQuery<any[], Error>({
+    queryKey: [
+      "projects",
+      user?.id,
+      filterStatus,
+      filterClient,
+      sortBy,
+      sortDir
+    ],
+    queryFn: async () => {
+      if (!user) return [];
+      let query = supabase
+        .from("projects")
+        .select(`
+          id, title, description, status, start_date, end_date, budget, created_at,
+          client:clients(name), client_id
+        `);
+      if (filterStatus && filterStatus !== "all") query = query.eq("status", filterStatus);
+      if (filterClient && filterClient !== "all") query = query.eq("client_id", filterClient);
+      query = query.order(sortBy, { ascending: sortDir === "asc" });
+      const { data, error } = await query;
+      if (error) throw new Error(error.message);
+      return data || [];
+    },
+    enabled: !!user
+  });
 
-  async function fetchProjects() {
-    setLoading(true);
-    let query = supabase
-      .from("projects")
-      .select(`
-        id, title, description, status, start_date, end_date, budget, created_at,
-        client:clients(name), client_id
-      `);
-    if (filterStatus && filterStatus !== "all") query = query.eq("status", filterStatus);
-    if (filterClient && filterClient !== "all") query = query.eq("client_id", filterClient);
-    query = query.order(sortBy, { ascending: sortDir === "asc" });
-    const { data, error } = await query;
-    setProjects(data || []);
-    setLoading(false);
-  }
+  // Fetch clients
+  const {
+    data: clients = [] as any[],
+    isLoading: loadingClients,
+    isError: errorClients
+  } = useQuery<any[], Error>({
+    queryKey: ["clients", user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+      const { data, error } = await supabase
+        .from("clients")
+        .select("id, name")
+        .order("name");
+      if (error) throw new Error(error.message);
+      return data || [];
+    },
+    enabled: !!user
+  });
 
-  async function fetchClients() {
-    const { data } = await supabase
-      .from("clients")
-      .select("id, name")
-      .order("name");
-    setClients(data || []);
-  }
-
-  async function fetchUsers() {
-    const { data } = await supabase
-      .from("users")
-      .select("id, full_name")
-      .order("full_name");
-    setUsers(data || []);
-  }
+  // Fetch users
+  const {
+    data: users = [] as any[],
+    isLoading: loadingUsers,
+    isError: errorUsers
+  } = useQuery<any[], Error>({
+    queryKey: ["users", user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+      const { data, error } = await supabase
+        .from("users")
+        .select("id, full_name")
+        .order("full_name");
+      if (error) throw new Error(error.message);
+      return data || [];
+    },
+    enabled: !!user
+  });
 
   function openCreate() {
     setEditing(null);
@@ -139,7 +168,7 @@ export default function ProjectsPage() {
       }
     }
     setOpen(false);
-    fetchProjects();
+    refetchProjects();
   }
 
   async function handleDelete(id: string) {
@@ -149,124 +178,93 @@ export default function ProjectsPage() {
     } else {
       toast.success("Project deleted successfully");
     }
-    fetchProjects();
+    refetchProjects();
   }
 
   if (!user) return null;
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
-        <h2 className="text-xl font-semibold text-gray-700 flex items-center gap-2">
-          Projects
-          <span className="flex-1 border-t border-gray-200 ml-4" />
-        </h2>
-        <div className="flex flex-wrap gap-2 items-center">
-          <Select value={filterStatus} onValueChange={setFilterStatus}>
-            <SelectTrigger className="w-[120px]">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Statuses</SelectItem>
-              <SelectItem value="active">Active</SelectItem>
-              <SelectItem value="completed">Completed</SelectItem>
-              <SelectItem value="archived">Archived</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={filterClient} onValueChange={setFilterClient}>
-            <SelectTrigger className="w-[140px]">
-              <SelectValue placeholder="Client" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Clients</SelectItem>
-              {clients.map((c: any) => (
-                <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={sortBy} onValueChange={setSortBy}>
-            <SelectTrigger className="w-[140px]">
-              <SelectValue />
-              <ChevronDown className="w-4 h-4 ml-2" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="created_at">Newest</SelectItem>
-              <SelectItem value="title">Title</SelectItem>
-            </SelectContent>
-          </Select>
-          <Button
-            variant="outline"
-            size="sm"
-            className="px-2"
-            onClick={() => setSortDir(d => (d === "asc" ? "desc" : "asc"))}
-            title={`Sort ${sortDir === "asc" ? "Descending" : "Ascending"}`}
-          >
-            {sortDir === "asc" ? "↑" : "↓"}
-          </Button>
-          <Button onClick={openCreate} className="rounded-lg">+ New Project</Button>
-        </div>
-      </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        {loading ? (
-          <div className="text-gray-400">Loading...</div>
-        ) : projects.length === 0 ? (
-          <Card
-            className="flex flex-col items-center justify-center border-2 border-dashed border-gray-200 bg-gray-50/60 hover:bg-purple-50 transition-all cursor-pointer min-h-[220px]"
-            onClick={openCreate}
-            tabIndex={0}
-            role="button"
-            aria-label="Add new project"
-          >
-            <button
-              className="flex flex-col items-center justify-center gap-2 focus:outline-none"
-              style={{ width: '100%', height: '100%' }}
-              tabIndex={-1}
-              type="button"
+      <div className="flex flex-col gap-6">
+        {/* Filter Bar */}
+        <div className="flex flex-wrap items-center gap-4 justify-between mb-4 px-2">
+          <div className="flex flex-wrap gap-2 items-center">
+            <Select value={filterClient} onValueChange={setFilterClient}>
+              <SelectTrigger className="w-[140px] bg-white border border-gray-200 rounded-lg shadow-sm">
+                <SelectValue placeholder="Client" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Clients</SelectItem>
+                {clients.map((c: any) => (
+                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={filterStatus} onValueChange={setFilterStatus}>
+              <SelectTrigger className="w-[120px] bg-white border border-gray-200 rounded-lg shadow-sm">
+                <SelectValue placeholder="Label" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="completed">Completed</SelectItem>
+                <SelectItem value="archived">Archived</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={sortBy} onValueChange={setSortBy}>
+              <SelectTrigger className="w-[140px] bg-white border border-gray-200 rounded-lg shadow-sm">
+                <SelectValue placeholder="Sort" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="created_at">Newest</SelectItem>
+                <SelectItem value="title">Title</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button
+              variant="outline"
+              size="sm"
+              className="px-2 border-gray-200"
+              onClick={() => setSortDir(d => (d === "asc" ? "desc" : "asc"))}
+              title={`Sort ${sortDir === "asc" ? "Descending" : "Ascending"}`}
             >
-              <span className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center text-purple-500 text-3xl mb-2 shadow-sm">
-                +
-              </span>
-              <span className="text-gray-500 font-medium">New Project</span>
-            </button>
-          </Card>
-        ) : (
-          <>
-            {projects.map((project) => (
-              <Card
-                key={project.id}
-                className="group hover:shadow-lg transition-shadow cursor-pointer"
-                onClick={() => router.push(`/dashboard/projects/${project.id}`)}
-              >
-                <CardHeader>
-                  <CardTitle>{project.title}</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-xs text-gray-400 mb-1">
-                    Status: <span className="capitalize">{project.status}</span>
+              {sortDir === "asc" ? "↑" : "↓"}
+            </Button>
+          </div>
+          <Button onClick={openCreate} className="rounded-lg font-medium shadow-sm">+ New Project</Button>
+        </div>
+        {/* Project Cards Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
+          {loadingProjects ? (
+            <>
+              {[...Array(6)].map((_, i) => (
+                <Card key={i} className="rounded-2xl p-4 bg-white border border-gray-100 flex flex-col min-h-[220px] justify-between shadow-sm">
+                  <div>
+                    <CardHeader className="p-0 mb-2">
+                      <Skeleton className="h-6 w-2/3 mb-2" /> {/* Title */}
+                    </CardHeader>
+                    <CardContent className="p-0">
+                      <Skeleton className="h-4 w-full mb-2" /> {/* Description */}
+                      <div className="flex items-center gap-2 mb-2">
+                        <Skeleton className="h-7 w-7 rounded-full" /> {/* Avatar */}
+                      </div>
+                      <Skeleton className="h-3 w-1/2 mb-2" /> {/* Status/Client */}
+                    </CardContent>
                   </div>
-                  <div className="text-xs text-gray-400 mb-1">
-                    Client: {project.client?.name || <span className="italic text-gray-300">No client</span>}
+                  <div className="flex items-center justify-between mt-2">
+                    <Skeleton className="h-3 w-1/4" /> {/* Date */}
+                    <div className="flex gap-2 items-center">
+                      <Skeleton className="h-5 w-5 rounded-full" /> {/* Star */}
+                      <Skeleton className="h-5 w-5 rounded-full" /> {/* Menu */}
+                    </div>
                   </div>
-                  <div className="text-xs text-gray-400 mb-1">
-                    Owner: {project.owner?.full_name || <span className="italic text-gray-300">No owner</span>}
-                  </div>
-                  <div className="text-xs text-gray-400 mb-1">
-                    Dates: {project.start_date || "-"} to {project.end_date || "-"}
-                  </div>
-                  <div className="text-xs text-gray-400 mb-1">
-                    Created: {project.created_at ? new Date(project.created_at).toLocaleDateString() : "-"}
-                  </div>
-                  <div className="text-gray-600 text-sm min-h-[32px] mb-2">{project.description || <span className="italic text-gray-300">No description</span>}</div>
-                  <div className="flex gap-2 mt-2">
-                    <Button size="sm" variant="outline" onClick={e => { e.stopPropagation(); openEdit(project); }}>Edit</Button>
-                    <Button size="sm" variant="destructive" onClick={e => { e.stopPropagation(); setDeleteModal({ open: true, projectId: project.id }); }}>Delete</Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-            {/* Add Project Card */}
+                </Card>
+              ))}
+            </>
+          ) : errorProjects ? (
+            <div className="text-red-500">Failed to load projects.</div>
+          ) : projects.length === 0 ? (
             <Card
-              className="flex flex-col items-center justify-center border-2 border-dashed border-gray-200 bg-gray-50/60 hover:bg-purple-50 transition-all cursor-pointer min-h-[220px]"
+              className="flex flex-col items-center justify-center border-2 border-dashed border-gray-200 bg-gray-50/60 hover:bg-purple-50 transition-all cursor-pointer min-h-[220px] shadow-none"
               onClick={openCreate}
               tabIndex={0}
               role="button"
@@ -284,8 +282,73 @@ export default function ProjectsPage() {
                 <span className="text-gray-500 font-medium">New Project</span>
               </button>
             </Card>
-          </>
-        )}
+          ) : (
+            <>
+              {projects.map((project: any) => (
+                <Card
+                  key={project.id}
+                  className="group hover:shadow-lg transition-shadow cursor-pointer rounded-2xl p-4 bg-white border border-gray-100 flex flex-col min-h-[220px] justify-between shadow-sm"
+                  onClick={() => router.push(`/dashboard/projects/${project.id}`)}
+                  style={{ boxShadow: '0 2px 8px 0 rgba(16,30,54,0.04)' }}
+                >
+                  <div>
+                    <CardHeader className="p-0 mb-2">
+                      <CardTitle className="text-lg font-bold mb-1 leading-tight text-gray-900">{project.title}</CardTitle>
+                    </CardHeader>
+                    <CardContent className="p-0">
+                      <div className="text-sm text-gray-500 mb-2 font-medium">
+                        {project.description || <span className="italic text-gray-300">No description</span>}
+                      </div>
+                      <div className="flex items-center gap-2 mb-2">
+                        {/* Avatars (owner/team) */}
+                        {project.owner?.full_name && (
+                          <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-gray-100 text-xs font-semibold text-gray-700 border border-gray-200">
+                            {project.owner.full_name.split(' ').map((n: string) => n[0]).join('').slice(0,2)}
+                          </span>
+                        )}
+                        {/* Add more avatars if you have a team array */}
+                      </div>
+                      <div className="flex flex-wrap gap-2 text-xs text-gray-400 mb-2">
+                        <span>Status: <span className="capitalize text-gray-600 font-medium">{project.status}</span></span>
+                        <span>Client: {project.client?.name || <span className="italic text-gray-300">No client</span>}</span>
+                        <span>Created: {project.created_at ? new Date(project.created_at).toLocaleDateString() : "-"}</span>
+                      </div>
+                    </CardContent>
+                  </div>
+                  <div className="flex items-center justify-between mt-2">
+                    <span className="text-xs text-gray-400">{project.start_date ? `${project.start_date}` : "No start"}</span>
+                    <div className="flex gap-2 items-center">
+                      {/* Star icon for favorite (placeholder) */}
+                      <span className="text-yellow-400 text-lg">★</span>
+                      {/* More menu (placeholder) */}
+                      <span className="text-gray-300 text-xl cursor-pointer">⋯</span>
+                    </div>
+                  </div>
+                </Card>
+              ))}
+              {/* Add Project Card */}
+              <Card
+                className="flex flex-col items-center justify-center border-2 border-dashed border-gray-200 bg-gray-50/60 hover:bg-purple-50 transition-all cursor-pointer min-h-[220px] shadow-none"
+                onClick={openCreate}
+                tabIndex={0}
+                role="button"
+                aria-label="Add new project"
+              >
+                <button
+                  className="flex flex-col items-center justify-center gap-2 focus:outline-none"
+                  style={{ width: '100%', height: '100%' }}
+                  tabIndex={-1}
+                  type="button"
+                >
+                  <span className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center text-purple-500 text-3xl mb-2 shadow-sm">
+                    +
+                  </span>
+                  <span className="text-gray-500 font-medium">New Project</span>
+                </button>
+              </Card>
+            </>
+          )}
+        </div>
       </div>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>

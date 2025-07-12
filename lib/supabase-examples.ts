@@ -143,4 +143,16 @@ export async function fetchMessages(sender_id: string, receiver_id: string) {
     .order("timestamp", { ascending: true });
   if (error) throw error;
   return data;
+}
+
+// Log user activity
+export async function logUserActivity(userId: string, action: string, details: any = null) {
+  const { error } = await supabase.from("user_activity").insert([
+    {
+      user_id: userId,
+      action,
+      details,
+    }
+  ]);
+  if (error) throw error;
 } 

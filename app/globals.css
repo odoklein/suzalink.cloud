@@ -142,6 +142,16 @@
   }
 }
 
+/* Skeleton Loader Animation */
+@keyframes skeleton-fade {
+  0% { opacity: 0.2; }
+  50% { opacity: 0.1; }
+  100% { opacity: 0.2; }
+}
+.animate-skeleton {
+  animation: skeleton-fade 0.8s linear infinite;
+}
+
 /* Add Gellix font-face for logo branding (add font files to /public/fonts when available) */
 /*
 @font-face {
