@@ -65,6 +65,7 @@ export function Sidebar() {
         { href: "/dashboard/projects", label: "Projects", icon: Briefcase },
         { href: "/dashboard/clients", label: "Clients", icon: Users },
         { href: "/dashboard/prospects", label: "Prospects", icon: UserPlus },
+        { href: "/dashboard/commandes", label: "Commandes", icon: FileBarChart }, // Added Commandes
       ],
     },
     {
