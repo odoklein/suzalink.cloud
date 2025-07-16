@@ -14,24 +14,22 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/supabase";
-import { useState } from "react";
-import { useRef } from "react";
+import { useState, useRef } from "react";
 
 export default function ProfilePage() {
   const { userProfile, session } = useAuth();
   const [newPassword, setNewPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // Profile picture upload state
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
-  const [uploadError, setUploadError] = useState<string | null>(null);
-  const [uploadSuccess, setUploadSuccess] = useState(false);
 
-  // Placeholder or current profile picture
-  const profilePictureUrl = userProfile?.profile_picture_url || "/default-avatar.png";
+  const profilePictureUrl =
+    userProfile?.profile_picture_url?.startsWith("http")
+      ? userProfile.profile_picture_url
+      : "/default-avatar.png";
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -79,10 +77,13 @@ export default function ProfilePage() {
   };
 
   const handleUpload = async () => {
-    if (!selectedImage || !session) return;
+    if (!selectedImage || !session || !userProfile?.id) {
+      alert("User session or profile not found. Please try again.");
+      return;
+    }
+
     setUploading(true);
-    setUploadError(null);
-    setUploadSuccess(false);
+
     try {
       const formData = new FormData();
       formData.append("file", selectedImage);
@@ -93,22 +94,19 @@ export default function ProfilePage() {
         },
         body: formData,
       });
+
       const data = await res.json();
       if (!res.ok) {
-        setUploadError(data.error || "Upload failed");
+        alert(data.error || "Upload failed");
       } else {
-        setUploadSuccess(true);
+        alert("Profile picture updated!");
         setSelectedImage(null);
         setPreviewUrl(null);
         if (fileInputRef.current) fileInputRef.current.value = "";
-        // Refresh user profile
-        if (userProfile?.id) {
-          // @ts-ignore: fetchUserProfile is not exposed, so reload page as fallback
-          window.location.reload();
-        }
+        window.location.reload();
       }
     } catch (err: any) {
-      setUploadError(err.message || "Upload failed");
+      alert(err.message || "Upload failed");
     } finally {
       setUploading(false);
     }
@@ -181,14 +179,16 @@ export default function ProfilePage() {
                 {selectedImage ? "Change" : "Upload"} Profile Picture
               </Button>
               {selectedImage && (
-                <Button type="button" className="mt-2" onClick={handleUpload} disabled={uploading}>
+                <Button
+                  type="button"
+                  className="mt-2"
+                  onClick={handleUpload}
+                  disabled={uploading}
+                >
                   {uploading ? "Uploading..." : "Save"}
                 </Button>
               )}
-              {uploadError && <p className="text-red-500 text-sm mt-1">{uploadError}</p>}
-              {uploadSuccess && <p className="text-green-600 text-sm mt-1">Profile picture updated!</p>}
             </div>
-            {/* End Profile Picture Upload */}
 
             <div className="flex items-center gap-3">
               <EnvelopeIcon className="w-4 h-4 text-gray-500" />
