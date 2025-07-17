@@ -160,26 +160,26 @@ export default function FinancePage() {
     <div className="p-6 space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>Finance Overview</CardTitle>
+          <CardTitle>Vue d'ensemble financière</CardTitle>
         </CardHeader>
         <CardContent>
           {/* Summary cards: total income, total expenses, balance */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             <Card className="bg-green-50">
               <CardHeader>
-                <CardTitle>Total Income</CardTitle>
+                <CardTitle>Total des revenus</CardTitle>
               </CardHeader>
               <CardContent>$0.00</CardContent>
             </Card>
             <Card className="bg-red-50">
               <CardHeader>
-                <CardTitle>Total Expenses</CardTitle>
+                <CardTitle>Total des dépenses</CardTitle>
               </CardHeader>
               <CardContent>$0.00</CardContent>
             </Card>
             <Card className="bg-blue-50">
               <CardHeader>
-                <CardTitle>Balance</CardTitle>
+                <CardTitle>Solde</CardTitle>
               </CardHeader>
               <CardContent>$0.00</CardContent>
             </Card>
@@ -188,15 +188,15 @@ export default function FinancePage() {
           {/* Tabs for Income/Expenses */}
           <Tabs value={tab} onValueChange={v => setTab(v as "income" | "expense")} className="w-full">
             <TabsList className="mb-4">
-              <TabsTrigger value="income">Income</TabsTrigger>
-              <TabsTrigger value="expense">Expenses</TabsTrigger>
+              <TabsTrigger value="income">Revenus</TabsTrigger>
+              <TabsTrigger value="expense">Dépenses</TabsTrigger>
             </TabsList>
             <TabsContent value="income">
               <div className="mb-4">
                 {loading ? (
                   <div className="text-gray-400">Loading...</div>
                 ) : records.length === 0 ? (
-                  <div className="text-gray-400">No income records found.</div>
+                  <div className="text-gray-400">Aucun revenu trouvé.</div>
                 ) : (
                   <Table>
                     <TableHeader>
@@ -261,7 +261,7 @@ export default function FinancePage() {
                 {loading ? (
                   <div className="text-gray-400">Loading...</div>
                 ) : records.length === 0 ? (
-                  <div className="text-gray-400">No expense records found.</div>
+                  <div className="text-gray-400">Aucune dépense trouvée.</div>
                 ) : (
                   <Table>
                     <TableHeader>
@@ -324,26 +324,26 @@ export default function FinancePage() {
           </Tabs>
 
           <div className="flex justify-end mb-4">
-            <Button onClick={openCreate} className="bg-purple-600 text-white">+ Add {tab === "income" ? "Income" : "Expense"}</Button>
+            <Button onClick={openCreate} className="bg-purple-600 text-white">+ Ajouter {tab === "income" ? "un revenu" : "une dépense"}</Button>
           </div>
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>{editing ? `Edit ${form.type === "income" ? "Income" : "Expense"}` : `Add ${tab === "income" ? "Income" : "Expense"}`}</DialogTitle>
+                <DialogTitle>{editing ? `Modifier ${form.type === "income" ? "un revenu" : "une dépense"}` : `Ajouter ${tab === "income" ? "un revenu" : "une dépense"}`}</DialogTitle>
               </DialogHeader>
               <form onSubmit={handleFormSubmit} className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block mb-1 font-medium">Title</label>
+                    <label className="block mb-1 font-medium">Titre</label>
                     <Input
                       value={form.title}
                       onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
                       required
-                      placeholder="e.g. Client Payment"
+                      placeholder="ex : Paiement client"
                     />
                   </div>
                   <div>
-                    <label className="block mb-1 font-medium">Amount</label>
+                    <label className="block mb-1 font-medium">Montant</label>
                     <Input
                       type="number"
                       min="0"
@@ -351,7 +351,7 @@ export default function FinancePage() {
                       value={form.amount}
                       onChange={e => setForm(f => ({ ...f, amount: e.target.value }))}
                       required
-                      placeholder="0.00"
+                      placeholder="0,00"
                     />
                   </div>
                   <div>
@@ -361,17 +361,17 @@ export default function FinancePage() {
                         <SelectValue placeholder="Type" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="income">Income</SelectItem>
-                        <SelectItem value="expense">Expense</SelectItem>
+                        <SelectItem value="income">Revenu</SelectItem>
+                        <SelectItem value="expense">Dépense</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
                   <div>
-                    <label className="block mb-1 font-medium">Category</label>
+                    <label className="block mb-1 font-medium">Catégorie</label>
                     <Input
                       value={form.category}
                       onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
-                      placeholder="e.g. Salary, Office, Freelance"
+                      placeholder="ex : Salaire, Bureau, Freelance"
                     />
                   </div>
                   <div>
@@ -396,10 +396,10 @@ export default function FinancePage() {
                 {formError && <div className="text-red-500 text-sm">{formError}</div>}
                 <div className="flex justify-end gap-2">
                   <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-                    Cancel
+                    Annuler
                   </Button>
                   <Button type="submit" disabled={formLoading}>
-                    {formLoading ? (editing ? "Saving..." : "Adding...") : (editing ? "Save" : "Add")}
+                    {formLoading ? (editing ? "Enregistrement…" : "Ajout…") : (editing ? "Enregistrer" : "Ajouter")}
                   </Button>
                 </div>
               </form>
@@ -409,4 +409,4 @@ export default function FinancePage() {
       </Card>
     </div>
   );
-} 
+}

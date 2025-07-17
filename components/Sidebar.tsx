@@ -74,34 +74,34 @@ export function Sidebar() {
   // Navigation groups
   const navGroups = [
     {
-      label: "Main",
+      label: "Principal",
       links: [
-        { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-        { href: "/dashboard/projects", label: "Projects", icon: Briefcase },
+        { href: "/dashboard", label: "Tableau de bord", icon: LayoutDashboard },
+        { href: "/dashboard/projects", label: "Projets", icon: Briefcase },
         { href: "/dashboard/clients", label: "Clients", icon: Users },
         { href: "/dashboard/prospects", label: "Prospects", icon: UserPlus },
-        { href: "/dashboard/commandes", label: "Commandes", icon: FileBarChart }, // Added Commandes
+        { href: "/dashboard/commandes", label: "Commandes", icon: FileBarChart }, // Ajout Commandes
       ],
     },
     {
       label: "Communication",
       links: [
-        { href: "/dashboard/chat", label: "Chat", icon: MessageCircle },
-        { href: "/dashboard/emails", label: "Email", icon: Mail },
+        { href: "/dashboard/chat", label: "Messagerie", icon: MessageCircle },
+        { href: "/dashboard/emails", label: "E-mails", icon: Mail },
       ],
     },
     {
-      label: "Finance",
+      label: "Finances",
       links: [
-        { href: "/dashboard/finance", label: "Finance", icon: BarChart },
+        { href: "/dashboard/finance", label: "Finances", icon: BarChart },
         { href: "/dashboard/finance/factures", label: "Factures", icon: FileText },
       ],
     },
     {
-      label: "Admin",
+      label: "Administration",
       links: [
-        { href: "/dashboard/users", label: "User Management", icon: UserCog, admin: true },
-        { href: "/dashboard/profile", label: "Profile", icon: UserCircle },
+        { href: "/dashboard/users", label: "Utilisateurs", icon: UserCog, admin: true },
+        { href: "/dashboard/profile", label: "Profil", icon: UserCircle },
       ],
     },
   ];
@@ -134,7 +134,7 @@ export function Sidebar() {
         <div className="mb-3 p-2 bg-gray-50 rounded-lg">
           <div className="flex items-center gap-2 mb-2">
             <ShieldCheck className="w-4 h-4 text-gray-600" />
-            <span className="text-sm font-medium text-gray-700">Role</span>
+            <span className="text-sm font-medium text-gray-700">Rôle</span>
           </div>
           <div className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getRoleBadgeColor(userProfile.role)}`}>
             {userProfile.role.charAt(0).toUpperCase() + userProfile.role.slice(1)}
@@ -179,9 +179,9 @@ export function Sidebar() {
           className="w-full rounded-lg border-gray-200 hover:bg-purple-100 hover:text-purple-900 transition-colors flex items-center gap-2 justify-center text-base"
           onClick={handleLogout}
         >
-          <LogOut className="w-5 h-5" /> Logout
+          <LogOut className="w-5 h-5" /> Déconnexion
         </Button>
       </div>
     </aside>
   );
-} 
+}

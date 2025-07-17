@@ -21,7 +21,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   if (loading || !user) {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        <span>Loading...</span>
+        <span>Chargement...</span>
       </div>
     );
   }

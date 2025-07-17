@@ -140,11 +140,11 @@ export default function UsersPage() {
   const getRoleBadge = (role: string) => {
     switch (role) {
       case 'admin':
-        return <Badge variant="default" className="bg-green-100 text-green-800 border-green-200">Admin</Badge>;
+        return <Badge variant="default" className="bg-green-100 text-green-800 border-green-200">Administrateur</Badge>;
       case 'manager':
-        return <Badge variant="default" className="bg-blue-100 text-blue-800 border-blue-200">Manager</Badge>;
+        return <Badge variant="default" className="bg-blue-100 text-blue-800 border-blue-200">Gestionnaire</Badge>;
       case 'user':
-        return <Badge variant="default" className="bg-gray-100 text-gray-800 border-gray-200">User</Badge>;
+        return <Badge variant="default" className="bg-gray-100 text-gray-800 border-gray-200">Utilisateur</Badge>;
       default:
         return <Badge variant="default">User</Badge>;
     }
@@ -158,18 +158,31 @@ export default function UsersPage() {
       <div className="w-full px-0 md:px-8 py-8">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">User management</h1>
-            <p className="text-gray-600 mt-1">Manage your team members and their account permissions here.</p>
+            <h1 className="text-3xl font-bold text-gray-900">Gestion des utilisateurs</h1>
+            <p className="text-gray-600 mt-1">Gérez les membres de votre équipe et leurs autorisations ici.</p>
           </div>
           <div className="flex gap-2 items-center w-full md:w-auto">
             <Input
-              placeholder="Search"
+              placeholder="Rechercher"
               value={search}
               onChange={e => setSearch(e.target.value)}
               className="max-w-xs"
             />
+<<<<<<< HEAD
             <Button variant="outline" className="flex gap-2"><Filter className="w-4 h-4" /> Filters</Button>
             <Button className="flex gap-2"><Plus className="w-4 h-4" /> Add user</Button>
+=======
+            <Button variant="outline" className="flex gap-2"><Filter className="w-4 h-4" /> Filtres</Button>
+            <Button 
+              variant="outline" 
+              onClick={addTestActivity}
+              disabled={testLoading}
+              className="flex gap-2"
+            >
+              <Plus className="w-4 h-4" /> {testLoading ? 'Ajout en cours...' : 'Ajouter activité de test'}
+            </Button>
+            <Button className="flex gap-2"><Plus className="w-4 h-4" /> Ajouter un utilisateur</Button>
+>>>>>>> 468de3144bcf47ba7be291c2b3fbf40892302106
           </div>
         </div>
         <div className="bg-white rounded-xl border shadow-sm overflow-x-auto w-full">
@@ -177,14 +190,14 @@ export default function UsersPage() {
             <TableHeader>
               <TableRow>
                 <TableHead className="w-10"><input type="checkbox" aria-label="Select all" /></TableHead>
-                <TableHead>User name</TableHead>
-                <TableHead>Role</TableHead>
-                <TableHead>Status</TableHead>
+                <TableHead>Nom d'utilisateur</TableHead>
+                <TableHead>Rôle</TableHead>
+                <TableHead>Statut</TableHead>
                 <TableHead>Session</TableHead>
-                <TableHead>Last active</TableHead>
-                <TableHead>Today</TableHead>
-                <TableHead>This month</TableHead>
-                <TableHead>Date added</TableHead>
+                <TableHead>Dernière activité</TableHead>
+                <TableHead>Aujourd'hui</TableHead>
+                <TableHead>Ce mois</TableHead>
+                <TableHead>Ajouté le</TableHead>
                 <TableHead></TableHead>
               </TableRow>
             </TableHeader>
@@ -206,7 +219,7 @@ export default function UsersPage() {
                 ))
               ) : filteredUsers.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={10} className="text-center py-8 text-gray-400">No users found.</TableCell>
+                  <TableCell colSpan={10} className="text-center py-8 text-gray-400">Aucun utilisateur trouvé.</TableCell>
                 </TableRow>
               ) : (
                 filteredUsers.map((user) => {
@@ -235,12 +248,12 @@ export default function UsersPage() {
                           {summary?.isCurrentlyActive ? (
                             <>
                               <Wifi className="w-4 h-4 text-green-500" />
-                              <span className="text-green-600 text-sm font-medium">Active</span>
+                              <span className="text-green-600 text-sm font-medium">Actif</span>
                             </>
                           ) : (
                             <>
                               <WifiOff className="w-4 h-4 text-gray-400" />
-                              <span className="text-gray-500 text-sm">Inactive</span>
+                              <span className="text-gray-500 text-sm">Inactif</span>
                             </>
                           )}
                         </div>
@@ -268,7 +281,31 @@ export default function UsersPage() {
                       </TableCell>
                       <TableCell className="text-gray-500">{new Date(user.created_at).toLocaleDateString()}</TableCell>
                       <TableCell>
+<<<<<<< HEAD
                         {/* Action buttons removed: View Activity and Edit Role dialogs are obsolete in this refactor */}
+=======
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => openUserActivity(user)}
+                          >
+                            <Activity className="w-4 h-4 mr-1" /> Voir l'activité
+                          </Button>
+                          {user.id !== userProfile?.id && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setEditingUser(user);
+                                setOpen(true);
+                              }}
+                            >
+                              Modifier le rôle
+                            </Button>
+                          )}
+                        </div>
+>>>>>>> 468de3144bcf47ba7be291c2b3fbf40892302106
                       </TableCell>
                     </TableRow>
                   );
@@ -277,6 +314,89 @@ export default function UsersPage() {
             </TableBody>
           </Table>
         </div>
+<<<<<<< HEAD
+=======
+        {/* Activity Dialog */}
+        <Dialog open={activityDialogOpen} onOpenChange={setActivityDialogOpen}>
+          <DialogContent className="max-w-lg">
+            <DialogHeader>
+              <DialogTitle>Activité de l'utilisateur</DialogTitle>
+              <DialogDescription>
+                Journal d'activité de {activityUser?.full_name}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-2 max-h-96 overflow-y-auto">
+              {activityLogs.length === 0 ? (
+                <div className="text-gray-400 text-center py-8">Aucune activité trouvée.</div>
+              ) : (
+                activityLogs.map((log) => (
+                  <div key={log.id} className="border rounded-lg p-3 flex flex-col gap-1 bg-gray-50">
+                    <div className="flex justify-between items-center">
+                      <span className="font-medium text-gray-800">{log.action}</span>
+                      <span className="text-xs text-gray-500">{new Date(log.created_at).toLocaleString()}</span>
+                    </div>
+                    {log.details && (
+                      <pre className="text-xs text-gray-600 bg-gray-100 rounded p-2 mt-1 overflow-x-auto">{JSON.stringify(log.details, null, 2)}</pre>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+        <Dialog open={open} onOpenChange={setOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Modifier le rôle de l'utilisateur</DialogTitle>
+              <DialogDescription>
+                Changer le rôle pour {editingUser?.full_name}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="role">Rôle</Label>
+                <Select
+                  value={selectedRole}
+                  onValueChange={(value: 'admin' | 'manager' | 'user') => {
+                    setSelectedRole(value);
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sélectionner un rôle" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="user">Utilisateur</SelectItem>
+                    <SelectItem value="manager">Gestionnaire</SelectItem>
+                    <SelectItem value="admin">Administrateur</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setOpen(false);
+                    setEditingUser(null);
+                  }}
+                  disabled={updating}
+                >
+                  Annuler
+                </Button>
+                <Button
+                  onClick={() => {
+                    if (editingUser && selectedRole && selectedRole !== editingUser.role) {
+                      handleUpdateRole(editingUser.id, selectedRole as 'admin' | 'manager' | 'user');
+                    }
+                  }}
+                  disabled={updating || !editingUser || selectedRole === editingUser?.role}
+                >
+                  {updating ? 'Saving...' : 'Confirm'}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+>>>>>>> 468de3144bcf47ba7be291c2b3fbf40892302106
       </div>
     </AdminOnly>
   );

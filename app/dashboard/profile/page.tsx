@@ -82,7 +82,7 @@ export default function ProfilePage() {
 
   const handleChangePassword = async () => {
     if (!newPassword || newPassword.length < 6) {
-      alert("Password too short. It must be at least 6 characters.");
+      alert("Mot de passe trop court. Il doit contenir au moins 6 caractères.");
       return;
     }
 
@@ -91,16 +91,16 @@ export default function ProfilePage() {
     setLoading(false);
 
     if (error) {
-      alert("Failed to update password: " + error.message);
+      alert("Échec de la mise à jour du mot de passe : " + error.message);
     } else {
-      alert("Password updated successfully.");
+      alert("Mot de passe mis à jour avec succès.");
       setNewPassword("");
     }
   };
 
   const handleUpload = async () => {
     if (!selectedImage || !session || !userProfile?.id) {
-      alert("User session or profile not found. Please try again.");
+      alert("Session ou profil utilisateur introuvable. Veuillez réessayer.");
       return;
     }
 
@@ -119,16 +119,16 @@ export default function ProfilePage() {
 
       const data = await res.json();
       if (!res.ok) {
-        alert(data.error || "Upload failed");
+        alert(data.error || "Échec de l'envoi");
       } else {
-        alert("Profile picture updated!");
+        alert("Photo de profil mise à jour !");
         setSelectedImage(null);
         setPreviewUrl(null);
         if (fileInputRef.current) fileInputRef.current.value = "";
         window.location.reload();
       }
     } catch (err: any) {
-      alert(err.message || "Upload failed");
+      alert(err.message || "Échec de l'envoi");
     } finally {
       setUploading(false);
     }
@@ -152,8 +152,8 @@ export default function ProfilePage() {
   return (
     <div className="p-6">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">Profile</h1>
-        <p className="text-gray-600 mt-2">Your account information</p>
+        <h1 className="text-3xl font-bold text-gray-900">Profil</h1>
+        <p className="text-gray-600 mt-2">Informations de votre compte</p>
       </div>
 
       <div className="max-w-2xl space-y-6">
@@ -162,7 +162,7 @@ export default function ProfilePage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <UserIcon className="w-5 h-5" />
-              Personal Information
+              Informations personnelles
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -171,7 +171,7 @@ export default function ProfilePage() {
               <div className="relative w-24 h-24">
                 <img
                   src={previewUrl || profilePictureUrl}
-                  alt="Profile Preview"
+                  alt="Aperçu du profil"
                   className="w-24 h-24 rounded-full object-cover border border-gray-200 shadow-sm"
                 />
                 {selectedImage && (
@@ -198,7 +198,7 @@ export default function ProfilePage() {
                 onClick={() => fileInputRef.current?.click()}
                 className="mt-2"
               >
-                {selectedImage ? "Change" : "Upload"} Profile Picture
+                {selectedImage ? "Changer" : "Télécharger"} la photo de profil
               </Button>
               {selectedImage && (
                 <Button
@@ -207,7 +207,7 @@ export default function ProfilePage() {
                   onClick={handleUpload}
                   disabled={uploading}
                 >
-                  {uploading ? "Uploading..." : "Save"}
+                  {uploading ? "Envoi en cours..." : "Enregistrer"}
                 </Button>
               )}
             </div>
@@ -215,12 +215,13 @@ export default function ProfilePage() {
             <div className="flex items-center gap-3">
               <EnvelopeIcon className="w-4 h-4 text-gray-500" />
               <div>
-                <p className="text-sm font-medium text-gray-700">Email</p>
+                <p className="text-sm font-medium text-gray-700">E-mail</p>
                 <p className="text-gray-900">{userProfile.email}</p>
               </div>
             </div>
 
             <div className="flex items-center gap-3">
+<<<<<<< HEAD
   <UserIcon className="w-4 h-4 text-gray-500" />
   <div>
     <p className="text-sm font-medium text-gray-700">Full Name</p>
@@ -366,6 +367,34 @@ export default function ProfilePage() {
 
 <Button type="button" className="mt-4" onClick={handleSaveProfile}>Save Profile</Button>
 
+=======
+              <UserIcon className="w-4 h-4 text-gray-500" />
+              <div>
+                <p className="text-sm font-medium text-gray-700">Nom complet</p>
+                <p className="text-gray-900">{userProfile.full_name}</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <ShieldCheckIcon className="w-4 h-4 text-gray-500" />
+              <div>
+                <p className="text-sm font-medium text-gray-700">Rôle</p>
+                <Badge className={getRoleBadgeColor(userProfile.role)}>
+                  {userProfile.role === 'admin' ? 'Administrateur' : userProfile.role === 'manager' ? 'Gestionnaire' : 'Utilisateur'}
+                </Badge>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <CalendarIcon className="w-4 h-4 text-gray-500" />
+              <div>
+                <p className="text-sm font-medium text-gray-700">Membre depuis</p>
+                <p className="text-gray-900">
+                  {new Date(userProfile.created_at).toLocaleDateString()}
+                </p>
+              </div>
+            </div>
+>>>>>>> 468de3144bcf47ba7be291c2b3fbf40892302106
           </CardContent>
         </Card>
 
@@ -380,13 +409,13 @@ export default function ProfilePage() {
           <CardContent className="space-y-4">
             <Input
               type="password"
-              placeholder="Enter new password"
+              placeholder="Nouveau mot de passe"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
               disabled={loading}
             />
             <Button onClick={handleChangePassword} disabled={loading || !newPassword}>
-              {loading ? "Saving..." : "Save"}
+              {loading ? "Enregistrement..." : "Enregistrer"}
             </Button>
           </CardContent>
         </Card>

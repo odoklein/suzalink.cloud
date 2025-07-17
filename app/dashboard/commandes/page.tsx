@@ -16,7 +16,7 @@ interface Commande {
   opened?: boolean; // Added opened field
 }
 
-const STATUS_OPTIONS = ["new", "in progress", "done"];
+const STATUS_OPTIONS = ["nouvelle", "en cours", "terminée"];
 
 const FIELD_LABELS: Record<string, string> = {
   "meta[date][value]": "Date d'envoi du formulaire",
@@ -194,7 +194,7 @@ export default function CommandesPage() {
     <div className="p-8 w-full min-h-screen bg-muted">
       <div className="mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold mb-2">Commandes</h1>
+          <h1 className="text-3xl font-bold mb-2">Commandes reçues</h1>
           <p className="text-gray-600 max-w-2xl">
             Toutes les commandes reçues via les formulaires Elementor.
           </p>
@@ -202,7 +202,7 @@ export default function CommandesPage() {
         <div className="flex gap-2 items-center">
           <Input
             className="w-64"
-            placeholder="Rechercher..."
+            placeholder="Rechercher une commande..."
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
@@ -210,7 +210,7 @@ export default function CommandesPage() {
             variant={sortDir === "desc" ? "default" : "outline"}
             onClick={() => setSortDir(sortDir === "desc" ? "asc" : "desc")}
           >
-            Trier: {sortDir === "desc" ? "Plus récent" : "Plus ancien"}
+            Trier : {sortDir === "desc" ? "Plus récentes" : "Plus anciennes"}
           </Button>
         </div>
       </div>
@@ -221,7 +221,7 @@ export default function CommandesPage() {
           ))
         ) : filteredCommandes.length === 0 ? (
           <div className="col-span-full py-12 text-center text-gray-400 text-lg">
-            (Aucune commande à afficher pour l'instant)
+            Aucune commande à afficher pour l'instant.
           </div>
         ) : (
           filteredCommandes.map((commande) => {
@@ -235,22 +235,22 @@ export default function CommandesPage() {
               >
                 {!isOpened && (
                   <div className="-mt-6 -mx-6 mb-2 px-6 py-2 rounded-t-2xl bg-red-50 flex items-center justify-between border-b border-red-200">
-                    <span className="text-sm font-semibold text-red-600">Nouvelle demande</span>
+                    <span className="text-sm font-semibold text-red-600">Nouvelle commande</span>
                   </div>
                 )}
                 <div className="flex justify-between items-center mb-4">
                   <div className="text-xs text-gray-400">
-                    Reçu le {new Date(commande.created_at).toLocaleString()}
+                    Reçue le {new Date(commande.created_at).toLocaleString()}
                   </div>
                   <select
                     className="border rounded px-2 py-1 text-xs"
-                    value={statusMap[commande.id] || "new"}
+                    value={statusMap[commande.id] || "nouvelle"}
                     onChange={e => handleStatusChange(commande.id, e.target.value)}
                     onClick={e => e.stopPropagation()}
                   >
-                    {STATUS_OPTIONS.map(opt => (
-                      <option key={opt} value={opt}>{opt}</option>
-                    ))}
+                    <option value="nouvelle">Nouvelle</option>
+                    <option value="en cours">En cours</option>
+                    <option value="terminée">Terminée</option>
                   </select>
                 </div>
                 <table className="w-full text-sm mb-4">
@@ -309,10 +309,10 @@ export default function CommandesPage() {
         <Dialog open={!!selectedCommande} onOpenChange={() => setSelectedCommande(null)}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Détails de la Commande</DialogTitle>
+              <DialogTitle>Détails de la commande</DialogTitle>
             </DialogHeader>
             <div className="mb-2 text-xs text-gray-400">
-              Reçu le {new Date(selectedCommande.created_at).toLocaleString()}
+              Reçue le {new Date(selectedCommande.created_at).toLocaleString()}
             </div>
             <table className="w-full text-sm mb-4">
               <tbody>
@@ -328,19 +328,19 @@ export default function CommandesPage() {
               </tbody>
             </table>
             <div className="mb-2">
-              <label className="block text-xs font-medium text-gray-600 mb-1">Status</label>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Statut</label>
               <select
                 className="border rounded px-2 py-1 text-xs"
-                value={statusMap[selectedCommande.id] || "new"}
+                value={statusMap[selectedCommande.id] || "nouvelle"}
                 onChange={e => handleStatusChange(selectedCommande.id, e.target.value)}
               >
-                {STATUS_OPTIONS.map(opt => (
-                  <option key={opt} value={opt}>{opt}</option>
-                ))}
+                <option value="nouvelle">Nouvelle</option>
+                <option value="en cours">En cours</option>
+                <option value="terminée">Terminée</option>
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Notes</label>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Notes internes</label>
               <textarea
                 className="w-full border rounded p-2 text-xs text-gray-700"
                 placeholder="Notes internes..."

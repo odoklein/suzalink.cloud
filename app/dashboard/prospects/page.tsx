@@ -66,14 +66,14 @@ export default function ProspectsFoldersPage() {
   return (
     <div className="p-6 md:p-10 bg-muted min-h-screen">
       <div className="flex items-center mb-8">
-        <h1 className="text-3xl font-bold flex-1">Prospect Folders</h1>
-        <Button onClick={() => handleOpenModal()}>+ New Folder</Button>
+        <h1 className="text-3xl font-bold flex-1">Dossiers de prospects</h1>
+        <Button onClick={() => handleOpenModal()}>+ Nouveau dossier</Button>
       </div>
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {[...Array(6)].map((_, i) => (
             <Card key={i} className="p-6">
-              <Skeleton className="h-6 w-1/2 mb-4" /> {/* Title */}
+              <Skeleton className="h-6 w-1/2 mb-4" /> {/* Titre */}
               <Skeleton className="h-4 w-2/3 mb-2" /> {/* Description */}
               <Skeleton className="h-4 w-1/3" /> {/* Date */}
             </Card>
@@ -90,13 +90,13 @@ export default function ProspectsFoldersPage() {
                   <CardTitle className="text-lg">{folder.title}</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-gray-600 mb-4">{folder.description || "No description provided"}</p>
-                  <p className="text-sm text-gray-500">Created: {new Date(folder.created_at).toLocaleDateString()}</p>
+                  <p className="text-gray-600 mb-4">{folder.description || "Aucune description fournie"}</p>
+                  <p className="text-sm text-gray-500">Créé le : {new Date(folder.created_at).toLocaleDateString()}</p>
                 </CardContent>
               </Link>
               <div className="flex gap-2 p-4 pt-0">
-                <Button size="sm" variant="outline" onClick={() => handleOpenModal(folder)}>Edit</Button>
-                <Button size="sm" variant="destructive" onClick={() => setDeleteFolderId(folder.id)}>Delete</Button>
+                <Button size="sm" variant="outline" onClick={() => handleOpenModal(folder)}>Modifier</Button>
+                <Button size="sm" variant="destructive" onClick={() => setDeleteFolderId(folder.id)}>Supprimer</Button>
               </div>
             </Card>
           ))}
@@ -105,23 +105,23 @@ export default function ProspectsFoldersPage() {
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editFolder ? "Edit Folder" : "New Folder"}</DialogTitle>
+            <DialogTitle>{editFolder ? "Modifier le dossier" : "Créer un nouveau dossier"}</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSave} className="space-y-4">
             <Input
-              placeholder="Folder name"
+              placeholder="Saisir le titre du dossier"
               value={form.title}
               onChange={e => setForm({ ...form, title: e.target.value })}
               required
             />
             <Input
-              placeholder="Description (optional)"
+              placeholder="Saisir une description (facultatif)"
               value={form.description}
               onChange={e => setForm({ ...form, description: e.target.value })}
             />
             <div className="flex gap-2 pt-2">
-              <Button type="submit" disabled={formLoading}>{formLoading ? "Saving..." : "Save"}</Button>
-              <Button type="button" variant="outline" onClick={() => setModalOpen(false)}>Cancel</Button>
+              <Button type="submit" disabled={formLoading}>{formLoading ? "Enregistrement en cours..." : "Enregistrer"}</Button>
+              <Button type="button" variant="outline" onClick={() => setModalOpen(false)}>Annuler</Button>
             </div>
           </form>
         </DialogContent>
@@ -129,12 +129,12 @@ export default function ProspectsFoldersPage() {
       <AlertDialog open={!!deleteFolderId} onOpenChange={open => { if (!open) setDeleteFolderId(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Folder</AlertDialogTitle>
+            <AlertDialogTitle>Supprimer le dossier</AlertDialogTitle>
           </AlertDialogHeader>
-          <div>Are you sure you want to delete this folder?</div>
+          <div>Êtes-vous sûr de vouloir supprimer ce dossier&nbsp;?</div>
           <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => setDeleteFolderId(null)}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete}>Delete</AlertDialogAction>
+            <AlertDialogCancel onClick={() => setDeleteFolderId(null)}>Annuler</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete}>Supprimer</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

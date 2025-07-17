@@ -50,9 +50,9 @@ const STATUS_COLORS: Record<string, string> = {
   inactive: 'bg-red-500',
 };
 const STATUS_LABELS: Record<string, string> = {
-  active: 'Active',
-  pending: 'Pending',
-  inactive: 'Inactive',
+  active: 'Actif',
+  pending: 'En attente',
+  inactive: 'Inactif',
 };
 
 export default function ClientsPage() {
@@ -80,6 +80,36 @@ export default function ClientsPage() {
   const total = data?.count || 0;
   const router = useRouter();
 
+<<<<<<< HEAD
+=======
+  // Fetch clients
+  useEffect(() => {
+    fetchClients();
+  }, [search, statusFilter, regionFilter, page]);
+
+  async function fetchClients() {
+    setLoading(true);
+    setError(null);
+    try {
+      const params = new URLSearchParams();
+      if (search) params.append('name', search);
+      if (statusFilter) params.append('status', statusFilter);
+      if (regionFilter) params.append('region', regionFilter);
+      params.append('limit', PAGE_SIZE.toString());
+      params.append('offset', ((page - 1) * PAGE_SIZE).toString());
+      const res = await fetch(`/api/clients?${params.toString()}`);
+      if (!res.ok) throw new Error('Échec de la récupération des clients');
+      const { data, count } = await res.json();
+      setClients(data);
+      setTotal(count || 0);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+>>>>>>> 468de3144bcf47ba7be291c2b3fbf40892302106
   function openAddDialog() {
     setEditingClient(null);
     setForm({ name: "", contact_email: "", company: "", status: 'active', region: '' });
@@ -127,7 +157,7 @@ export default function ClientsPage() {
       });
       if (!res.ok) {
         const errData = await res.json();
-        throw new Error(errData.error || "Failed to save client");
+        throw new Error(errData.error || "Échec de l'enregistrement du client");
       }
       closeDialog();
     } catch (e: any) {
@@ -142,7 +172,7 @@ export default function ClientsPage() {
     setSubmitting(true);
     try {
       const res = await fetch(`/api/clients/${deleteId}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("Failed to delete client");
+      if (!res.ok) throw new Error("Échec de la suppression du client");
       closeDeleteDialog();
     } catch (e: any) {
       console.error(e);
@@ -158,7 +188,7 @@ export default function ClientsPage() {
         <div className="flex flex-col sm:flex-row gap-2 items-center">
           <Input
             className="w-48"
-            placeholder="Search by name..."
+            placeholder="Rechercher par nom..."
             value={search}
             onChange={e => { setSearch(e.target.value); setPage(1); }}
           />
@@ -167,18 +197,18 @@ export default function ClientsPage() {
             value={statusFilter}
             onChange={e => { setStatusFilter(e.target.value); setPage(1); }}
           >
-            <option value="">All Statuses</option>
-            <option value="active">Active</option>
-            <option value="pending">Pending</option>
-            <option value="inactive">Inactive</option>
+            <option value="">Tous les statuts</option>
+            <option value="active">Actif</option>
+            <option value="pending">En attente</option>
+            <option value="inactive">Inactif</option>
           </select>
           <Input
             className="w-32"
-            placeholder="Region..."
+            placeholder="Région..."
             value={regionFilter}
             onChange={e => { setRegionFilter(e.target.value); setPage(1); }}
           />
-          <Button onClick={openAddDialog}>Add Client</Button>
+          <Button onClick={openAddDialog}>Ajouter un client</Button>
         </div>
       </div>
       {error && <div className="mb-4 text-red-500">{typeof error === 'string' ? error : (error as Error)?.message || 'An error occurred.'}</div>}
@@ -195,11 +225,15 @@ export default function ClientsPage() {
             ))}
           </div>
         ) : clients.length === 0 ? (
-          <div className="text-center text-gray-500 py-8">No clients found.</div>
+          <div className="text-center text-gray-500 py-8">Aucun client trouvé.</div>
         ) : (
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+<<<<<<< HEAD
               {clients.map((client: import("./useClientsQuery").Client) => (
+=======
+              {clients.map((client) => (
+>>>>>>> 468de3144bcf47ba7be291c2b3fbf40892302106
                 <Link key={client.id} href={`/dashboard/clients/${client.id}`} className="group">
                   <Card
                     className="border-[1.5px] border-black/20 shadow-lg bg-white flex flex-col justify-between h-full cursor-pointer transition-all duration-200 group-hover:bg-purple-50 group-hover:shadow-xl"
@@ -221,9 +255,9 @@ export default function ClientsPage() {
                       <div className="text-sm text-gray-600 break-all">{client.contact_email}</div>
                     </CardContent>
                     <CardFooter className="flex gap-2 justify-end opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none group-hover:pointer-events-auto">
-                      <Button size="sm" variant="secondary" tabIndex={-1} onClick={e => { e.preventDefault(); router.push(`/dashboard/clients/${client.id}`); }}>Details</Button>
-                      <Button size="sm" variant="outline" tabIndex={-1} onClick={e => { e.preventDefault(); openEditDialog(client); }}>Edit</Button>
-                      <Button size="sm" variant="destructive" tabIndex={-1} onClick={e => { e.preventDefault(); openDeleteDialog(client.id); }}>Delete</Button>
+                      <Button size="sm" variant="secondary" tabIndex={-1} onClick={e => { e.preventDefault(); router.push(`/dashboard/clients/${client.id}`); }}>Détails</Button>
+                      <Button size="sm" variant="outline" tabIndex={-1} onClick={e => { e.preventDefault(); openEditDialog(client); }}>Modifier</Button>
+                      <Button size="sm" variant="destructive" tabIndex={-1} onClick={e => { e.preventDefault(); openDeleteDialog(client.id); }}>Supprimer</Button>
                     </CardFooter>
                   </Card>
                 </Link>
@@ -237,16 +271,16 @@ export default function ClientsPage() {
                 disabled={page === 1}
                 onClick={() => setPage(page - 1)}
               >
-                Previous
+                Précédent
               </Button>
-              <span className="px-2 py-1 text-sm">Page {page} of {Math.max(1, Math.ceil(total / PAGE_SIZE))}</span>
+              <span className="px-2 py-1 text-sm">Page {page} sur {Math.max(1, Math.ceil(total / PAGE_SIZE))}</span>
               <Button
                 variant="outline"
                 size="sm"
                 disabled={page >= Math.ceil(total / PAGE_SIZE)}
                 onClick={() => setPage(page + 1)}
               >
-                Next
+                Suivant
               </Button>
             </div>
           </>
@@ -256,63 +290,63 @@ export default function ClientsPage() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editingClient ? "Edit Client" : "Add Client"}</DialogTitle>
+            <DialogTitle>{editingClient ? "Modifier le client" : "Ajouter un client"}</DialogTitle>
             <DialogDescription>
-              {editingClient ? "Update client details." : "Enter new client information."}
+              {editingClient ? "Modifiez les informations du client." : "Saisissez les informations du nouveau client."}
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block mb-1 font-medium">Name</label>
+              <label className="block mb-1 font-medium">Nom</label>
               <Input
                 value={form.name}
                 onChange={(e) => setForm({ ...form, name: e.target.value })}
                 required
-                placeholder="Client name"
+                placeholder="Nom du client"
               />
             </div>
             <div>
-              <label className="block mb-1 font-medium">Contact Email</label>
+              <label className="block mb-1 font-medium">Email de contact</label>
               <Input
                 value={form.contact_email}
                 onChange={(e) => setForm({ ...form, contact_email: e.target.value })}
                 required
-                placeholder="Contact email"
+                placeholder="Email du contact"
               />
             </div>
             <div>
-              <label className="block mb-1 font-medium">Company</label>
+              <label className="block mb-1 font-medium">Société</label>
               <Input
                 value={form.company}
                 onChange={(e) => setForm({ ...form, company: e.target.value })}
-                placeholder="Company"
+                placeholder="Société"
               />
             </div>
             <div>
-              <label className="block mb-1 font-medium">Status</label>
+              <label className="block mb-1 font-medium">Statut</label>
               <select
                 className="border rounded px-2 py-1 w-full"
                 value={form.status || 'active'}
                 onChange={e => setForm({ ...form, status: e.target.value as Client['status'] })}
                 required
               >
-                <option value="active">Active</option>
-                <option value="pending">Pending</option>
-                <option value="inactive">Inactive</option>
+                <option value="active">Actif</option>
+                <option value="pending">En attente</option>
+                <option value="inactive">Inactif</option>
               </select>
             </div>
             <div>
-              <label className="block mb-1 font-medium">Region</label>
+              <label className="block mb-1 font-medium">Région</label>
               <Input
                 value={form.region || ''}
                 onChange={e => setForm({ ...form, region: e.target.value })}
-                placeholder="Region"
+                placeholder="Région"
               />
             </div>
             <DialogFooter>
-              <Button type="submit" disabled={submitting}>{submitting ? "Saving..." : "Save"}</Button>
+              <Button type="submit" disabled={submitting}>{submitting ? "Enregistrement..." : "Enregistrer"}</Button>
               <DialogClose asChild>
-                <Button type="button" variant="outline" onClick={closeDialog}>Cancel</Button>
+                <Button type="button" variant="outline" onClick={closeDialog}>Annuler</Button>
               </DialogClose>
             </DialogFooter>
           </form>
@@ -322,18 +356,18 @@ export default function ClientsPage() {
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete Client</DialogTitle>
+            <DialogTitle>Supprimer le client</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete this client? This action cannot be undone.
+              Êtes-vous sûr de vouloir supprimer ce client ? Cette action est irréversible.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="destructive" onClick={handleDelete} disabled={submitting}>
-              {submitting ? "Deleting..." : "Delete"}
+              {submitting ? "Suppression..." : "Supprimer"}
             </Button>
             <DialogClose asChild>
               <Button variant="outline" onClick={closeDeleteDialog} disabled={submitting}>
-                Cancel
+                Annuler
               </Button>
             </DialogClose>
           </DialogFooter>
