@@ -16,61 +16,71 @@ import {
   ChartBarIcon
 } from "@heroicons/react/24/outline";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useQuery } from "@tanstack/react-query";
+
+// Helper to get first and last day of current month
+function getMonthRange() {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), 1);
+  const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+  return { start, end };
+}
 
 export default function DashboardPage() {
-  const [stats, setStats] = useState({
-    prospects: 0,
-    clients: 0,
-    income: 0,
-    expenses: 0,
-    loading: true,
-  });
-
-  useEffect(() => {
-    async function fetchStats() {
-      setStats((s) => ({ ...s, loading: true }));
-      // Total prospects
-      const { count: prospects } = await supabase
+  // Prospects count
+  const { data: prospects, isLoading: loadingProspects } = useQuery({
+    queryKey: ["dashboard", "prospectsCount"],
+    queryFn: async () => {
+      const { count } = await supabase
         .from("prospects")
         .select("id", { count: "exact", head: true });
-      // Total clients
-      const { count: clients } = await supabase
+      return count || 0;
+    },
+  });
+
+  // Clients count
+  const { data: clients, isLoading: loadingClients } = useQuery({
+    queryKey: ["dashboard", "clientsCount"],
+    queryFn: async () => {
+      const { count } = await supabase
         .from("clients")
         .select("id", { count: "exact", head: true });
-      // Income this month
-      const { data: incomeRows } = await supabase
-        .from("entries")
-        .select("amount, date, type")
-        .eq("type", "income");
-      // Expenses this month
-      const { data: expenseRows } = await supabase
-        .from("entries")
-        .select("amount, date, type")
-        .eq("type", "expense");
-      // Calculate sums for current month
-      const now = new Date();
-      const month = now.getMonth();
-      const year = now.getFullYear();
-      const income = (incomeRows || []).reduce((sum, row) => {
-        const d = new Date(row.date);
-        return d.getMonth() === month && d.getFullYear() === year ? sum + Number(row.amount) : sum;
-      }, 0);
-      const expenses = (expenseRows || []).reduce((sum, row) => {
-        const d = new Date(row.date);
-        return d.getMonth() === month && d.getFullYear() === year ? sum + Number(row.amount) : sum;
-      }, 0);
-      setStats({
-        prospects: prospects || 0,
-        clients: clients || 0,
-        income,
-        expenses,
-        loading: false,
-      });
-    }
-    fetchStats();
-  }, []);
+      return count || 0;
+    },
+  });
 
-  const balance = stats.income - stats.expenses;
+  // Income sum for current month
+  const { start, end } = getMonthRange();
+  const { data: income, isLoading: loadingIncome } = useQuery({
+    queryKey: ["dashboard", "incomeSum", start, end],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("entries")
+        .select("amount")
+        .eq("type", "income")
+        .gte("date", start.toISOString())
+        .lte("date", end.toISOString());
+      if (error) throw error;
+      return (data || []).reduce((sum, row) => sum + Number(row.amount), 0);
+    },
+  });
+
+  // Expenses sum for current month
+  const { data: expenses, isLoading: loadingExpenses } = useQuery({
+    queryKey: ["dashboard", "expensesSum", start, end],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("entries")
+        .select("amount")
+        .eq("type", "expense")
+        .gte("date", start.toISOString())
+        .lte("date", end.toISOString());
+      if (error) throw error;
+      return (data || []).reduce((sum, row) => sum + Number(row.amount), 0);
+    },
+  });
+
+  const balance = (income || 0) - (expenses || 0);
 
   return (
     <div className="space-y-8 p-6">
@@ -88,7 +98,7 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold text-blue-900 mb-1">
-                {stats.loading ? <Skeleton className="h-8 w-16" /> : stats.prospects.toLocaleString()}
+                {loadingProspects ? <Skeleton className="h-8 w-16" /> : prospects?.toLocaleString()}
               </div>
               <div className="flex items-center text-sm text-blue-600">
                 <ArrowTrendingUpIcon className="h-4 w-4 mr-1" />
@@ -107,7 +117,7 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold text-green-900 mb-1">
-                {stats.loading ? <Skeleton className="h-8 w-16" /> : stats.clients.toLocaleString()}
+                {loadingClients ? <Skeleton className="h-8 w-16" /> : clients?.toLocaleString()}
               </div>
               <div className="flex items-center text-sm text-green-600">
                 <ArrowTrendingUpIcon className="h-4 w-4 mr-1" />
@@ -126,7 +136,7 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold text-purple-900 mb-1">
-                {stats.loading ? <Skeleton className="h-8 w-24" /> : `$${stats.income.toLocaleString()}`}
+                {loadingIncome ? <Skeleton className="h-8 w-24" /> : `$${(income || 0).toLocaleString()}`}
               </div>
               <div className="flex items-center text-sm text-purple-600">
                 <ArrowTrendingUpIcon className="h-4 w-4 mr-1" />
@@ -145,7 +155,7 @@ export default function DashboardPage() {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold text-orange-900 mb-1">
-                {stats.loading ? <Skeleton className="h-8 w-24" /> : `$${stats.expenses.toLocaleString()}`}
+                {loadingExpenses ? <Skeleton className="h-8 w-24" /> : `$${(expenses || 0).toLocaleString()}`}
               </div>
               <div className="flex items-center text-sm text-orange-600">
                 <ArrowTrendingUpIcon className="h-4 w-4 mr-1" />
@@ -165,7 +175,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             <div className="text-4xl font-bold text-emerald-900 mb-1">
-              {stats.loading ? <Skeleton className="h-10 w-32" /> : `$${balance.toLocaleString()}`}
+              {(loadingIncome || loadingExpenses) ? <Skeleton className="h-10 w-32" /> : `$${balance.toLocaleString()}`}
             </div>
             <div className="text-sm text-emerald-600">
               This Month

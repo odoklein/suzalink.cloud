@@ -13,13 +13,6 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [pageLoading, setPageLoading] = useState(true);
-
-  useEffect(() => {
-    // Simulate loading for 1s or until all resources are ready
-    const timer = setTimeout(() => setPageLoading(false), 800);
-    return () => clearTimeout(timer);
-  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,19 +26,6 @@ export default function LoginPage() {
       router.push("/dashboard");
     }
   };
-
-  if (pageLoading) {
-    return (
-      <div className="min-h-screen w-full flex items-center justify-center bg-cover bg-center" style={{ backgroundImage: 'url(/bglogin.webp)' }}>
-        <div className="flex flex-col items-center justify-center gap-4">
-          <svg width="60" height="60" viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg" className="animate-spin-slow">
-            <circle cx="18" cy="18" r="16" stroke="#6FC3FF" strokeWidth="4" strokeDasharray="80" strokeDashoffset="60" fill="none" />
-          </svg>
-          <span className="text-2xl font-semibold text-[#6FC3FF]">Loading...</span>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div

@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Suzalink CRM - Authentication",
-  description: "Login and register for Suzalink CRM",
+  description: "Login to Suzalink CRM",
 };
 
 export default function AuthLayout({

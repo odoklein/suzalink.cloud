@@ -1,6 +1,17 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useState, useMemo } from "react";
+import { useClientsQuery } from "./useClientsQuery";
+
+// Simple debounce hook
+function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = React.useState(value);
+  React.useEffect(() => {
+    const handler = setTimeout(() => setDebouncedValue(value), delay);
+    return () => clearTimeout(handler);
+  }, [value, delay]);
+  return debouncedValue;
+}
 import {
   Card,
   CardHeader,
@@ -45,9 +56,6 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 export default function ClientsPage() {
-  const [clients, setClients] = useState<Client[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [editingClient, setEditingClient] = useState<Client | null>(null);
@@ -58,37 +66,19 @@ export default function ClientsPage() {
   const [statusFilter, setStatusFilter] = useState('');
   const [regionFilter, setRegionFilter] = useState('');
   const [page, setPage] = useState(1);
-  const [total, setTotal] = useState(0);
   const PAGE_SIZE = 12;
 
+  const debouncedSearch = useDebounce(search, 300);
+  const { data, isLoading, error } = useClientsQuery({
+    search: debouncedSearch,
+    status: statusFilter,
+    region: regionFilter,
+    page,
+    pageSize: PAGE_SIZE,
+  });
+  const clients = data?.data || [];
+  const total = data?.count || 0;
   const router = useRouter();
-
-  // Fetch clients
-  useEffect(() => {
-    fetchClients();
-  }, [search, statusFilter, regionFilter, page]);
-
-  async function fetchClients() {
-    setLoading(true);
-    setError(null);
-    try {
-      const params = new URLSearchParams();
-      if (search) params.append('name', search);
-      if (statusFilter) params.append('status', statusFilter);
-      if (regionFilter) params.append('region', regionFilter);
-      params.append('limit', PAGE_SIZE.toString());
-      params.append('offset', ((page - 1) * PAGE_SIZE).toString());
-      const res = await fetch(`/api/clients?${params.toString()}`);
-      if (!res.ok) throw new Error('Failed to fetch clients');
-      const { data, count } = await res.json();
-      setClients(data);
-      setTotal(count || 0);
-    } catch (e: any) {
-      setError(e.message);
-    } finally {
-      setLoading(false);
-    }
-  }
 
   function openAddDialog() {
     setEditingClient(null);
@@ -127,7 +117,6 @@ export default function ClientsPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSubmitting(true);
-    setError(null);
     try {
       const method = editingClient ? "PUT" : "POST";
       const url = editingClient ? `/api/clients/${editingClient.id}` : "/api/clients";
@@ -141,9 +130,8 @@ export default function ClientsPage() {
         throw new Error(errData.error || "Failed to save client");
       }
       closeDialog();
-      fetchClients();
     } catch (e: any) {
-      setError(e.message);
+      console.error(e);
     } finally {
       setSubmitting(false);
     }
@@ -152,14 +140,12 @@ export default function ClientsPage() {
   async function handleDelete() {
     if (!deleteId) return;
     setSubmitting(true);
-    setError(null);
     try {
       const res = await fetch(`/api/clients/${deleteId}`, { method: "DELETE" });
       if (!res.ok) throw new Error("Failed to delete client");
       closeDeleteDialog();
-      fetchClients();
     } catch (e: any) {
-      setError(e.message);
+      console.error(e);
     } finally {
       setSubmitting(false);
     }
@@ -195,9 +181,9 @@ export default function ClientsPage() {
           <Button onClick={openAddDialog}>Add Client</Button>
         </div>
       </div>
-      {error && <div className="mb-4 text-red-500">{error}</div>}
+      {error && <div className="mb-4 text-red-500">{typeof error === 'string' ? error : (error as Error)?.message || 'An error occurred.'}</div>}
       <div>
-        {loading ? (
+        {isLoading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {[...Array(6)].map((_, i) => (
               <Card key={i} className="p-6">
@@ -213,8 +199,8 @@ export default function ClientsPage() {
         ) : (
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-              {clients.map((client) => (
-                <Link key={client.id} href={`/dashboard/clients/${client.id}`} className="group" passHref legacyBehavior>
+              {clients.map((client: import("./useClientsQuery").Client) => (
+                <Link key={client.id} href={`/dashboard/clients/${client.id}`} className="group">
                   <Card
                     className="border-[1.5px] border-black/20 shadow-lg bg-white flex flex-col justify-between h-full cursor-pointer transition-all duration-200 group-hover:bg-purple-50 group-hover:shadow-xl"
                     tabIndex={0}

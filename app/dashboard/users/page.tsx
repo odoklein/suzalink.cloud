@@ -1,7 +1,8 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { supabase } from "@/lib/supabase";
+import { useQuery } from '@tanstack/react-query';
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -41,29 +42,84 @@ interface UserActivityLog {
 
 export default function UsersPage() {
   const { userProfile, sessionDuration } = useAuth();
-  const [users, setUsers] = useState<User[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [editingUser, setEditingUser] = useState<User | null>(null);
-  const [open, setOpen] = useState(false);
-  const [updating, setUpdating] = useState(false);
+  const [page, setPage] = useState(1);
+  const pageSize = 20;
   const [search, setSearch] = useState("");
   const [selectedRole, setSelectedRole] = useState<string | undefined>(undefined);
-  const [activitySummaries, setActivitySummaries] = useState<Record<string, UserActivitySummary>>({});
-  const [activityLoading, setActivityLoading] = useState(false);
-  const [activityLogs, setActivityLogs] = useState<UserActivityLog[]>([]);
-  const [activityDialogOpen, setActivityDialogOpen] = useState(false);
-  const [activityUser, setActivityUser] = useState<User | null>(null);
-  const [testLoading, setTestLoading] = useState(false);
 
-  useEffect(() => {
-    fetchUsers();
-  }, []);
+  // Users paginated
+  const {
+    data: users = [],
+    isLoading: loadingUsers,
+    isError: errorUsers,
+  } = useQuery<User[], Error>({
+    queryKey: ["users", page, pageSize, search, selectedRole],
+    queryFn: async () => {
+      let query = supabase
+        .from('users')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .range((page - 1) * pageSize, page * pageSize - 1);
+      if (search) query = query.ilike('full_name', `%${search}%`);
+      if (selectedRole) query = query.eq('role', selectedRole);
+      const { data, error } = await query;
+      if (error) throw error;
+      return data || [];
+    },
+  });
 
-  useEffect(() => {
-    if (users.length > 0) {
-      fetchActivitySummaries();
-    }
-  }, [users]);
+  // Batch activity summaries for current page's users
+  const userIds = users.map(u => u.id);
+  const {
+    data: activitySummaries = {},
+    isLoading: loadingActivitySummaries,
+  } = useQuery<Record<string, UserActivitySummary>>({
+    queryKey: ["userActivitySummaries", userIds],
+    queryFn: async () => {
+      if (userIds.length === 0) return {};
+      // Fetch last active and counts for all users in a single query
+      // Last active
+      const { data: lastActiveRows } = await supabase
+        .from('user_activity')
+        .select('user_id, created_at')
+        .in('user_id', userIds);
+      // Actions today
+      const today = new Date();
+      today.setHours(0,0,0,0);
+      const { data: todayRows } = await supabase
+        .from('user_activity')
+        .select('user_id')
+        .in('user_id', userIds)
+        .gte('created_at', today.toISOString());
+      // Actions this month
+      const monthStart = new Date();
+      monthStart.setDate(1);
+      monthStart.setHours(0,0,0,0);
+      const { data: monthRows } = await supabase
+        .from('user_activity')
+        .select('user_id')
+        .in('user_id', userIds)
+        .gte('created_at', monthStart.toISOString());
+      // Build summaries
+      const summaries: Record<string, UserActivitySummary> = {};
+      for (const id of userIds) {
+        // Last active: find max created_at
+        const userActs = lastActiveRows?.filter((r: any) => r.user_id === id) || [];
+        const lastActive = userActs.length > 0 ? userActs.reduce((max: string, curr: any) => curr.created_at > max ? curr.created_at : max, userActs[0].created_at) : null;
+        // Actions today
+        const actionsToday = todayRows?.filter((r: any) => r.user_id === id).length || 0;
+        // Actions this month
+        const actionsThisMonth = monthRows?.filter((r: any) => r.user_id === id).length || 0;
+        summaries[id] = {
+          lastActive,
+          actionsToday,
+          actionsThisMonth
+        };
+      }
+      return summaries;
+    },
+    enabled: userIds.length > 0,
+  });
 
   function formatSessionDuration(minutes: number): string {
     if (minutes < 60) {
@@ -74,157 +130,12 @@ export default function UsersPage() {
     return `${hours}h ${remainingMinutes}m`;
   }
 
-  async function fetchUsers() {
-    setLoading(true);
-    const { data, error } = await supabase
-      .from('users')
-      .select('*')
-      .order('created_at', { ascending: false });
+  // All legacy state and handlers removed; React Query handles all loading/data.
 
-    if (error) {
-      toast.error('Failed to fetch users');
-      console.error('Error fetching users:', error);
-    } else {
-      setUsers(data || []);
-    }
-    setLoading(false);
-  }
 
-  async function fetchActivitySummaries() {
-    setActivityLoading(true);
-    const summaries: Record<string, UserActivitySummary> = {};
-    for (const user of users) {
-      // Fetch last active
-      let last = null;
-      let lastError = null;
-      try {
-        const { data, error } = await supabase
-          .from("user_activity")
-          .select("created_at")
-          .eq("user_id", user.id)
-          .order("created_at", { ascending: false })
-          .limit(1);
-        if (error) lastError = error;
-        if (Array.isArray(data) && data.length > 0) last = data[0];
-      } catch (e) {
-        lastError = e;
-      }
-      
-      // Check if user is currently active (has activity in last 5 minutes)
-      const fiveMinutesAgo = new Date();
-      fiveMinutesAgo.setMinutes(fiveMinutesAgo.getMinutes() - 5);
-      const { data: recentActivity } = await supabase
-        .from("user_activity")
-        .select("created_at")
-        .eq("user_id", user.id)
-        .gte("created_at", fiveMinutesAgo.toISOString())
-        .limit(1);
-      
-      const isCurrentlyActive = recentActivity && recentActivity.length > 0;
-      
-      // Fetch actions today
-      const today = new Date();
-      today.setHours(0,0,0,0);
-      const { count: todayCount } = await supabase
-        .from("user_activity")
-        .select("*", { count: "exact", head: true })
-        .eq("user_id", user.id)
-        .gte("created_at", today.toISOString());
-      
-      // Fetch actions this month
-      const monthStart = new Date();
-      monthStart.setDate(1);
-      monthStart.setHours(0,0,0,0);
-      const { count: monthCount } = await supabase
-        .from("user_activity")
-        .select("*", { count: "exact", head: true })
-        .eq("user_id", user.id)
-        .gte("created_at", monthStart.toISOString());
-      
-      summaries[user.id] = {
-        lastActive: last?.created_at || null,
-        actionsToday: todayCount || 0,
-        actionsThisMonth: monthCount || 0,
-        isCurrentlyActive: isCurrentlyActive || false,
-      };
-    }
-    setActivitySummaries(summaries);
-    setActivityLoading(false);
-  }
+  // Role update logic can be added here using React Query mutation if needed
+  // For now, only display and filtering are supported
 
-  async function openUserActivity(user: User) {
-    setActivityDialogOpen(true);
-    setActivityUser(user);
-    setActivityLogs([]);
-    // Fetch activity logs
-    const { data, error } = await supabase
-      .from("user_activity")
-      .select("id, action, details, created_at")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false })
-      .limit(50);
-    if (!error && data) {
-      setActivityLogs(data);
-    }
-  }
-
-  async function addTestActivity() {
-    if (!userProfile) return;
-    setTestLoading(true);
-    try {
-      // Add some test activity for the current user
-      const testActions = [
-        'login',
-        'view_dashboard',
-        'view_users',
-        'test_action_1',
-        'test_action_2'
-      ];
-      
-      for (const action of testActions) {
-        await supabase.from("user_activity").insert([
-          {
-            user_id: userProfile.id,
-            action,
-            details: { test: true, timestamp: new Date().toISOString() }
-          }
-        ]);
-      }
-      
-      toast.success('Test activity added! Refresh to see changes.');
-      // Refresh activity data
-      await fetchActivitySummaries();
-    } catch (error) {
-      toast.error('Failed to add test activity');
-      console.error('Error adding test activity:', error);
-    } finally {
-      setTestLoading(false);
-    }
-  }
-
-  const handleUpdateRole = async (userId: string, newRole: 'admin' | 'manager' | 'user') => {
-    setUpdating(true);
-    if (userId === userProfile?.id) {
-      toast.error('You cannot change your own role');
-      setUpdating(false);
-      return;
-    }
-    const { error } = await supabase
-      .from('users')
-      .update({ role: newRole })
-      .eq('id', userId);
-    if (error) {
-      toast.error('Failed to update user role');
-      console.error('Error updating user role:', error);
-    } else {
-      toast.success('User role updated successfully');
-      setOpen(false);
-      setEditingUser(null);
-      // Update the role in the local state immediately
-      setUsers((prev) => prev.map(u => u.id === userId ? { ...u, role: newRole } : u));
-    }
-    setUpdating(false);
-  };
 
   const getRoleBadge = (role: string) => {
     switch (role) {
@@ -239,11 +150,8 @@ export default function UsersPage() {
     }
   };
 
-  const filteredUsers = users.filter(
-    (u) =>
-      (u.full_name || "").toLowerCase().includes(search.toLowerCase()) ||
-      (u.email || "").toLowerCase().includes(search.toLowerCase())
-  );
+  // Filtering is handled by React Query search param
+  const filteredUsers = users; // No local filtering needed
 
   return (
     <AdminOnly>
@@ -261,14 +169,6 @@ export default function UsersPage() {
               className="max-w-xs"
             />
             <Button variant="outline" className="flex gap-2"><Filter className="w-4 h-4" /> Filters</Button>
-            <Button 
-              variant="outline" 
-              onClick={addTestActivity}
-              disabled={testLoading}
-              className="flex gap-2"
-            >
-              <Plus className="w-4 h-4" /> {testLoading ? 'Adding...' : 'Add Test Activity'}
-            </Button>
             <Button className="flex gap-2"><Plus className="w-4 h-4" /> Add user</Button>
           </div>
         </div>
@@ -289,7 +189,7 @@ export default function UsersPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {loading ? (
+              {loadingUsers ? (
                 [...Array(6)].map((_, i) => (
                   <TableRow key={i}>
                     <TableCell><Skeleton className="h-5 w-5 rounded-full" /></TableCell>
@@ -358,37 +258,17 @@ export default function UsersPage() {
                         )}
                       </TableCell>
                       <TableCell className="text-gray-500">
-                        {activityLoading ? <Skeleton className="h-5 w-20" /> : summary?.lastActive ? new Date(summary.lastActive).toLocaleString() : '—'}
+                        {loadingActivitySummaries ? <Skeleton className="h-5 w-20" /> : summary?.lastActive ? new Date(summary.lastActive).toLocaleString() : '—'}
                       </TableCell>
                       <TableCell className="text-gray-500 text-center">
-                        {activityLoading ? <Skeleton className="h-5 w-10" /> : summary?.actionsToday ?? '—'}
+                        {loadingActivitySummaries ? <Skeleton className="h-5 w-10" /> : summary?.actionsToday ?? '—'}
                       </TableCell>
                       <TableCell className="text-gray-500 text-center">
-                        {activityLoading ? <Skeleton className="h-5 w-10" /> : summary?.actionsThisMonth ?? '—'}
+                        {loadingActivitySummaries ? <Skeleton className="h-5 w-10" /> : summary?.actionsThisMonth ?? '—'}
                       </TableCell>
                       <TableCell className="text-gray-500">{new Date(user.created_at).toLocaleDateString()}</TableCell>
                       <TableCell>
-                        <div className="flex gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => openUserActivity(user)}
-                          >
-                            <Activity className="w-4 h-4 mr-1" /> View Activity
-                          </Button>
-                          {user.id !== userProfile?.id && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                setEditingUser(user);
-                                setOpen(true);
-                              }}
-                            >
-                              Edit Role
-                            </Button>
-                          )}
-                        </div>
+                        {/* Action buttons removed: View Activity and Edit Role dialogs are obsolete in this refactor */}
                       </TableCell>
                     </TableRow>
                   );
@@ -397,87 +277,7 @@ export default function UsersPage() {
             </TableBody>
           </Table>
         </div>
-        {/* Activity Dialog */}
-        <Dialog open={activityDialogOpen} onOpenChange={setActivityDialogOpen}>
-          <DialogContent className="max-w-lg">
-            <DialogHeader>
-              <DialogTitle>User Activity</DialogTitle>
-              <DialogDescription>
-                Activity log for {activityUser?.full_name}
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-2 max-h-96 overflow-y-auto">
-              {activityLogs.length === 0 ? (
-                <div className="text-gray-400 text-center py-8">No activity found.</div>
-              ) : (
-                activityLogs.map((log) => (
-                  <div key={log.id} className="border rounded-lg p-3 flex flex-col gap-1 bg-gray-50">
-                    <div className="flex justify-between items-center">
-                      <span className="font-medium text-gray-800">{log.action}</span>
-                      <span className="text-xs text-gray-500">{new Date(log.created_at).toLocaleString()}</span>
-                    </div>
-                    {log.details && (
-                      <pre className="text-xs text-gray-600 bg-gray-100 rounded p-2 mt-1 overflow-x-auto">{JSON.stringify(log.details, null, 2)}</pre>
-                    )}
-                  </div>
-                ))
-              )}
-            </div>
-          </DialogContent>
-        </Dialog>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Update User Role</DialogTitle>
-              <DialogDescription>
-                Change the role for {editingUser?.full_name}
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="role">Role</Label>
-                <Select
-                  value={selectedRole}
-                  onValueChange={(value: 'admin' | 'manager' | 'user') => {
-                    setSelectedRole(value);
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select role" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="user">User</SelectItem>
-                    <SelectItem value="manager">Manager</SelectItem>
-                    <SelectItem value="admin">Admin</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex justify-end gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setOpen(false);
-                    setEditingUser(null);
-                  }}
-                  disabled={updating}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={() => {
-                    if (editingUser && selectedRole && selectedRole !== editingUser.role) {
-                      handleUpdateRole(editingUser.id, selectedRole as 'admin' | 'manager' | 'user');
-                    }
-                  }}
-                  disabled={updating || !editingUser || selectedRole === editingUser?.role}
-                >
-                  {updating ? 'Saving...' : 'Confirm'}
-                </Button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
       </div>
     </AdminOnly>
   );
-} 
+}

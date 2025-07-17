@@ -1,6 +1,6 @@
 import { supabase } from "@/lib/supabase";
 
-// Create user profile after registration
+// User profiles should only be created by an admin. Public registration is disabled.
 export async function createUserProfile(userId: string, email: string, fullName?: string, role: 'admin' | 'manager' | 'user' = 'user') {
   const { data, error } = await supabase
     .from("users")

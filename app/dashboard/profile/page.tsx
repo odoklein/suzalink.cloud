@@ -14,7 +14,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/supabase";
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
+import type { UserProfile } from "../../types/user";
 
 export default function ProfilePage() {
   const { userProfile, session } = useAuth();
@@ -25,6 +26,14 @@ export default function ProfilePage() {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+
+  // Editable profile fields state
+  const [profileFields, setProfileFields] = useState<UserProfile | null>(null);
+
+  // Keep profileFields in sync with userProfile
+  useEffect(() => {
+    if (userProfile) setProfileFields({ ...userProfile });
+  }, [userProfile]);
 
   const profilePictureUrl =
     userProfile?.profile_picture_url?.startsWith("http")
@@ -55,6 +64,19 @@ export default function ProfilePage() {
         return "bg-gray-100 text-gray-800 border-gray-200";
       default:
         return "bg-gray-100 text-gray-800 border-gray-200";
+    }
+  };
+
+  // Save profile handler
+  const handleSaveProfile = async () => {
+    if (!session || !profileFields?.id) return;
+    setLoading(true);
+    const { error } = await supabase.from('users').update(profileFields).eq('id', profileFields.id);
+    setLoading(false);
+    if (error) {
+      alert('Failed to update profile: ' + error.message);
+    } else {
+      alert('Profile updated!');
     }
   };
 
@@ -199,32 +221,151 @@ export default function ProfilePage() {
             </div>
 
             <div className="flex items-center gap-3">
-              <UserIcon className="w-4 h-4 text-gray-500" />
-              <div>
-                <p className="text-sm font-medium text-gray-700">Full Name</p>
-                <p className="text-gray-900">{userProfile.full_name}</p>
-              </div>
-            </div>
+  <UserIcon className="w-4 h-4 text-gray-500" />
+  <div>
+    <p className="text-sm font-medium text-gray-700">Full Name</p>
+    <Input
+      value={profileFields?.full_name || ''}
+      onChange={e => setProfileFields((f: UserProfile | null) => f ? { ...f, full_name: e.target.value } : f)}
+      className="w-full max-w-xs"
+    />
+  </div>
+</div>
 
-            <div className="flex items-center gap-3">
-              <ShieldCheckIcon className="w-4 h-4 text-gray-500" />
-              <div>
-                <p className="text-sm font-medium text-gray-700">Role</p>
-                <Badge className={getRoleBadgeColor(userProfile.role)}>
-                  {userProfile.role.charAt(0).toUpperCase() + userProfile.role.slice(1)}
-                </Badge>
-              </div>
-            </div>
+<div className="flex items-center gap-3">
+  <UserIcon className="w-4 h-4 text-gray-500" />
+  <div>
+    <p className="text-sm font-medium text-gray-700">Username</p>
+    <Input
+      value={profileFields?.username || ''}
+      onChange={e => setProfileFields((f: UserProfile | null) => f ? { ...f, username: e.target.value } : f)}
+      className="w-full max-w-xs"
+    />
+  </div>
+</div>
 
-            <div className="flex items-center gap-3">
-              <CalendarIcon className="w-4 h-4 text-gray-500" />
-              <div>
-                <p className="text-sm font-medium text-gray-700">Member Since</p>
-                <p className="text-gray-900">
-                  {new Date(userProfile.created_at).toLocaleDateString()}
-                </p>
-              </div>
-            </div>
+<div className="flex items-center gap-3">
+  <UserIcon className="w-4 h-4 text-gray-500" />
+  <div>
+    <p className="text-sm font-medium text-gray-700">Job Title</p>
+    <Input
+      value={profileFields?.job_title || ''}
+      onChange={e => setProfileFields((f: UserProfile | null) => f ? { ...f, job_title: e.target.value } : f)}
+      className="w-full max-w-xs"
+    />
+  </div>
+</div>
+
+<div className="flex items-center gap-3">
+  <UserIcon className="w-4 h-4 text-gray-500" />
+  <div>
+    <p className="text-sm font-medium text-gray-700">Department</p>
+    <Input
+      value={profileFields?.department || ''}
+      onChange={e => setProfileFields((f: UserProfile | null) => f ? { ...f, department: e.target.value } : f)}
+      className="w-full max-w-xs"
+    />
+  </div>
+</div>
+
+<div className="flex items-center gap-3">
+  <UserIcon className="w-4 h-4 text-gray-500" />
+  <div>
+    <p className="text-sm font-medium text-gray-700">Phone</p>
+    <Input
+      value={profileFields?.phone || ''}
+      onChange={e => setProfileFields((f: UserProfile | null) => f ? { ...f, phone: e.target.value } : f)}
+      className="w-full max-w-xs"
+    />
+  </div>
+</div>
+
+<div className="flex items-center gap-3">
+  <UserIcon className="w-4 h-4 text-gray-500" />
+  <div>
+    <p className="text-sm font-medium text-gray-700">Location</p>
+    <Input
+      value={profileFields?.location || ''}
+      onChange={e => setProfileFields((f: UserProfile | null) => f ? { ...f, location: e.target.value } : f)}
+      className="w-full max-w-xs"
+    />
+  </div>
+</div>
+
+<div className="flex items-center gap-3">
+  <CalendarIcon className="w-4 h-4 text-gray-500" />
+  <div>
+    <p className="text-sm font-medium text-gray-700">Birthday</p>
+    <Input
+      type="date"
+      value={profileFields?.birthday || ''}
+      onChange={e => setProfileFields((f: UserProfile | null) => f ? { ...f, birthday: e.target.value } : f)}
+      className="w-full max-w-xs"
+    />
+  </div>
+</div>
+
+<div className="flex items-center gap-3">
+  <UserIcon className="w-4 h-4 text-gray-500" />
+  <div>
+    <p className="text-sm font-medium text-gray-700">LinkedIn</p>
+    <Input
+      value={profileFields?.linkedin_url || ''}
+      onChange={e => setProfileFields((f: UserProfile | null) => f ? { ...f, linkedin_url: e.target.value } : f)}
+      className="w-full max-w-xs"
+      placeholder="https://linkedin.com/in/username"
+    />
+  </div>
+</div>
+
+<div className="flex items-center gap-3">
+  <UserIcon className="w-4 h-4 text-gray-500" />
+  <div>
+    <p className="text-sm font-medium text-gray-700">Website</p>
+    <Input
+      value={profileFields?.website_url || ''}
+      onChange={e => setProfileFields((f: UserProfile | null) => f ? { ...f, website_url: e.target.value } : f)}
+      className="w-full max-w-xs"
+      placeholder="https://yourwebsite.com"
+    />
+  </div>
+</div>
+
+<div className="flex items-center gap-3">
+  <UserIcon className="w-4 h-4 text-gray-500" />
+  <div className="w-full">
+    <p className="text-sm font-medium text-gray-700">Bio</p>
+    <textarea
+      value={profileFields?.bio || ''}
+      onChange={e => setProfileFields((f: UserProfile | null) => f ? { ...f, bio: e.target.value } : f)}
+      className="w-full max-w-xs border rounded p-2 min-h-[60px]"
+      placeholder="Tell us about yourself..."
+    />
+  </div>
+</div>
+
+<div className="flex items-center gap-3">
+  <ShieldCheckIcon className="w-4 h-4 text-gray-500" />
+  <div>
+    <p className="text-sm font-medium text-gray-700">Role</p>
+    <Badge className={getRoleBadgeColor(userProfile.role)}>
+      {userProfile.role.charAt(0).toUpperCase() + userProfile.role.slice(1)}
+    </Badge>
+  </div>
+</div>
+
+<div className="flex items-center gap-3">
+  <CalendarIcon className="w-4 h-4 text-gray-500" />
+  <div>
+    <p className="text-sm font-medium text-gray-700">Member Since</p>
+    <p className="text-gray-900">
+      {new Date(userProfile.created_at).toLocaleDateString()}
+    </p>
+  </div>
+</div>
+
+<Button type="button" className="mt-4" onClick={handleSaveProfile}>Save Profile</Button>
+
           </CardContent>
         </Card>
 

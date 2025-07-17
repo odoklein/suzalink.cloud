@@ -1,14 +1,29 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
+import { useClientContactsQuery, useAddContactMutation, useDeleteContactMutation } from "./useClientContactsQuery";
+import { useClientHistoryQuery, useAddHistoryMutation, useDeleteHistoryMutation } from "./useClientHistoryQuery";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import Link from "next/link";
-import { User, Mail, Building2, MapPin, Phone, Edit2, Plus, FileText, Calendar, Users as UsersIcon, MessageCircle, CheckCircle2 } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import Link from "next/link";
+import {
+  Mail,
+  MapPin,
+  Phone,
+  Edit2,
+  FileText,
+  Calendar,
+  MessageCircle,
+  Plus,
+  Users as UsersIcon,
+  Building2,
+  CheckCircle2
+} from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface Client {
   id: string;
@@ -64,23 +79,20 @@ const HISTORY_TYPE_LABELS = {
 };
 
 export default function ClientDetailPage() {
-  const { id } = useParams();
+  const params = useParams();
+  const id = typeof params.id === 'string' ? params.id : Array.isArray(params.id) ? params.id[0] : '';
   const [client, setClient] = useState<Client | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'details' | 'history' | 'contacts'>('details');
 
-  // History state
-  const [history, setHistory] = useState<HistoryEntry[]>([]);
+  // Dialog state
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
   const [historyForm, setHistoryForm] = useState({
     type: 'note' as HistoryEntry['type'],
     description: '',
     outcome: '',
   });
-
-  // Contacts state
-  const [contacts, setContacts] = useState<Contact[]>([]);
   const [contactDialogOpen, setContactDialogOpen] = useState(false);
   const [contactForm, setContactForm] = useState({
     name: '',
@@ -89,6 +101,15 @@ export default function ClientDetailPage() {
     status: 'secondary' as Contact['status'],
     title: '',
   });
+
+  // React Query for contacts and history
+  const { data: contacts = [], isLoading: contactsLoading, error: contactsError } = useClientContactsQuery(id);
+  const addContactMutation = useAddContactMutation(id);
+  const deleteContactMutation = useDeleteContactMutation(id);
+
+  const { data: history = [], isLoading: historyLoading, error: historyError } = useClientHistoryQuery(id);
+  const addHistoryMutation = useAddHistoryMutation(id);
+  const deleteHistoryMutation = useDeleteHistoryMutation(id);
 
   // Action modals state
   const [scheduleCallDialogOpen, setScheduleCallDialogOpen] = useState(false);
@@ -136,97 +157,42 @@ export default function ClientDetailPage() {
     if (id) fetchFactures();
   }, [id]);
 
-  // Mock data for history and contacts
-  useEffect(() => {
-    // Mock history data
-    setHistory([
-      {
-        id: '1',
-        type: 'call',
-        date: '2024-01-15',
-        description: 'Initial contact call',
-        outcome: 'Client interested in proposal',
-      },
-      {
-        id: '2',
-        type: 'email',
-        date: '2024-01-10',
-        description: 'Sent proposal document',
-        outcome: 'Proposal sent successfully',
-      },
-      {
-        id: '3',
-        type: 'meeting',
-        date: '2024-01-05',
-        description: 'Discovery meeting',
-        outcome: 'Requirements gathered',
-      },
-    ]);
-
-    // Mock contacts data
-    setContacts([
-      {
-        id: '1',
-        name: 'Bruno Lespinée',
-        email: 'bruno@example.com',
-        phone: '1234567890',
-        status: 'primary',
-        title: 'CEO',
-      },
-      {
-        id: '2',
-        name: 'Julien Hernandez',
-        email: 'julien@example.com',
-        phone: '0987654321',
-        status: 'decision_maker',
-        title: 'CTO',
-      },
-      {
-        id: '3',
-        name: 'Fabien Loco',
-        email: 'fabien@example.com',
-        phone: '1122334455',
-        status: 'secondary',
-        title: 'Project Manager',
-      },
-    ]);
-  }, [id]);
-
   function handleAddHistory(e: React.FormEvent) {
     e.preventDefault();
-    const newEntry: HistoryEntry = {
-      id: Date.now().toString(),
+    addHistoryMutation.mutate({
       type: historyForm.type,
-      date: new Date().toISOString().split('T')[0],
       description: historyForm.description,
       outcome: historyForm.outcome,
-    };
-    setHistory(prev => [newEntry, ...prev]);
-    setHistoryForm({ type: 'note', description: '', outcome: '' });
-    setHistoryDialogOpen(false);
+    }, {
+      onSuccess: () => {
+        setHistoryForm({ type: 'note', description: '', outcome: '' });
+        setHistoryDialogOpen(false);
+      }
+    });
   }
 
   function handleAddContact(e: React.FormEvent) {
     e.preventDefault();
-    const newContact: Contact = {
-      id: Date.now().toString(),
+    addContactMutation.mutate({
       name: contactForm.name,
       email: contactForm.email,
       phone: contactForm.phone,
       status: contactForm.status,
       title: contactForm.title,
-    };
-    setContacts(prev => [...prev, newContact]);
-    setContactForm({ name: '', email: '', phone: '', status: 'secondary', title: '' });
-    setContactDialogOpen(false);
+    }, {
+      onSuccess: () => {
+        setContactForm({ name: '', email: '', phone: '', status: 'secondary', title: '' });
+        setContactDialogOpen(false);
+      }
+    });
   }
 
   function handleDeleteContact(contactId: string) {
-    setContacts(prev => prev.filter(c => c.id !== contactId));
+    deleteContactMutation.mutate(contactId);
   }
 
   function handleDeleteHistory(historyId: string) {
-    setHistory(prev => prev.filter(h => h.id !== historyId));
+    deleteHistoryMutation.mutate(historyId);
   }
 
   if (loading) return <div className="p-8">Loading...</div>;

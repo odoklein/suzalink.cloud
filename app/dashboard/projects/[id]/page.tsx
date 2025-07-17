@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -68,11 +69,12 @@ const SECTION_BORDER_COLORS: Record<string, string> = {
 };
 
 export default function ProjectDetailPage() {
-  const { id } = useParams();
+  const params = useParams();
+const id = typeof params.id === 'string' ? params.id : Array.isArray(params.id) ? params.id[0] : '';
+// Optionally, add a fallback or error if id is still empty
   const router = useRouter();
   const [project, setProject] = useState<any>(null);
   const [tasks, setTasks] = useState<any[]>([]);
-  const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({
@@ -91,11 +93,51 @@ export default function ProjectDetailPage() {
   const [filterStatus, setFilterStatus] = useState<string>("");
   const [filterAssignee, setFilterAssignee] = useState<string>("");
 
+  const {
+    data: users = [],
+    isLoading: loadingUsers,
+    isError: errorUsers,
+    refetch: refetchUsers
+  } = useQuery({
+    queryKey: ['users'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('users').select('id, full_name').order('full_name');
+      if (error) throw new Error(error.message);
+      return data || [];
+    }
+  });
+
+  const queryClient = useQueryClient();
+
+  const mutation = useMutation({
+    mutationFn: async (payload: any) => {
+      const { error, data } = await supabase.from('tasks').insert(payload);
+      if (error) throw new Error(error.message);
+      return data?.[0];
+    },
+    onMutate: async (newTask: any) => {
+      await queryClient.cancelQueries(['tasks', id]);
+      const prevTasks = queryClient.getQueryData(['tasks', id]) || [];
+      queryClient.setQueryData(['tasks', id], (old: any[] = []) => [...old, { ...newTask, id: Math.random().toString(36).slice(2) }]);
+      return { prevTasks };
+    },
+    onError: (err: any, newTask: any, context: any) => {
+      queryClient.setQueryData(['tasks', id], context.prevTasks);
+      toast.error('Failed to create task', { description: err.message });
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries(['tasks', id]);
+    },
+    onSuccess: () => {
+      toast.success('Task created successfully');
+      setOpen(false);
+    }
+  });
+
   useEffect(() => {
     if (!id) return;
     fetchProject();
     fetchTasks();
-    fetchUsers();
     // eslint-disable-next-line
   }, [id]);
 
@@ -135,13 +177,6 @@ export default function ProjectDetailPage() {
     if (error) toast.error("Failed to fetch tasks", { description: error.message });
   }
 
-  async function fetchUsers() {
-    // Fetch users from the custom 'users' table, not auth.users
-    const { data } = await supabase.from("users").select("id, full_name").order("full_name");
-    setUsers(data || []);
-    console.log('Fetched users for assignee dropdown:', data);
-  }
-
   function openCreate(status: string) {
     setEditing(null);
     setForm({ title: "", description: "", status, assignee_id: "", due_date: "" });
@@ -171,31 +206,26 @@ export default function ProjectDetailPage() {
       due_date: form.due_date || null,
       project_id: id
     };
-    let error;
     if (editing) {
-      ({ error } = await supabase.from("tasks").update(payload).eq("id", editing.id));
-      console.log('Update payload:', payload, 'Error:', error);
-
+      // (Keep edit logic as before)
+      let error;
+      ({ error } = await supabase.from('tasks').update(payload).eq('id', editing.id));
       if (error) {
-        toast.error("Failed to update task", { description: error.message });
+        toast.error('Failed to update task', { description: error.message });
       } else {
-        toast.success("Task updated successfully");
+        toast.success('Task updated successfully');
       }
+      setOpen(false);
+      fetchTasks();
     } else {
-      ({ error } = await supabase.from("tasks").insert(payload));
-      if (error) {
-        toast.error("Failed to create task", { description: error.message });
-      } else {
-        toast.success("Task created successfully");
-      }
+      mutation.mutate(payload);
     }
-    setOpen(false);
-    fetchTasks();
   }
 
   function openDelete(taskId: string) {
     setDeleteModal({ open: true, taskId });
   }
+
   function closeDelete() {
     setDeleteModal({ open: false, taskId: null });
   }
@@ -230,11 +260,50 @@ export default function ProjectDetailPage() {
   if (!project) return <div className="text-gray-400 p-8">Project not found.</div>;
 
   return (
-    <div>
-      <div className="flex items-center gap-4 mb-8">
-        <Button variant="outline" onClick={() => router.push("/dashboard/projects")}>Back</Button>
-        <h2 className="text-2xl font-bold text-gray-800">{project.title}</h2>
-        <span className="text-gray-500">{project.description}</span>
+    <div className="min-h-screen bg-gray-50 pb-12">
+      <div className="w-full pt-8 px-6">
+        {/* Back button */}
+        <button onClick={() => router.push('/dashboard/projects')} className="mb-2 text-sm text-gray-500 hover:text-primary flex items-center gap-1 font-medium">
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M15 19l-7-7 7-7" /></svg>
+          Back to Projects
+        </button>
+        {/* Project Details Card */}
+        <div className="rounded-2xl shadow bg-white border border-gray-100 p-6 flex flex-col gap-3 w-full mt-8 mb-8 md:mt-10 md:mb-10">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+            <div>
+              <h2 className="text-2xl font-extrabold text-gray-900 mb-1">{project.title}</h2>
+              <div className="text-gray-600 text-base">{project.description || <span className="italic text-gray-400">No description</span>}</div>
+            </div>
+            <div className="flex flex-wrap gap-3 items-center mt-2 md:mt-0">
+              {/* Status Badge */}
+              <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full font-semibold text-xs bg-purple-100 text-purple-700">
+                <svg className="w-4 h-4 mr-1 text-purple-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></svg>
+                Active
+              </span>
+              {/* Created At (if available) */}
+              {project.created_at && (
+                <span className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs text-gray-500 bg-gray-100">
+                  <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+                  {new Date(project.created_at).toLocaleDateString()}
+                </span>
+              )}
+              {/* Budget (if available) */}
+              {project.budget && (
+                <span className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs text-green-700 bg-green-100">
+                  <svg className="w-4 h-4 text-green-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M12 8v4l3 3" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  ${project.budget}
+                </span>
+              )}
+              {/* Client (if available) */}
+              {project.client?.name && (
+                <span className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs text-blue-700 bg-blue-100">
+                  <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></svg>
+                  {project.client.name}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
       </div>
       {/* View Switcher */}
       <div className="flex items-center gap-2 mb-6 px-8">
@@ -246,52 +315,31 @@ export default function ProjectDetailPage() {
           <FolderKanban className="w-4 h-4" /> Board
         </Button>
         <Button
-          variant={view === 'timeline' ? 'default' : 'outline'}
-          className="flex items-center gap-2 rounded-full px-4 py-2"
-          onClick={() => setView('timeline')}
-        >
-          <CalendarClock className="w-4 h-4" /> Timeline
-        </Button>
-        <Button
           variant={view === 'list' ? 'default' : 'outline'}
           className="flex items-center gap-2 rounded-full px-4 py-2"
           onClick={() => setView('list')}
         >
           <List className="w-4 h-4" /> List
         </Button>
-        <Button
-          variant={view === 'table' ? 'default' : 'outline'}
-          className="flex items-center gap-2 rounded-full px-4 py-2"
-          onClick={() => setView('table')}
-        >
-          <Table className="w-4 h-4" /> Table
-        </Button>
-        <Button
-          variant={view === 'filter' ? 'default' : 'outline'}
-          className="flex items-center gap-2 rounded-full px-4 py-2"
-          onClick={() => setView('filter')}
-        >
-          <Filter className="w-4 h-4" /> Filter
-        </Button>
       </div>
       {view === 'list' && (
-        <div className="w-full px-8">
-          <div className="bg-white rounded-2xl shadow border p-0">
+        <div className="w-full mt-8 px-6">
+          <div className="bg-white rounded-2xl shadow border border-gray-100 p-0 w-full">
             {groupedTasks.map((section, idx) => (
-              <div key={section.value} className="mb-8">
+              <div key={section.value} className="mb-2">
                 {/* Section Header */}
-                <div className={`flex items-center justify-between px-6 py-4 rounded-t-2xl bg-gray-50 border-b border-gray-200 ${SECTION_BORDER_COLORS[section.value] || ''}`} style={{ minHeight: 64 }}>
-                  <div className="flex items-center gap-3 text-lg font-bold">
+                <div className="flex items-center justify-between px-8 py-4 bg-gray-50 rounded-t-2xl border-b border-gray-100">
+                  <div className="flex items-center gap-3 text-lg font-bold text-gray-800">
                     <span className={`inline-flex items-center justify-center rounded-full w-8 h-8 font-semibold ${STATUS_COLORS[section.value] || 'bg-gray-300 text-white'}`}>{section.label[0]}</span>
                     <span>{section.label}</span>
                     <span className={`ml-2 text-xs font-semibold rounded px-2 py-0.5 ${STATUS_COLORS[section.value] || 'bg-gray-300 text-white'}`}>{section.tasks.length}</span>
                   </div>
-                  <Button size="sm" variant="outline" className="rounded" onClick={() => openCreate(section.value)}>
+                  <Button size="sm" variant="outline" className="rounded font-semibold" onClick={() => openCreate(section.value)}>
                     + Add Task
                   </Button>
                 </div>
                 {/* Table Header */}
-                <div className="grid grid-cols-6 gap-2 px-6 py-2 text-xs text-gray-500 font-medium border-b border-gray-100 bg-gray-50">
+                <div className="grid grid-cols-6 gap-2 px-8 py-2 text-xs text-gray-500 font-semibold border-b border-gray-100 bg-white">
                   <div className="col-span-2">Name</div>
                   <div>Start Date</div>
                   <div>Due Date</div>
@@ -301,15 +349,21 @@ export default function ProjectDetailPage() {
                 {/* Task Rows */}
                 <div className="flex flex-col gap-0">
                   {loading ? (
-                    <div className="text-gray-400 px-6 py-4">Loading...</div>
+                    <div className="text-gray-400 px-8 py-6 flex flex-col items-center">
+                      <svg className="w-10 h-10 mb-2 text-gray-200 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" strokeWidth="4"/></svg>
+                      Loading tasks...
+                    </div>
                   ) : section.tasks.length === 0 ? (
-                    <div className="text-gray-300 italic px-6 py-4">No tasks</div>
+                    <div className="flex flex-col items-center justify-center px-8 py-10 text-gray-400">
+                      <svg className="w-12 h-12 mb-2" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M8 2v4M16 2v4M3 10h18"/></svg>
+                      <div className="font-medium">No tasks in this section</div>
+                      <div className="text-xs text-gray-300">Start by adding a new task.</div>
+                    </div>
                   ) : (
                     section.tasks.map((task, idx) => (
                       <div
                         key={task.id}
-                        className="hover:bg-gray-50 transition group border-b border-gray-100 last:border-b-0 cursor-pointer"
-                        style={{ minHeight: 56, display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr 1fr', alignItems: 'center', padding: '0 1.5rem' }}
+                        className="group transition cursor-pointer bg-white hover:bg-gray-50 border-b border-gray-100 last:border-b-0 rounded-none grid grid-cols-6 items-center px-8 py-3"
                         onClick={(e: React.MouseEvent<HTMLDivElement>) => {
                           if ((e.target as HTMLElement).closest('button')) return;
                           setSelectedTask(task);
@@ -317,7 +371,7 @@ export default function ProjectDetailPage() {
                         }}
                       >
                         {/* Name */}
-                        <div className="flex items-center gap-2 col-span-2 py-3">
+                        <div className="flex items-center gap-2 col-span-2">
                           <span className="font-medium text-gray-800">{task.title}</span>
                           <span className={`ml-2 px-2 py-0.5 rounded text-xs font-medium ${STATUS_COLORS[section.value] || 'bg-gray-300 text-white'}`}>{section.label}</span>
                         </div>
@@ -475,7 +529,7 @@ export default function ProjectDetailPage() {
                     <div>{task.due_date || <span className="italic text-gray-300">No due</span>}</div>
                     <div><span className="inline-block px-2 py-0.5 rounded bg-gray-200 text-xs text-gray-700">Normal</span></div>
                     <div>{task.assignee_id && users.length > 0 ? (
-                      <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-gray-200 text-gray-700 text-xs font-semibold">{users.find(u => u.id === task.assignee_id)?.full_name?.[0] || '?'}</span>
+                      <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-gray-200 text-gray-700 text-xs font-semibold">{users.find((u: { id: string; full_name: string }) => u.id === task.assignee_id)?.full_name?.[0] || '?'}</span>
                     ) : (
                       <span className="italic text-gray-300">-</span>
                     )}</div>
@@ -502,7 +556,7 @@ export default function ProjectDetailPage() {
               <label className="block text-xs font-medium mb-1">Assignee</label>
               <select className="w-full border rounded px-2 py-1" value={filterAssignee} onChange={e => setFilterAssignee(e.target.value)}>
                 <option value="">All</option>
-                {users.map(u => <option key={u.id} value={u.id}>{u.full_name}</option>)}
+                {users.map((u: { id: string; full_name: string }) => <option key={u.id} value={u.id}>{u.full_name}</option>)}
               </select>
             </div>
             {/* Add more filters as needed */}
@@ -529,7 +583,7 @@ export default function ProjectDetailPage() {
                       <div>{task.due_date || <span className="italic text-gray-300">No due</span>}</div>
                       <div><span className="inline-block px-2 py-0.5 rounded bg-gray-200 text-xs text-gray-700">Normal</span></div>
                       <div>{task.assignee_id && users.length > 0 ? (
-                        <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-gray-200 text-gray-700 text-xs font-semibold">{users.find(u => u.id === task.assignee_id)?.full_name?.[0] || '?'}</span>
+                        <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-gray-200 text-gray-700 text-xs font-semibold">{users.find((u: { id: string; full_name: string }) => u.id === task.assignee_id)?.full_name?.[0] || '?'}</span>
                       ) : (
                         <span className="italic text-gray-300">-</span>
                       )}</div>
@@ -586,13 +640,23 @@ export default function ProjectDetailPage() {
               <Label className="mb-2 block">Assignee</Label>
               <Select value={form.assignee_id || "none"} onValueChange={value => setForm(f => ({ ...f, assignee_id: value === "none" ? "" : value }))}>
                 <SelectTrigger>
-                  <SelectValue placeholder="No assignee" />
+                  <SelectValue placeholder={loadingUsers ? 'Loading users...' : 'No assignee'} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">No assignee</SelectItem>
-                  {users.map((u: any) => (
-                    <SelectItem key={u.id} value={u.id}>{u.full_name}</SelectItem>
-                  ))}
+                  {loadingUsers ? (
+                    <div className="px-4 py-2 text-gray-400">Loading...</div>
+                  ) : errorUsers ? (
+                    <div className="px-4 py-2 text-red-400">Failed to load users</div>
+                  ) : users.length === 0 ? (
+                    <div className="px-4 py-2 text-gray-400">No users found</div>
+                  ) : (
+                    <>
+                      <SelectItem value="none">No assignee</SelectItem>
+                      {users.map((u: { id: string; full_name: string }) => (
+                        <SelectItem key={u.id} value={u.id}>{u.full_name}</SelectItem>
+                      ))}
+                    </>
+                  )}
                 </SelectContent>
               </Select>
             </div>
@@ -634,10 +698,12 @@ export default function ProjectDetailPage() {
       {/* Side Peek Panel for Task Details */}
       <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
         <SheetContent side="right" className="max-w-md w-full p-6 bg-white">
-          <div className="mb-6">
-            <div className="text-xs text-gray-400 mb-2">Project / Kanban</div>
-            <h2 className="text-2xl font-bold">{selectedTask?.title}</h2>
-          </div>
+  {/* Visually hidden DialogTitle for accessibility */}
+  <DialogTitle className="sr-only">Task Details</DialogTitle>
+  <div className="mb-6">
+    <div className="text-xs text-gray-400 mb-2">Project / Kanban</div>
+    <h2 className="text-2xl font-bold">{selectedTask?.title}</h2>
+  </div>
           <div className="space-y-6">
             {/* Task Information Section */}
             <div className="bg-gray-50 rounded-lg p-4 shadow-sm">
@@ -648,7 +714,7 @@ export default function ProjectDetailPage() {
                 <div className="text-gray-500 text-sm">Status</div>
                 <div className="capitalize">{selectedTask?.status}</div>
                 <div className="text-gray-500 text-sm">Assignee</div>
-                <div>{users.find(u => u.id === selectedTask?.assignee_id)?.full_name || <span className="italic">No assignee</span>}</div>
+                <div>{users.find((u: { id: string; full_name: string }) => u.id === selectedTask?.assignee_id)?.full_name || <span className="italic">No assignee</span>}</div>
                 <div className="text-gray-500 text-sm">Due Date</div>
                 <div>{selectedTask?.due_date || <span className="italic">No due date</span>}</div>
               </div>

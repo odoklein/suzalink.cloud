@@ -39,6 +39,10 @@ export default function ProjectsPage() {
   const [sortBy, setSortBy] = useState<string>("created_at");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [deleteModal, setDeleteModal] = useState<{ open: boolean, projectId: string | null }>({ open: false, projectId: null });
+  // Pagination state
+  const [page, setPage] = useState(1);
+  const pageSize = 8;
+  const [totalCount, setTotalCount] = useState<number>(0);
 
   // Fetch projects with React Query
   const {
@@ -53,7 +57,9 @@ export default function ProjectsPage() {
       filterStatus,
       filterClient,
       sortBy,
-      sortDir
+      sortDir,
+      page,
+      pageSize
     ],
     queryFn: async () => {
       if (!user) return [];
@@ -62,12 +68,17 @@ export default function ProjectsPage() {
         .select(`
           id, title, description, status, start_date, end_date, budget, created_at,
           client:clients(name), client_id
-        `);
+        `, { count: "exact" });
       if (filterStatus && filterStatus !== "all") query = query.eq("status", filterStatus);
       if (filterClient && filterClient !== "all") query = query.eq("client_id", filterClient);
       query = query.order(sortBy, { ascending: sortDir === "asc" });
-      const { data, error } = await query;
+      // Pagination
+      const from = (page - 1) * pageSize;
+      const to = from + pageSize - 1;
+      query = query.range(from, to);
+      const { data, error, count } = await query;
       if (error) throw new Error(error.message);
+      if (typeof count === 'number') setTotalCount(count);
       return data || [];
     },
     enabled: !!user
@@ -187,7 +198,7 @@ export default function ProjectsPage() {
     <div>
       <div className="flex flex-col gap-6">
         {/* Filter Bar */}
-        <div className="flex flex-wrap items-center gap-4 justify-between mb-4 px-2">
+        <div className="flex flex-wrap items-center gap-4 justify-between mb-6 px-2 py-3 bg-gradient-to-r from-gray-50 to-purple-50 rounded-xl shadow-sm border border-gray-100">
           <div className="flex flex-wrap gap-2 items-center">
             <Select value={filterClient} onValueChange={setFilterClient}>
               <SelectTrigger className="w-[140px] bg-white border border-gray-200 rounded-lg shadow-sm">
@@ -230,14 +241,14 @@ export default function ProjectsPage() {
               {sortDir === "asc" ? "↑" : "↓"}
             </Button>
           </div>
-          <Button onClick={openCreate} className="rounded-lg font-medium shadow-sm">+ New Project</Button>
+          <Button onClick={openCreate} className="rounded-lg font-semibold shadow-md bg-gradient-to-r from-purple-500 to-pink-500 text-white flex items-center gap-2 hover:scale-[1.03] transition-transform"><span className="text-xl">＋</span> New Project</Button>
         </div>
         {/* Project Cards Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
           {loadingProjects ? (
             <>
-              {[...Array(6)].map((_, i) => (
-                <Card key={i} className="rounded-2xl p-4 bg-white border border-gray-100 flex flex-col min-h-[220px] justify-between shadow-sm">
+              {[...Array(pageSize)].map((_, i) => (
+                <Card key={i} className="rounded-2xl p-4 bg-white border border--100 flex flex-col min-h-[220px] justify-between shadow-sm">
                   <div>
                     <CardHeader className="p-0 mb-2">
                       <Skeleton className="h-6 w-2/3 mb-2" /> {/* Title */}
@@ -284,48 +295,111 @@ export default function ProjectsPage() {
             </Card>
           ) : (
             <>
-              {projects.map((project: any) => (
-                <Card
-                  key={project.id}
-                  className="group hover:shadow-lg transition-shadow cursor-pointer rounded-2xl p-4 bg-white border border-gray-100 flex flex-col min-h-[220px] justify-between shadow-sm"
-                  onClick={() => router.push(`/dashboard/projects/${project.id}`)}
-                  style={{ boxShadow: '0 2px 8px 0 rgba(16,30,54,0.04)' }}
-                >
-                  <div>
-                    <CardHeader className="p-0 mb-2">
-                      <CardTitle className="text-lg font-bold mb-1 leading-tight text-gray-900">{project.title}</CardTitle>
-                    </CardHeader>
-                    <CardContent className="p-0">
-                      <div className="text-sm text-gray-500 mb-2 font-medium">
-                        {project.description || <span className="italic text-gray-300">No description</span>}
-                      </div>
-                      <div className="flex items-center gap-2 mb-2">
-                        {/* Avatars (owner/team) */}
-                        {project.owner?.full_name && (
-                          <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-gray-100 text-xs font-semibold text-gray-700 border border-gray-200">
-                            {project.owner.full_name.split(' ').map((n: string) => n[0]).join('').slice(0,2)}
-                          </span>
-                        )}
-                        {/* Add more avatars if you have a team array */}
-                      </div>
-                      <div className="flex flex-wrap gap-2 text-xs text-gray-400 mb-2">
-                        <span>Status: <span className="capitalize text-gray-600 font-medium">{project.status}</span></span>
-                        <span>Client: {project.client?.name || <span className="italic text-gray-300">No client</span>}</span>
-                        <span>Created: {project.created_at ? new Date(project.created_at).toLocaleDateString() : "-"}</span>
-                      </div>
-                    </CardContent>
-                  </div>
-                  <div className="flex items-center justify-between mt-2">
-                    <span className="text-xs text-gray-400">{project.start_date ? `${project.start_date}` : "No start"}</span>
-                    <div className="flex gap-2 items-center">
-                      {/* Star icon for favorite (placeholder) */}
-                      <span className="text-yellow-400 text-lg">★</span>
-                      {/* More menu (placeholder) */}
-                      <span className="text-gray-300 text-xl cursor-pointer">⋯</span>
-                    </div>
-                  </div>
-                </Card>
-              ))}
+              {projects.map((project: any) => {
+  // Status badge color
+  const statusColors = {
+    active: 'bg-green-100 text-green-700',
+    planning: 'bg-blue-100 text-blue-700',
+    completed: 'bg-purple-100 text-purple-700',
+    archived: 'bg-gray-200 text-gray-500'
+  };
+  // Client avatar color
+  const avatarColors = [
+    'bg-purple-100 text-purple-700',
+    'bg-pink-100 text-pink-700',
+    'bg-blue-100 text-blue-700',
+    'bg-green-100 text-green-700',
+    'bg-yellow-100 text-yellow-700',
+    'bg-gray-100 text-gray-500'
+  ];
+  const avatarColor = avatarColors[project.client?.name?.charCodeAt(0) % avatarColors.length] || 'bg-gray-100 text-gray-500';
+  return (
+    <Card
+      key={project.id}
+      className="group hover:shadow-xl hover:scale-[1.025] transition-all cursor-pointer rounded-2xl p-5 bg-white border border-gray-100 flex flex-col min-h-[240px] justify-between shadow-sm"
+      onClick={() => router.push(`/dashboard/projects/${project.id}`)}
+      style={{ boxShadow: '0 2px 8px 0 rgba(16,30,54,0.04)' }}
+    >
+      <div>
+        <CardHeader className="p-0 mb-2 flex flex-row items-center gap-2 justify-between">
+          <CardTitle className="text-lg font-semibold mb-1 leading-tight text-gray-900 truncate max-w-[70%]">{project.title}</CardTitle>
+          {(() => {
+            const statusClass = (project.status in statusColors)
+              ? statusColors[project.status as keyof typeof statusColors]
+              : 'bg-gray-100 text-gray-500';
+            return (
+              <span className={`px-2 py-1 rounded-full text-xs font-semibold ${statusClass}`}>{project.status}</span>
+            );
+          })()}
+
+        </CardHeader>
+        <CardContent className="p-0">
+          <div className="text-sm text-gray-500 mb-2 font-normal min-h-[36px]">
+            {project.description || <span className="italic text-gray-300">No description</span>}
+          </div>
+          <div className="flex items-center gap-2 mb-2">
+            {/* Client avatar */}
+            {project.client?.name && (
+              <span className={`inline-flex items-center justify-center w-8 h-8 rounded-full font-bold border border-gray-200 ${avatarColor}`}>
+                {project.client.name.split(' ').map((n: string) => n[0]).join('').slice(0,2)}
+              </span>
+            )}
+            {/* Budget */}
+            {project.budget && (
+              <span className="flex items-center gap-1 text-xs font-medium text-gray-600 bg-gray-50 px-2 py-1 rounded">
+                <svg className="w-4 h-4 text-green-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M12 8v4l3 3" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                ${project.budget}
+              </span>
+            )}
+            {/* Date range */}
+            {(project.start_date || project.end_date) && (
+              <span className="flex items-center gap-1 text-xs text-gray-400">
+                <svg className="w-4 h-4 text-blue-300" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+                {project.start_date || '?'} - {project.end_date || '?'}
+              </span>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-2 text-xs text-gray-400 mb-2">
+            <span>Client: {project.client?.name || <span className="italic text-gray-300">No client</span>}</span>
+            <span>Created: {project.created_at ? new Date(project.created_at).toLocaleDateString() : "-"}</span>
+          </div>
+        </CardContent>
+      </div>
+      <div className="flex items-center justify-between mt-3">
+        <span className="text-xs text-gray-400 flex items-center gap-1">
+          <svg className="w-3 h-3 text-gray-300" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></svg>
+          {project.start_date ? `${project.start_date}` : "No start"}
+        </span>
+        <div className="flex gap-2 items-center">
+          {/* More menu (edit/delete) */}
+          <button
+            type="button"
+            className="text-gray-400 hover:text-purple-500 text-xl rounded-full focus:outline-none p-1"
+            onClick={e => {
+              e.stopPropagation();
+              openEdit(project);
+            }}
+            title="Edit project"
+            aria-label="Edit project"
+          >
+            ⋯
+          </button>
+          <button
+            type="button"
+            className="text-red-400 hover:text-red-600 text-xl rounded-full focus:outline-none p-1"
+            onClick={e => {
+              e.stopPropagation();
+              setDeleteModal({ open: true, projectId: project.id });
+            }}
+            title="Delete project"
+          >
+            🗑️
+          </button>
+        </div>
+      </div>
+    </Card>
+  );
+})}
               {/* Add Project Card */}
               <Card
                 className="flex flex-col items-center justify-center border-2 border-dashed border-gray-200 bg-gray-50/60 hover:bg-purple-50 transition-all cursor-pointer min-h-[220px] shadow-none"
@@ -349,6 +423,14 @@ export default function ProjectsPage() {
             </>
           )}
         </div>
+        {/* Pagination Controls */}
+        {totalCount > pageSize && (
+          <div className="flex justify-center mt-6 gap-2">
+            <Button variant="outline" size="sm" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}>&larr; Prev</Button>
+            <span className="px-2 py-1 rounded text-gray-700 bg-gray-100">Page {page} of {Math.ceil(totalCount / pageSize)}</span>
+            <Button variant="outline" size="sm" onClick={() => setPage(p => p + 1)} disabled={page >= Math.ceil(totalCount / pageSize)}>Next &rarr;</Button>
+          </div>
+        )}
       </div>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
