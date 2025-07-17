@@ -194,7 +194,7 @@ export default function ProjectsPage() {
                 <SelectValue placeholder="Client" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Clients</SelectItem>
+                <SelectItem value="all">Tous les clients</SelectItem>
                 {clients.map((c: any) => (
                   <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
                 ))}
@@ -205,19 +205,19 @@ export default function ProjectsPage() {
                 <SelectValue placeholder="Label" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="all">Tous les statuts</SelectItem>
                 <SelectItem value="active">Active</SelectItem>
                 <SelectItem value="completed">Completed</SelectItem>
-                <SelectItem value="archived">Archived</SelectItem>
+                <SelectItem value="archived">Archivé</SelectItem>
               </SelectContent>
             </Select>
             <Select value={sortBy} onValueChange={setSortBy}>
               <SelectTrigger className="w-[140px] bg-white border border-gray-200 rounded-lg shadow-sm">
-                <SelectValue placeholder="Sort" />
+                <SelectValue placeholder="Trier par" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="created_at">Newest</SelectItem>
-                <SelectItem value="title">Title</SelectItem>
+                <SelectItem value="created_at">Plus récent</SelectItem>
+                <SelectItem value="title">Titre</SelectItem>
               </SelectContent>
             </Select>
             <Button
@@ -230,7 +230,7 @@ export default function ProjectsPage() {
               {sortDir === "asc" ? "↑" : "↓"}
             </Button>
           </div>
-          <Button onClick={openCreate} className="rounded-lg font-medium shadow-sm">+ New Project</Button>
+          <Button onClick={openCreate} className="rounded-lg font-medium shadow-sm">+ Nouveau projet</Button>
         </div>
         {/* Project Cards Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
@@ -350,107 +350,107 @@ export default function ProjectsPage() {
           )}
         </div>
       </div>
+      {/* Dialogs et modales */}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{editing ? "Edit Project" : "New Project"}</DialogTitle>
-            <DialogDescription>
-              {editing ? "Update the project details below." : "Create a new project by filling in the details below."}
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <Input
-              placeholder="Project title"
-              value={form.title}
-              onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
-              required
-              className="rounded-lg"
-            />
-            <Input
-              placeholder="Description (optional)"
-              value={form.description}
-              onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-              className="rounded-lg"
-            />
-            <div>
-              <Label>Status</Label>
-              <Select value={form.status} onValueChange={value => setForm(f => ({ ...f, status: value }))}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="planning">Planning</SelectItem>
-                  <SelectItem value="completed">Completed</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Client</Label>
-              <Select value={form.client_id || "none"} onValueChange={value => setForm(f => ({ ...f, client_id: value === "none" ? "" : value }))}>
-                <SelectTrigger>
-                  <SelectValue placeholder="No client" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">No client</SelectItem>
-                  {clients.map((client: any) => (
-                    <SelectItem key={client.id} value={client.id}>{client.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex gap-2">
-              <Input
-                type="date"
-                value={form.start_date}
-                onChange={e => setForm(f => ({ ...f, start_date: e.target.value }))}
-                className="rounded-lg"
-                placeholder="Start date"
-              />
-              <Input
-                type="date"
-                value={form.end_date}
-                onChange={e => setForm(f => ({ ...f, end_date: e.target.value }))}
-                className="rounded-lg"
-                placeholder="End date"
-              />
-            </div>
-            <Input
-              type="number"
-              placeholder="Budget (optional)"
-              value={form.budget}
-              onChange={e => setForm(f => ({ ...f, budget: e.target.value }))}
-              className="rounded-lg"
-            />
-            <div className="flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-                Cancel
-              </Button>
-              <Button type="submit">{editing ? "Save" : "Create"}</Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
-      {/* Delete Confirmation Modal */}
-      <Dialog open={deleteModal.open} onOpenChange={open => setDeleteModal(d => ({ ...d, open }))}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Delete Project</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete this project? This action cannot be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex justify-end gap-2 mt-4">
-            <Button variant="outline" onClick={() => setDeleteModal({ open: false, projectId: null })}>Cancel</Button>
-            <Button variant="destructive" onClick={async () => {
-              if (deleteModal.projectId) {
-                await handleDelete(deleteModal.projectId);
-              }
-              setDeleteModal({ open: false, projectId: null });
-            }}>Delete</Button>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>{editing ? "Modifier le projet" : "Nouveau projet"}</DialogTitle>
+          <DialogDescription>
+            {editing ? "Modifiez les informations du projet ci-dessous." : "Créez un nouveau projet en remplissant les informations ci-dessous."}
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <Input
+            placeholder="Titre du projet"
+            value={form.title}
+            onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+            required
+            className="rounded-lg"
+          />
+          <Input
+            placeholder="Description (facultatif)"
+            value={form.description}
+            onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+            className="rounded-lg"
+          />
+          <div>
+            <Label>Statut</Label>
+            <Select value={form.status} onValueChange={value => setForm(f => ({ ...f, status: value }))}>
+              <SelectTrigger>
+                <SelectValue placeholder="Sélectionner un statut" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="en_cours">En cours</SelectItem>
+                <SelectItem value="planifié">Planifié</SelectItem>
+                <SelectItem value="terminé">Terminé</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
-        </DialogContent>
+          <div>
+            <Label>Client</Label>
+            <Select value={form.client_id || "none"} onValueChange={value => setForm(f => ({ ...f, client_id: value === "none" ? "" : value }))}>
+              <SelectTrigger>
+                <SelectValue placeholder="Aucun client" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Aucun client</SelectItem>
+                {clients.map((client: any) => (
+                  <SelectItem key={client.id} value={client.id}>{client.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex gap-2">
+            <Input
+              type="date"
+              value={form.start_date}
+              onChange={e => setForm(f => ({ ...f, start_date: e.target.value }))}
+              className="rounded-lg"
+              placeholder="Date de début"
+            />
+            <Input
+              type="date"
+              value={form.end_date}
+              onChange={e => setForm(f => ({ ...f, end_date: e.target.value }))}
+              className="rounded-lg"
+              placeholder="Date de fin"
+            />
+          </div>
+          <Input
+            type="number"
+            placeholder="Budget (facultatif)"
+            value={form.budget}
+            onChange={e => setForm(f => ({ ...f, budget: e.target.value }))}
+            className="rounded-lg"
+          />
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+              Annuler
+            </Button>
+            <Button type="submit">{editing ? "Enregistrer" : "Créer"}</Button>
+          </div>
+        </form>
+      </DialogContent>
+      </Dialog>
+      {/* Modal de confirmation de suppression */}
+      <Dialog open={deleteModal.open} onOpenChange={open => setDeleteModal(d => ({ ...d, open }))}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Supprimer le projet</DialogTitle>
+          <DialogDescription>
+            Êtes-vous sûr de vouloir supprimer ce projet ? Cette action est irréversible.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex justify-end gap-2 mt-4">
+          <Button variant="outline" onClick={() => setDeleteModal({ open: false, projectId: null })}>Annuler</Button>
+          <Button variant="destructive" onClick={async () => {
+            if (deleteModal.projectId) {
+              await handleDelete(deleteModal.projectId);
+            }
+            setDeleteModal({ open: false, projectId: null });
+          }}>Supprimer</Button>
+        </div>
+      </DialogContent>
       </Dialog>
     </div>
-  );
-} 
+  );}

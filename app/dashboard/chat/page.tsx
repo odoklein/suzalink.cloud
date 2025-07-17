@@ -1,6 +1,9 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { Paperclip, Send, Mic, Smile, Video, Phone, MoreVertical } from "lucide-react";
+
+// Pour la gestion audio
+import { useRef as useReactRef2 } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth-context";
 import { toast } from "sonner";
@@ -18,6 +21,11 @@ export default function ChatPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useReactRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
+const [fileError, setFileError] = useState<string | null>(null);
+const [isRecording, setIsRecording] = useState(false);
+const [recordedAudio, setRecordedAudio] = useState<Blob | null>(null);
+const mediaRecorderRef = useReactRef2<MediaRecorder | null>(null);
+const [recordingError, setRecordingError] = useState<string | null>(null);
 
   // Fetch chats + participants + last message
   useEffect(() => {
@@ -208,47 +216,74 @@ export default function ChatPage() {
   // Send message
   const handleSend = async (e: any) => {
     e.preventDefault();
+    setFileError(null);
     if (!selectedChat) {
-      toast("Sélectionne une conversation avant d'envoyer un message ou un fichier.");
+      toast("Merci de sélectionner une discussion avant d'envoyer un message ou un fichier.");
       return;
     }
     if (!user) {
-      toast("Tu dois être connecté pour envoyer un message.");
+      toast("Vous devez être connecté pour envoyer un message.");
       return;
     }
-    if (!message.trim() && !file) return;
+    if (!message.trim() && !file && !recordedAudio) return;
     let file_url = null;
+    let isAudioMessage = false;
     if (file) {
+      // Vérification côté JS (déjà faite sur input, mais sécurité)
+      if (file.size > 10 * 1024 * 1024) {
+        setFileError("Fichier trop volumineux (max 10 Mo)");
+        setFile(null);
+        return;
+      }
+      const allowed = [
+        'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+        'application/pdf',
+        'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'application/zip', 'application/x-zip-compressed',
+        'audio/webm', 'audio/wav', 'audio/mpeg', 'audio/mp3', 'audio/ogg'
+      ];
+      if (!allowed.includes(file.type)) {
+        setFileError("Type de fichier non autorisé (image, PDF, Word, Excel, Zip, audio)");
+        setFile(null);
+        return;
+      }
       // Upload du fichier sur Supabase Storage
       const filePath = `${selectedChat.id}/${Date.now()}-${file.name}`;
       const { data, error } = await supabase.storage
         .from("chat-files")
         .upload(filePath, file);
       if (error) {
-        toast("Échec de l'upload du fichier : " + error.message + ` (${filePath})`);
+        setFileError("Échec de l'envoi du fichier : " + error.message);
+        setFile(null);
         return;
       }
       file_url = data?.path;
+      if (file.type.startsWith('audio/')) isAudioMessage = true;
     }
     const { error: insertError } = await supabase.from("chat_messages").insert({
       chat_id: selectedChat.id,
       sender_id: user.id,
-      content: message,
+      content: isAudioMessage ? '[Message vocal]' : message,
       file_url,
     });
     if (insertError) {
-      toast("Erreur lors de l'envoi du message : " + insertError.message + (file_url ? ` (file_url: ${file_url})` : ""));
+      setFileError("Erreur lors de l'envoi du message : " + insertError.message);
+      toast("Erreur lors de l'envoi du message : " + insertError.message + (file_url ? ` (fichier : ${file_url})` : ""));
       console.error("Erreur insertion message:", insertError);
       return;
     }
     if (file_url) {
-      toast("Fichier envoyé ! (" + file_url + ")");
+      toast("Fichier envoyé avec succès ! (" + file_url + ")");
     }
     setMessage("");
     setFile(null);
+    setRecordedAudio(null);
+    setIsRecording(false);
     moveChatToTop(selectedChat.id);
     // Le realtime s'occupe d'ajouter le message
   };
+
 
   // Boutons appel/vidéo
   const handleFeatureComing = () => {
@@ -271,19 +306,19 @@ export default function ChatPage() {
     <div className="flex h-[calc(100vh-32px)] bg-[#f7f8fa]">
       {/* Sidebar */}
       <aside className="w-80 min-w-[280px] bg-white border-r border-gray-100 flex flex-col p-6 rounded-3xl m-4 ml-0 shadow-sm">
-        <h2 className="text-2xl font-bold mb-6">Chats</h2>
+        <h2 className="text-2xl font-bold mb-6">Discussions</h2>
         <div className="mb-4">
           <input
             type="text"
-            placeholder="Search..."
+            placeholder="Rechercher..."
             className="w-full px-4 py-2 rounded-xl border border-gray-200 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-100 text-sm"
           />
         </div>
         <div className="flex-1 overflow-y-auto pr-2">
           {loadingChats ? (
-            <div className="text-center text-gray-400 mt-8">Loading...</div>
+            <div className="text-center text-gray-400 mt-8">Chargement...</div>
           ) : chats.length === 0 ? (
-            <div className="text-center text-gray-400 mt-8">No chats</div>
+            <div className="text-center text-gray-400 mt-8">Aucune discussion</div>
           ) : (
             chats.map((chat) => {
               const details = chatDetails[chat.id] || {};
@@ -397,11 +432,11 @@ export default function ChatPage() {
         {/* Messages */}
         <div className="flex-1 overflow-y-auto px-8 py-6 space-y-8 bg-[#f7f8fa]">
           {loadingMessages ? (
-            <div className="text-center text-gray-400">Loading messages...</div>
+            <div className="text-center text-gray-400">Chargement des messages...</div>
           ) : !selectedChat ? (
-            <div className="text-center text-gray-400">Select a chat</div>
+            <div className="text-center text-gray-400">Sélectionnez une discussion</div>
           ) : messages.length === 0 ? (
-            <div className="text-center text-gray-400">No messages</div>
+            <div className="text-center text-gray-400">Aucun message</div>
           ) : (
             messages.map((msg) => {
               const fileUrl = msg.file_url ? supabase.storage.from("chat-files").getPublicUrl(msg.file_url).data.publicUrl : null;
@@ -419,6 +454,8 @@ export default function ChatPage() {
                     {fileUrl && (
                       isImage ? (
                         <img src={fileUrl} alt="attachment" className="rounded-xl max-w-xs mt-2" />
+                      ) : (msg.file_url && msg.file_url.match(/\.(webm|wav|mp3|ogg)$/i)) ? (
+                        <audio controls src={fileUrl} className="rounded-xl mt-2 max-w-xs" />
                       ) : (
                         <a href={fileUrl} target="_blank" rel="noopener noreferrer" className="text-xs underline mt-2 text-blue-200 block">Télécharger le fichier</a>
                       )
@@ -445,7 +482,33 @@ export default function ChatPage() {
             type="file"
             ref={fileInputRef}
             className="hidden"
-            onChange={e => setFile(e.target.files?.[0] || null)}
+            accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.zip"
+            onChange={e => {
+              setFileError(null);
+              const f = e.target.files?.[0] || null;
+              if (f) {
+                if (f.size > 10 * 1024 * 1024) {
+                  setFileError("Fichier trop volumineux (max 10 Mo)");
+                  setFile(null);
+                  return;
+                }
+                const allowed = [
+                  'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+                  'application/pdf',
+                  'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                  'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                  'application/zip', 'application/x-zip-compressed'
+                ];
+                if (!allowed.includes(f.type)) {
+                  setFileError("Type de fichier non autorisé (image, PDF, doc, xls, zip)");
+                  setFile(null);
+                  return;
+                }
+                setFile(f);
+              } else {
+                setFile(null);
+              }
+            }}
           />
           <button
             type="button"
@@ -454,12 +517,51 @@ export default function ChatPage() {
           >
             <Paperclip className="w-5 h-5 text-gray-400" />
           </button>
-          <button type="button" className="p-2 rounded-full hover:bg-blue-50">
-            <Mic className="w-5 h-5 text-gray-400" />
+          <button
+            type="button"
+            className={`p-2 rounded-full hover:bg-blue-50 ${isRecording ? 'bg-red-100' : ''}`}
+            onClick={async () => {
+              setRecordingError(null);
+              if (isRecording) {
+                // Stop recording
+                mediaRecorderRef.current?.stop();
+                setIsRecording(false);
+              } else {
+                // Start recording
+                try {
+                  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                  const mediaRecorder = new window.MediaRecorder(stream, {
+                    mimeType: MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : undefined,
+                  });
+                  mediaRecorderRef.current = mediaRecorder;
+                  const chunks: BlobPart[] = [];
+                  mediaRecorder.ondataavailable = (e) => {
+                    if (e.data.size > 0) chunks.push(e.data);
+                  };
+                  mediaRecorder.onstop = () => {
+                    const blob = new Blob(chunks, { type: 'audio/webm' });
+                    setRecordedAudio(blob);
+                    setFile(new File([blob], `message-vocal-${Date.now()}.webm`, { type: 'audio/webm' }));
+                  };
+                  mediaRecorder.onerror = (e) => {
+                    setRecordingError('Erreur lors de l’enregistrement audio');
+                  };
+                  mediaRecorder.start();
+                  setIsRecording(true);
+                } catch (err: any) {
+                  setRecordingError("Micro non disponible ou refusé");
+                  setIsRecording(false);
+                }
+              }
+            }}
+            disabled={!!file || !!recordedAudio || !!fileError}
+            aria-label={isRecording ? "Arrêter l'enregistrement" : "Enregistrer un message vocal"}
+          >
+            <Mic className={`w-5 h-5 ${isRecording ? 'text-red-500 animate-pulse' : 'text-gray-400'}`} />
           </button>
           <input
             type="text"
-            placeholder="Type a message"
+            placeholder="Écrire un message"
             className="flex-1 px-5 py-3 rounded-xl border border-gray-200 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-100 text-base"
             value={message}
             onChange={e => setMessage(e.target.value)}
@@ -468,12 +570,27 @@ export default function ChatPage() {
           <button type="button" className="p-2 rounded-full hover:bg-blue-50">
             <Smile className="w-5 h-5 text-gray-400" />
           </button>
-          <button type="submit" className="p-3 rounded-full bg-blue-500 hover:bg-blue-600 text-white flex items-center justify-center" disabled={!selectedChat || (!message.trim() && !file)}>
+          <button type="submit" className="p-3 rounded-full bg-blue-500 hover:bg-blue-600 text-white flex items-center justify-center" disabled={!selectedChat || (!message.trim() && !file && !recordedAudio) || !!fileError || isRecording}>
             <Send className="w-5 h-5" />
           </button>
           {/* Afficher le nom du fichier sélectionné (optionnel) */}
           {file && (
             <span className="text-xs text-gray-500 truncate max-w-[120px]">{file.name}</span>
+          )}
+          {recordingError && (
+            <span className="text-xs text-red-500 ml-2">{recordingError}</span>
+          )}
+          {isRecording && (
+            <span className="text-xs text-red-500 ml-2 animate-pulse">Enregistrement en cours...</span>
+          )}
+          {recordedAudio && !file && (
+            <span className="text-xs text-green-600 ml-2">Message vocal prêt à envoyer</span>
+          )}
+          {recordedAudio && file && (
+            <audio controls src={URL.createObjectURL(recordedAudio)} className="ml-2 max-w-[120px] align-middle" />
+          )}
+          {fileError && (
+            <span className="text-xs text-red-500 ml-2">{fileError}</span>
           )}
         </form>
       </main>
