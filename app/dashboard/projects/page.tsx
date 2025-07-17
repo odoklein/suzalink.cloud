@@ -241,11 +241,7 @@ export default function ProjectsPage() {
               {sortDir === "asc" ? "↑" : "↓"}
             </Button>
           </div>
-<<<<<<< HEAD
-          <Button onClick={openCreate} className="rounded-lg font-semibold shadow-md bg-gradient-to-r from-purple-500 to-pink-500 text-white flex items-center gap-2 hover:scale-[1.03] transition-transform"><span className="text-xl">＋</span> New Project</Button>
-=======
           <Button onClick={openCreate} className="rounded-lg font-medium shadow-sm">+ Nouveau projet</Button>
->>>>>>> 468de3144bcf47ba7be291c2b3fbf40892302106
         </div>
         {/* Project Cards Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
