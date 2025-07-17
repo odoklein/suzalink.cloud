@@ -61,3 +61,54 @@ export async function POST(req: Request) {
     );
   }
 }
+
+export async function PATCH(req: Request) {
+  try {
+    const { id } = await req.json();
+    if (!id) {
+      return new NextResponse(
+        JSON.stringify({ error: "Missing commande id" }),
+        { status: 400, headers: corsHeaders() }
+      );
+    }
+    const { error } = await supabase.from("commandes").update({ opened: true }).eq("id", id);
+    if (error) {
+      return new NextResponse(
+        JSON.stringify({ error: error.message }),
+        { status: 500, headers: corsHeaders() }
+      );
+    }
+    return new NextResponse(JSON.stringify({ success: true }), {
+      status: 200,
+      headers: corsHeaders(),
+    });
+  } catch (err: any) {
+    return new NextResponse(
+      JSON.stringify({ error: err.message || "Unknown error" }),
+      { status: 400, headers: corsHeaders() }
+    );
+  }
+}
+
+export async function GET(req: Request) {
+  const url = new URL(req.url || "", "http://localhost");
+  if (url.searchParams.get("unopened") === "1") {
+    // Return count of unopened commandes
+    const { count, error } = await supabase
+      .from("commandes")
+      .select("id", { count: "exact", head: true })
+      .eq("opened", false);
+    if (error) {
+      return new NextResponse(
+        JSON.stringify({ error: error.message }),
+        { status: 500, headers: corsHeaders() }
+      );
+    }
+    return new NextResponse(
+      JSON.stringify({ count }),
+      { status: 200, headers: corsHeaders() }
+    );
+  }
+  // Optionally, return 404 or empty for other GETs
+  return new NextResponse(null, { status: 404, headers: corsHeaders() });
+}

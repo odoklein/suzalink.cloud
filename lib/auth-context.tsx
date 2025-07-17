@@ -9,6 +9,7 @@ interface UserProfile {
   full_name: string;
   role: 'admin' | 'manager' | 'user';
   created_at: string;
+  profile_picture_url?: string; // Optional profile picture URL
 }
 
 interface AuthContextType {

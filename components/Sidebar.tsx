@@ -1,4 +1,5 @@
 "use client";
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
@@ -27,6 +28,20 @@ export function Sidebar() {
   const pathname = usePathname();
   const { userProfile } = useAuth();
   const router = useRouter();
+  const [unopenedCount, setUnopenedCount] = useState(0);
+
+  useEffect(() => {
+    async function fetchUnopened() {
+      try {
+        const res = await fetch("/api/commandes?unopened=1");
+        if (res.ok) {
+          const { count } = await res.json();
+          setUnopenedCount(count || 0);
+        }
+      } catch {}
+    }
+    fetchUnopened();
+  }, []);
 
   const handleLogout = async () => {
     try {
@@ -72,7 +87,7 @@ export function Sidebar() {
       label: "Communication",
       links: [
         { href: "/dashboard/chat", label: "Chat", icon: MessageCircle },
-        { href: "/emails", label: "Email", icon: Mail },
+        { href: "/dashboard/emails", label: "Email", icon: Mail },
       ],
     },
     {
@@ -145,6 +160,9 @@ export function Sidebar() {
                     >
                       <link.icon className={`w-5 h-5 ${isActive ? "text-purple-700" : "text-gray-400 group-hover:text-purple-700"}`} />
                       <span>{link.label}</span>
+                      {link.href === "/dashboard/commandes" && unopenedCount > 0 && (
+                        <span className="ml-2 inline-block w-2 h-2 rounded-full bg-red-500 align-middle" title="Nouvelles demandes" />
+                      )}
                     </Link>
                   </li>
                 );
