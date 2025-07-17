@@ -1,62 +1,29 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useState, useEffect, useRef } from "react";
+import { Paperclip, Send, Mic, Smile, Video, Phone, MoreVertical } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth-context";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Card } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
-import { User as UserIcon, Users as UsersIcon, MessageCircle, Dot, Paperclip, Send } from "lucide-react";
-
-interface User {
-  id: string;
-  full_name: string | null;
-  email: string;
-}
-
-interface Chat {
-  id: string;
-  type: "private" | "group" | "project";
-  created_by: string;
-  created_at: string;
-  project_id?: string;
-}
-
-interface Message {
-  id: string;
-  chat_id: string;
-  sender_id: string;
-  content: string;
-  sent_at: string;
-  file_url?: string;
-}
+import { toast } from "sonner";
+import { useRef as useReactRef } from "react";
 
 export default function ChatPage() {
   const { user } = useAuth();
-  const [chats, setChats] = useState<Chat[]>([]);
-  const [selectedChat, setSelectedChat] = useState<Chat | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [newMessage, setNewMessage] = useState("");
-  const [file, setFile] = useState<File | null>(null);
-  const [showModal, setShowModal] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [chats, setChats] = useState<any[]>([]);
+  const [chatDetails, setChatDetails] = useState<Record<string, any>>({}); // infos participants et last message
+  const [selectedChat, setSelectedChat] = useState<any>(null);
+  const [messages, setMessages] = useState<any[]>([]);
+  const [message, setMessage] = useState("");
+  const [loadingChats, setLoadingChats] = useState(true);
+  const [loadingMessages, setLoadingMessages] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const [users, setUsers] = useState<User[]>([]);
-  const [selectedParticipants, setSelectedParticipants] = useState<string[]>([]);
-  const [chatType, setChatType] = useState<"private" | "group" | "project">("private");
-  const [chatParticipants, setChatParticipants] = useState<any[]>([]);
-  const [lastMessages, setLastMessages] = useState<Record<string, { content: string; sent_at: string; sender_id: string }>>({});
-  // Add state for mobile sidebar
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const fileInputRef = useReactRef<HTMLInputElement>(null);
+  const [file, setFile] = useState<File | null>(null);
 
-  // Fetch all chats for the user
+  // Fetch chats + participants + last message
   useEffect(() => {
     if (!user) return;
     const fetchChats = async () => {
-      setLoading(true);
-      // Fetch chats where user is a participant
+      setLoadingChats(true);
       const { data: participantRows } = await supabase
         .from("chat_participants")
         .select("chat_id")
@@ -64,53 +31,157 @@ export default function ChatPage() {
       const chatIds = participantRows?.map((row: { chat_id: string }) => row.chat_id) || [];
       if (chatIds.length === 0) {
         setChats([]);
-        setLoading(false);
+        setChatDetails({});
+        setLoadingChats(false);
         return;
       }
       const { data: chatsList } = await supabase
         .from("chats")
         .select("*")
-        .in("id", chatIds);
+        .in("id", chatIds)
+        .order("created_at", { ascending: false });
       setChats(chatsList || []);
-      setLoading(false);
+      // Pour chaque chat, fetch participants et last message
+      const details: Record<string, any> = {};
+      await Promise.all((chatsList || []).map(async (chat: any) => {
+        // Participants
+        const { data: participants } = await supabase
+          .from("chat_participants")
+          .select("user_id, users(full_name, email)")
+          .eq("chat_id", chat.id);
+        // Last message
+        const { data: lastMsg } = await supabase
+          .from("chat_messages")
+          .select("content, sent_at, sender_id")
+          .eq("chat_id", chat.id)
+          .order("sent_at", { ascending: false })
+          .limit(1)
+          .single();
+        // Nom du projet si chat de type project
+        let projectTitle = null;
+        if (chat.type === "project" && chat.project_id) {
+          const { data: project } = await supabase
+            .from("projects")
+            .select("title")
+            .eq("id", chat.project_id)
+            .single();
+          projectTitle = project?.title || null;
+        }
+        details[chat.id] = {
+          participants: participants || [],
+          lastMsg: lastMsg || null,
+          projectTitle,
+        };
+      }));
+      setChatDetails(details);
+      // Trie les chats par date du dernier message (plus récent en haut)
+      const sortedChats = [...(chatsList || [])].sort((a, b) => {
+        const aDate = details[a.id]?.lastMsg?.sent_at || a.created_at;
+        const bDate = details[b.id]?.lastMsg?.sent_at || b.created_at;
+        return new Date(bDate).getTime() - new Date(aDate).getTime();
+      });
+      setChats(sortedChats);
+      setLoadingChats(false);
     };
     fetchChats();
   }, [user]);
 
-  // Fetch all users for participant selection
+  // Fonction utilitaire pour rafraîchir les détails d'un chat (participants + last message)
+  const refreshChatDetails = async (chatId: string) => {
+    // Participants
+    const { data: participants } = await supabase
+      .from("chat_participants")
+      .select("user_id, users(full_name, email)")
+      .eq("chat_id", chatId);
+    // Last message
+    const { data: lastMsg } = await supabase
+      .from("chat_messages")
+      .select("content, sent_at, sender_id")
+      .eq("chat_id", chatId)
+      .order("sent_at", { ascending: false })
+      .limit(1)
+      .single();
+    setChatDetails((prev) => ({
+      ...prev,
+      [chatId]: {
+        participants: participants || [],
+        lastMsg: lastMsg || null,
+      },
+    }));
+    // Trie la liste des chats après update
+    setChats((prev) => {
+      const sorted = [...prev].sort((a, b) => {
+        const aDate = (chatId === a.id ? lastMsg?.sent_at : chatDetails[a.id]?.lastMsg?.sent_at) || a.created_at;
+        const bDate = (chatId === b.id ? lastMsg?.sent_at : chatDetails[b.id]?.lastMsg?.sent_at) || b.created_at;
+        return new Date(bDate).getTime() - new Date(aDate).getTime();
+      });
+      return sorted;
+    });
+  };
+
+  // Abonnement global realtime sur tous les chats de l'utilisateur
   useEffect(() => {
-    const fetchUsers = async () => {
-      const { data } = await supabase.from("users").select("id, full_name, email");
-      setUsers(data?.filter((u: User) => u.id !== user?.id) || []);
+    if (!user || chats.length === 0) return;
+    const chatIds = chats.map((c) => c.id);
+    const channel = supabase
+      .channel(`all-user-chats-${user.id}`)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "chat_messages" },
+        (payload) => {
+          if (payload.new && chatIds.includes(payload.new.chat_id)) {
+            refreshChatDetails(payload.new.chat_id);
+          }
+        }
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
     };
-    if (user) fetchUsers();
-  }, [user]);
+  }, [user, chats]);
 
   // Fetch messages for selected chat
   useEffect(() => {
     if (!selectedChat || !user) return;
     const fetchMessages = async () => {
-      const res = await fetch(`/api/chat/${selectedChat.id}`, {
-        headers: { 'x-user-id': user.id },
+      setLoadingMessages(true);
+      const { data, error } = await supabase
+        .from("chat_messages")
+        .select("*")
+        .eq("chat_id", selectedChat.id)
+        .order("sent_at", { ascending: true });
+      setMessages(data || []);
+      setLoadingMessages(false);
+      // Remonter le chat sélectionné en haut de la liste
+      setChats((prev) => {
+        if (!selectedChat) return prev;
+        const idx = prev.findIndex((c) => c.id === selectedChat.id);
+        if (idx === -1) return prev;
+        const reordered = [prev[idx], ...prev.slice(0, idx), ...prev.slice(idx + 1)];
+        return reordered;
       });
-      if (res.status === 403) {
-        setMessages([]);
-        // Optionally show a message: Not a participant
-        return;
-      }
-      const { messages, participants } = await res.json();
-      setMessages(messages || []);
-      setChatParticipants(participants || []);
     };
     fetchMessages();
-    // Subscribe to realtime updates
+    // Realtime subscription
     const channel = supabase
       .channel(`chat-messages-${selectedChat.id}`)
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "chat_messages", filter: `chat_id=eq.${selectedChat.id}` },
         (payload) => {
-          setMessages((prev) => [...prev, payload.new as Message]);
+          setMessages((prev) => {
+            // Ajoute le message s'il n'existe pas déjà
+            if (prev.some((m) => m.id === payload.new.id)) return prev;
+            return [...prev, payload.new];
+          });
+          // Remonter le chat sélectionné en haut de la liste
+          setChats((prev) => {
+            if (!selectedChat) return prev;
+            const idx = prev.findIndex((c) => c.id === selectedChat.id);
+            if (idx === -1) return prev;
+            const reordered = [prev[idx], ...prev.slice(0, idx), ...prev.slice(idx + 1)];
+            return reordered;
+          });
         }
       )
       .subscribe();
@@ -119,445 +190,293 @@ export default function ChatPage() {
     };
   }, [selectedChat, user]);
 
-  // Fetch last message for each chat after chats are loaded
-  useEffect(() => {
-    if (!chats.length) return;
-    const fetchLastMessages = async () => {
-      const lastMsgs: Record<string, { content: string; sent_at: string; sender_id: string }> = {};
-      for (const chat of chats) {
-        const { data: msg } = await supabase
-          .from("chat_messages")
-          .select("content, sent_at, sender_id")
-          .eq("chat_id", chat.id)
-          .order("sent_at", { ascending: false })
-          .limit(1)
-          .single();
-        if (msg) lastMsgs[chat.id] = msg;
-      }
-      setLastMessages(lastMsgs);
-    };
-    fetchLastMessages();
-  }, [chats]);
-
   // Scroll to bottom on new message
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // User map for sender name lookup
-  const userMap = users.reduce((acc, u) => {
-    acc[u.id] = u;
-    return acc;
-  }, {} as Record<string, User>);
-  userMap[user?.id ?? ""] = { id: user?.id ?? "", full_name: "You", email: user?.email ?? "" };
+  // Quand un message est envoyé ou reçu, remonte le chat en haut
+  const moveChatToTop = (chatId: string) => {
+    setChats((prev) => {
+      const idx = prev.findIndex((c) => c.id === chatId);
+      if (idx === -1) return prev;
+      const reordered = [prev[idx], ...prev.slice(0, idx), ...prev.slice(idx + 1)];
+      return reordered;
+    });
+  };
 
   // Send message
-  const handleSend = async () => {
-    if (!newMessage.trim() && !file) return;
-    let file_url;
+  const handleSend = async (e: any) => {
+    e.preventDefault();
+    if (!selectedChat) {
+      toast("Sélectionne une conversation avant d'envoyer un message ou un fichier.");
+      return;
+    }
+    if (!user) {
+      toast("Tu dois être connecté pour envoyer un message.");
+      return;
+    }
+    if (!message.trim() && !file) return;
+    let file_url = null;
     if (file) {
+      // Upload du fichier sur Supabase Storage
+      const filePath = `${selectedChat.id}/${Date.now()}-${file.name}`;
       const { data, error } = await supabase.storage
         .from("chat-files")
-        .upload(`${selectedChat?.id}/${Date.now()}-${file.name}`, file);
+        .upload(filePath, file);
       if (error) {
-        alert("File upload failed");
+        toast("Échec de l'upload du fichier : " + error.message + ` (${filePath})`);
         return;
       }
       file_url = data?.path;
     }
-    await fetch("/api/messages", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        chat_id: selectedChat?.id,
-        sender_id: user?.id,
-        content: newMessage,
-        file_url,
-      }),
+    const { error: insertError } = await supabase.from("chat_messages").insert({
+      chat_id: selectedChat.id,
+      sender_id: user.id,
+      content: message,
+      file_url,
     });
-    setNewMessage("");
-    setFile(null);
-  };
-
-  // Create new chat (simplified: only type and created_by, can be extended for participants)
-  const handleCreateChat = async (type: "private" | "group" | "project") => {
-    setShowModal(false);
-    // TODO: send selectedParticipants to backend and store in a participants table
-    const res = await fetch("/api/chat/create", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ type, created_by: user?.id, participants: selectedParticipants }),
-    });
-    if (!res.ok) {
-      const errorText = await res.text();
-      alert("Failed to create chat: " + errorText);
+    if (insertError) {
+      toast("Erreur lors de l'envoi du message : " + insertError.message + (file_url ? ` (file_url: ${file_url})` : ""));
+      console.error("Erreur insertion message:", insertError);
       return;
     }
-    const { chat } = await res.json();
-    setChats((prev) => [...prev, chat]);
-    setSelectedChat(chat);
+    if (file_url) {
+      toast("Fichier envoyé ! (" + file_url + ")");
+    }
+    setMessage("");
+    setFile(null);
+    moveChatToTop(selectedChat.id);
+    // Le realtime s'occupe d'ajouter le message
   };
 
-  // Helper for avatar/initials
-  function getAvatar(chat: Chat) {
-    if (chat.type === "private") {
-      // Find the other participant
-      const other = users.find(u => u.id !== user?.id && chats.some(c => c.id === chat.id));
-      if (other?.full_name) {
-        const initials = other.full_name.split(" ").map(n => n[0]).join("").toUpperCase();
-        return (
-          <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center font-bold text-purple-700 text-sm">
-            {initials}
-          </div>
-        );
-      }
-      return <UserIcon className="w-8 h-8 text-gray-400" />;
-    }
-    // Group/project chat
-    return <UsersIcon className="w-8 h-8 text-gray-400" />;
-  }
+  // Boutons appel/vidéo
+  const handleFeatureComing = () => {
+    toast("Fonctionnalité à venir !");
+  };
 
-  // Helper for participant avatars
-  function getParticipantAvatar(user: any) {
-    if (user?.full_name) {
-      const initials = user.full_name.split(" ").map((n: string) => n[0]).join("").toUpperCase();
-      return (
-        <div className="w-7 h-7 rounded-full bg-gray-200 flex items-center justify-center font-bold text-gray-700 text-xs border-2 border-white -ml-2 first:ml-0">
-          {initials}
-        </div>
-      );
-    }
-    return <UserIcon className="w-7 h-7 text-gray-400 border-2 border-white -ml-2 first:ml-0 rounded-full bg-gray-100" />;
-  }
-
-  function formatTime(dateString: string) {
-    if (!dateString) return "";
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60);
-    if (diffInHours < 24) {
-      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    } else if (diffInHours < 168) {
-      return date.toLocaleDateString([], { weekday: 'short' });
-    } else {
-      return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
-    }
-  }
-
-  // Add skeleton components
-  function ChatSkeleton() {
+  // Helper pour avatar/initiales
+  function getAvatar(name: string | null | undefined, email: string | null | undefined) {
+    const initials = name
+      ? name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)
+      : (email ? email[0].toUpperCase() : "?");
     return (
-      <div className="mb-2 p-3 animate-pulse">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-gray-200"></div>
-          <div className="flex-1">
-            <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
-            <div className="h-3 bg-gray-200 rounded w-1/2"></div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  function MessageSkeleton() {
-    return (
-      <div className="flex items-end gap-2 justify-start animate-pulse">
-        <div className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-gray-200"></div>
-        <div className="max-w-[75%] md:max-w-md lg:max-w-lg px-3 md:px-4 py-2 rounded-2xl bg-gray-200">
-          <div className="h-3 bg-gray-300 rounded w-1/4 mb-2"></div>
-          <div className="h-4 bg-gray-300 rounded w-3/4"></div>
-        </div>
+      <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center font-bold text-gray-700 text-xs border-2 border-white">
+        {initials}
       </div>
     );
   }
 
   return (
-    <div className="flex h-[80vh] gap-4 p-2 md:p-4 min-h-0">
-      {/* Sidebar: Chat List - Responsive */}
-      <Card className={`${sidebarOpen ? 'fixed inset-0 z-50 md:relative md:inset-auto' : 'hidden md:block'} w-full md:w-1/4 p-4 md:p-6 flex flex-col bg-white/95 backdrop-blur-sm`}>
-        <div className="flex justify-between items-center mb-4 p-2 md:p-4">
-          <h2 className="text-xl font-bold">Chats</h2>
-          <div className="flex gap-2">
-          <Dialog open={showModal} onOpenChange={setShowModal}>
-            <DialogTrigger asChild>
-                <Button size="sm" className="text-xs">New Chat</Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Start a new chat</DialogTitle>
-              </DialogHeader>
-              <div className="flex flex-col gap-2">
-                <Select value={chatType} onValueChange={v => setChatType(v as any)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select chat type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="private">Private Chat</SelectItem>
-                    <SelectItem value="group">Group Chat</SelectItem>
-                    <SelectItem value="project">Project Chat</SelectItem>
-                  </SelectContent>
-                </Select>
-                {chatType === "private" && (
-                  <Select value={selectedParticipants[0] || ""} onValueChange={v => setSelectedParticipants([v])}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select user" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {users.map(u => (
-                        <SelectItem key={u.id} value={u.id}>{u.full_name || u.email}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-                {(chatType === "group" || chatType === "project") && (
-                  <div className="flex flex-wrap gap-1">
-                    {users.map(u => (
-                      <Badge
-                        key={u.id}
-                        variant={selectedParticipants.includes(u.id) ? "default" : undefined}
-                        onClick={() => {
-                          setSelectedParticipants(prev =>
-                            prev.includes(u.id)
-                              ? prev.filter(id => id !== u.id)
-                              : [...prev, u.id]
-                          );
-                        }}
-                        className="cursor-pointer"
-                      >
-                        {u.full_name || u.email}
-                      </Badge>
-                    ))}
-                  </div>
-                )}
-                <Button onClick={() => handleCreateChat(chatType)}>Create Chat</Button>
-              </div>
-            </DialogContent>
-          </Dialog>
-            {/* Mobile close button */}
-            <Button
-              size="sm"
-              variant="outline"
-              className="md:hidden"
-              onClick={() => setSidebarOpen(false)}
-            >
-              ×
-            </Button>
-          </div>
+    <div className="flex h-[calc(100vh-32px)] bg-[#f7f8fa]">
+      {/* Sidebar */}
+      <aside className="w-80 min-w-[280px] bg-white border-r border-gray-100 flex flex-col p-6 rounded-3xl m-4 ml-0 shadow-sm">
+        <h2 className="text-2xl font-bold mb-6">Chats</h2>
+        <div className="mb-4">
+          <input
+            type="text"
+            placeholder="Search..."
+            className="w-full px-4 py-2 rounded-xl border border-gray-200 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-100 text-sm"
+          />
         </div>
-        <div className="flex-1 overflow-y-auto pr-1 md:pr-2">
-          {loading ? (
-            <div className="space-y-2">
-              {[...Array(5)].map((_, i) => (
-                <ChatSkeleton key={i} />
-              ))}
-            </div>
+        <div className="flex-1 overflow-y-auto pr-2">
+          {loadingChats ? (
+            <div className="text-center text-gray-400 mt-8">Loading...</div>
           ) : chats.length === 0 ? (
-            <div className="p-8 text-center">
-              <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
-                <MessageCircle className="w-8 h-8 text-gray-400" />
-              </div>
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No conversations yet</h3>
-              <p className="text-gray-500 mb-4">Start a new chat to begin messaging with your team</p>
-              <Button onClick={() => setShowModal(true)} className="bg-purple-500 hover:bg-purple-600">
-                Start Your First Chat
-              </Button>
-            </div>
+            <div className="text-center text-gray-400 mt-8">No chats</div>
           ) : (
             chats.map((chat) => {
-              const lastMsg = lastMessages[chat.id];
+              const details = chatDetails[chat.id] || {};
+              let displayName = "";
+              if (chat.type === "private" && details.participants && user) {
+                // DEBUG: log participants
+                // console.log('participants', details.participants);
+                const other = details.participants.find((p: any) => p.user_id !== user.id);
+                displayName = (other?.users?.full_name && other?.users?.full_name.trim())
+                  ? other.users.full_name
+                  : (other?.users?.email || "Private chat");
+              } else if (chat.type === "project" && details.projectTitle) {
+                displayName = details.projectTitle;
+              } else if (chat.type === "group" && chat.name) {
+                displayName = chat.name;
+              } else if (chat.type === "group") {
+                displayName = "Group chat";
+              }
+              const lastMsg = details.lastMsg;
               return (
-              <Card
-                key={chat.id}
-                  className={`mb-2 p-3 cursor-pointer transition-all border-l-4 ${selectedChat?.id === chat.id ? "border-purple-500 bg-purple-50" : "border-transparent hover:bg-gray-50"}`}
-                  onClick={() => {
-                    setSelectedChat(chat);
-                    setSidebarOpen(false);
-                  }}
+                <div
+                  key={chat.id}
+                  className={`flex flex-col gap-1 p-3 rounded-2xl cursor-pointer mb-2 transition-all hover:bg-blue-50 ${selectedChat?.id === chat.id ? "bg-blue-50" : ""}`}
+                  onClick={() => setSelectedChat(chat)}
                 >
                   <div className="flex items-center gap-3">
-                    {getAvatar(chat)}
+                    <div className="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center text-gray-400 font-bold text-lg">
+                      {displayName ? displayName.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0,2) : "?"}
+                    </div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex justify-between items-center">
-                        <span className="font-semibold capitalize truncate text-sm">{chat.type} chat</span>
-                        {lastMsg && (
-                          <span className="text-xs text-gray-400 ml-2 whitespace-nowrap">{formatTime(lastMsg.sent_at)}</span>
-                        )}
-                      </div>
-                      {lastMsg ? (
-                        <div className="text-xs text-gray-600 truncate flex items-center gap-1">
-                          <MessageCircle className="w-3 h-3 text-gray-300" />
-                          <span className="truncate">{lastMsg.content}</span>
-                        </div>
-                      ) : (
-                        <div className="text-xs text-gray-400 italic">No messages yet</div>
+                      <span className="font-semibold text-base truncate">{displayName}</span>
+                      {lastMsg && (
+                        <span className="text-xs text-gray-400 ml-2 whitespace-nowrap float-right">{lastMsg.sent_at?.slice(11, 16)}</span>
                       )}
                     </div>
                   </div>
-              </Card>
+                  <div className="text-xs text-gray-500 truncate flex items-center gap-1 pl-14">
+                    {lastMsg ? lastMsg.content : <span className="italic text-gray-300">Aucun message</span>}
+                  </div>
+                </div>
               );
             })
           )}
         </div>
-      </Card>
-      
-      {/* Main: Chat Window - Responsive */}
-      <Card className="flex-1 flex flex-col min-h-0 p-2 md:p-6 bg-white/90 rounded-3xl shadow-xl">
-        {selectedChat ? (
-          <>
-            {/* Enhanced Chat Header - Responsive */}
-            <div className="border-b px-4 md:px-8 py-4 flex items-center gap-4 bg-white/80 rounded-t-3xl shadow-sm mb-2" style={{ minHeight: 64 }}>
-              {/* Mobile menu button */}
-              <Button
-                size="sm"
-                variant="ghost"
-                className="md:hidden p-1"
-                onClick={() => setSidebarOpen(true)}
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                </svg>
-              </Button>
-              
-              {/* Chat type icon */}
-              {selectedChat.type === "private" ? (
-                <UserIcon className="w-6 h-6 md:w-7 md:h-7 text-purple-400" />
-              ) : (
-                <UsersIcon className="w-6 h-6 md:w-7 md:h-7 text-purple-400" />
-              )}
-              
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="font-bold text-base md:text-lg text-gray-900 capitalize truncate">
-                    {selectedChat.type} chat
-                  </span>
-                  <Badge variant="default" className="capitalize text-xs px-2 py-0.5 hidden sm:inline">
-                    {selectedChat.type}
-                  </Badge>
-                </div>
-                <div className="flex items-center gap-1 mt-1">
-                  {/* Participant avatars - responsive */}
-                  {chatParticipants.slice(0, 3).map((p, i) => (
-                    <span key={p.user_id || i}>{getParticipantAvatar(p.users)}</span>
-                  ))}
-                  {chatParticipants.length > 3 && (
-                    <span className="text-xs text-gray-500 ml-2">+{chatParticipants.length - 3} more</span>
-                  )}
-                </div>
-              </div>
-              
-              {/* Placeholder for online status */}
-              <div className="flex items-center gap-1">
-                <Dot className="w-4 h-4 md:w-5 md:h-5 text-green-500 animate-pulse" />
-                <span className="text-xs text-green-600 hidden sm:inline">Online</span>
-              </div>
+      </aside>
+
+      {/* Main Chat Area */}
+      <main className="flex-1 flex flex-col bg-white rounded-3xl m-4 ml-0 shadow-xl overflow-hidden">
+        {/* Chat Header */}
+        <div className="flex items-center justify-between px-8 py-6 border-b border-gray-100">
+          <div className="flex items-center gap-4 min-w-0">
+            <div className="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center text-gray-400 font-bold text-lg">
+              {(() => {
+                if (!selectedChat || !chatDetails[selectedChat.id]) return "";
+                const details = chatDetails[selectedChat.id];
+                if (selectedChat.type === "private" && details.participants && user) {
+                  const other = details.participants.find((p: any) => p.user_id !== user.id);
+                  return getAvatar(other?.users?.full_name, other?.users?.email);
+                } else if (selectedChat.type === "project" && details.projectTitle) {
+                  return details.projectTitle.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0,2);
+                } else if (selectedChat.type === "group" && selectedChat.name) {
+                  return selectedChat.name.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0,2);
+                } else if (selectedChat.type === "group") {
+                  return "G";
+                }
+                return "?";
+              })()}
             </div>
-            
-            {/* Messages area - responsive */}
-            <div className="flex-1 min-h-0 overflow-y-auto p-3 md:p-6 space-y-4 bg-gray-50 rounded-b-3xl">
-              {loading ? (
-                <div className="space-y-4">
-                  {[...Array(3)].map((_, i) => (
-                    <MessageSkeleton key={i} />
-                  ))}
-                </div>
-              ) : messages.length === 0 ? (
-                <div className="flex-1 flex items-center justify-center">
-                  <div className="text-center p-8">
-                    <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
-                      <MessageCircle className="w-8 h-8 text-gray-400" />
-                    </div>
-                    <h3 className="text-lg font-medium text-gray-900 mb-2">No messages yet</h3>
-                    <p className="text-gray-500">Send the first message to start the conversation</p>
-                  </div>
-                </div>
-              ) : (
-                messages.map((msg) => {
-                  const isMe = msg.sender_id === user?.id;
-                  const sender = userMap[msg.sender_id];
-                  const initials = sender?.full_name ? sender.full_name.split(" ").map((n: string) => n[0]).join("").toUpperCase() : "?";
-                  return (
-                    <div
-                      key={msg.id}
-                      className={`flex items-end gap-2 ${isMe ? "justify-end" : "justify-start"}`}
-                    >
-                      {/* Avatar for others */}
-                      {!isMe && (
-                        <div className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-purple-100 flex items-center justify-center font-bold text-purple-700 text-xs md:text-sm shadow-sm">
-                          {initials}
-                        </div>
-                      )}
-                      <div className={`max-w-[75%] md:max-w-md lg:max-w-lg px-5 md:px-7 py-3 rounded-2xl shadow-sm ${isMe ? "bg-purple-500 text-white rounded-br-sm" : "bg-white text-gray-900 rounded-bl-sm border border-gray-200"}`}>
-                        <div className="flex items-center gap-3 mb-2">
-                          <span className="text-xs font-semibold truncate">{isMe ? "You" : sender?.full_name || msg.sender_id}</span>
-                          <span className="text-xs text-gray-400">{new Date(msg.sent_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                        </div>
-                        <div className="break-words whitespace-pre-line text-base">{msg.content}</div>
-                  {msg.file_url && (
-                    <a
-                      href={supabase.storage.from("chat-files").getPublicUrl(msg.file_url).data.publicUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                            className="text-blue-200 underline text-xs block mt-1"
-                    >
-                      Attachment
-                    </a>
-                  )}
-                </div>
-                      {/* Avatar for me */}
-                      {isMe && (
-                        <div className="w-6 h-6 md:w-8 md:h-8 rounded-full bg-purple-500 flex items-center justify-center font-bold text-white text-xs md:text-sm shadow-sm">
-                          {initials}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })
-              )}
-              <div ref={messagesEndRef} />
-            </div>
-            
-            {/* Input area - responsive */}
-            <div className="border-t p-3 md:p-5 flex gap-3 items-center bg-white/80 rounded-b-3xl shadow-inner mt-2">
-              <label className="flex items-center cursor-pointer mr-1 md:mr-2">
-                <input
-                  type="file"
-                  className="hidden"
-                  onChange={(e) => setFile(e.target.files?.[0] || null)}
-                />
-                <span className="p-2 rounded-full hover:bg-purple-100 transition-colors">
-                  <Paperclip className="w-4 h-4 md:w-5 md:h-5 text-gray-400" />
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-lg truncate">
+                  {(() => {
+                    if (!selectedChat || !chatDetails[selectedChat.id]) return "";
+                    const details = chatDetails[selectedChat.id];
+                    if (selectedChat.type === "private" && details.participants && user) {
+                      const other = details.participants.find((p: any) => p.user_id !== user.id);
+                      return (other?.users?.full_name && other?.users?.full_name.trim())
+                        ? other.users.full_name
+                        : (other?.users?.email || "Private chat");
+                    } else if (selectedChat.type === "project" && details.projectTitle) {
+                      return details.projectTitle;
+                    } else if (selectedChat.type === "group" && selectedChat.name) {
+                      return selectedChat.name;
+                    } else if (selectedChat.type === "group") {
+                      return "Group chat";
+                    }
+                    return "";
+                  })()}
                 </span>
-              </label>
-              <Input
-                className="flex-1 rounded-full px-3 md:px-4 py-2 bg-gray-100 border border-gray-200 focus:ring-2 focus:ring-purple-200 transition-all text-sm"
-                placeholder="Type a message..."
-                value={newMessage}
-                onChange={(e) => setNewMessage(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && newMessage.trim()) handleSend();
-                }}
-                disabled={loading}
-              />
-              <Button
-                className="rounded-full p-0 w-8 h-8 md:w-10 md:h-10 flex items-center justify-center"
-                onClick={handleSend}
-                disabled={!newMessage.trim() && !file}
-                variant="default"
-              >
-                <Send className="w-4 h-4 md:w-5 md:h-5" />
-              </Button>
-            </div>
-          </>
-        ) : (
-          <div className="flex-1 flex items-center justify-center text-muted-foreground p-8 text-center">
-            <div>
-              <MessageCircle className="w-14 h-14 mx-auto mb-6 text-gray-300" />
-              <p className="text-xl font-medium mb-3">Select a chat to start messaging</p>
-              <p className="text-base text-gray-500">Choose from your conversations or start a new one</p>
+              </div>
+              {/* Affichage des participants pour groupes/projets */}
+              {selectedChat && chatDetails[selectedChat.id] && (selectedChat.type === "group" || selectedChat.type === "project") && (
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {chatDetails[selectedChat.id].participants?.map((p: any) => (
+                    <div key={p.user_id} className="flex items-center gap-1">
+                      {getAvatar(p.users?.full_name, p.users?.email)}
+                      <span className="text-xs text-gray-500 truncate max-w-[80px]">{p.users?.full_name || p.users?.email}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
-        )}
-      </Card>
+          <div className="flex items-center gap-4 text-gray-400">
+            <button onClick={handleFeatureComing}><Phone className="w-5 h-5 cursor-pointer hover:text-blue-500" /></button>
+            <button onClick={handleFeatureComing}><Video className="w-5 h-5 cursor-pointer hover:text-blue-500" /></button>
+            <MoreVertical className="w-5 h-5 cursor-pointer hover:text-blue-500" />
+          </div>
+        </div>
+
+        {/* Messages */}
+        <div className="flex-1 overflow-y-auto px-8 py-6 space-y-8 bg-[#f7f8fa]">
+          {loadingMessages ? (
+            <div className="text-center text-gray-400">Loading messages...</div>
+          ) : !selectedChat ? (
+            <div className="text-center text-gray-400">Select a chat</div>
+          ) : messages.length === 0 ? (
+            <div className="text-center text-gray-400">No messages</div>
+          ) : (
+            messages.map((msg) => {
+              const fileUrl = msg.file_url ? supabase.storage.from("chat-files").getPublicUrl(msg.file_url).data.publicUrl : null;
+              const isImage = fileUrl && (/\.(jpg|jpeg|png|gif|webp)$/i.test(fileUrl) || (msg.file_url && /\.(jpg|jpeg|png|gif|webp)$/i.test(msg.file_url)));
+              return (
+                <div
+                  key={msg.id}
+                  className={`flex ${msg.sender_id === user?.id ? "justify-end" : "justify-start"}`}
+                >
+                  {msg.sender_id !== user?.id && (
+                    <div className="w-10 h-10 rounded-full bg-gray-200 mr-3" />
+                  )}
+                  <div className={`max-w-lg ${msg.sender_id === user?.id ? "bg-blue-500 text-white rounded-2xl rounded-br-sm" : "bg-white text-gray-900 rounded-2xl rounded-bl-sm border border-gray-100"} px-6 py-4 shadow-sm flex flex-col gap-2`}>
+                    <span className="text-base break-words whitespace-pre-line">{msg.content}</span>
+                    {fileUrl && (
+                      isImage ? (
+                        <img src={fileUrl} alt="attachment" className="rounded-xl max-w-xs mt-2" />
+                      ) : (
+                        <a href={fileUrl} target="_blank" rel="noopener noreferrer" className="text-xs underline mt-2 text-blue-200 block">Télécharger le fichier</a>
+                      )
+                    )}
+                    <span className="text-xs text-gray-400 mt-1 self-end">{msg.sent_at?.slice(11, 16)}</span>
+                  </div>
+                  {msg.sender_id === user?.id && (
+                    <div className="w-10 h-10 rounded-full bg-gray-200 ml-3" />
+                  )}
+                </div>
+              );
+            })
+          )}
+          <div ref={messagesEndRef} />
+        </div>
+
+        {/* Input */}
+        <form
+          className="flex items-center gap-3 px-8 py-6 border-t border-gray-100 bg-white"
+          onSubmit={handleSend}
+        >
+          {/* Input file caché */}
+          <input
+            type="file"
+            ref={fileInputRef}
+            className="hidden"
+            onChange={e => setFile(e.target.files?.[0] || null)}
+          />
+          <button
+            type="button"
+            className="p-2 rounded-full hover:bg-blue-50"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <Paperclip className="w-5 h-5 text-gray-400" />
+          </button>
+          <button type="button" className="p-2 rounded-full hover:bg-blue-50">
+            <Mic className="w-5 h-5 text-gray-400" />
+          </button>
+          <input
+            type="text"
+            placeholder="Type a message"
+            className="flex-1 px-5 py-3 rounded-xl border border-gray-200 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-100 text-base"
+            value={message}
+            onChange={e => setMessage(e.target.value)}
+            disabled={!selectedChat}
+          />
+          <button type="button" className="p-2 rounded-full hover:bg-blue-50">
+            <Smile className="w-5 h-5 text-gray-400" />
+          </button>
+          <button type="submit" className="p-3 rounded-full bg-blue-500 hover:bg-blue-600 text-white flex items-center justify-center" disabled={!selectedChat || (!message.trim() && !file)}>
+            <Send className="w-5 h-5" />
+          </button>
+          {/* Afficher le nom du fichier sélectionné (optionnel) */}
+          {file && (
+            <span className="text-xs text-gray-500 truncate max-w-[120px]">{file.name}</span>
+          )}
+        </form>
+      </main>
     </div>
   );
 } 
