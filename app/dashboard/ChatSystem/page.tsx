@@ -93,8 +93,8 @@ export default function ChatSystem() {
       )
       // Typing indicator events
       .on(
-        "broadcast",
-        { event: "typing" },
+        "broadcast" as any,
+        { event: "typing", schema: "public", table: "chats1", filter: `chat_id=eq.${activeChat.id}` },
         (payload) => {
           if (payload.payload.userId !== user?.id) setOtherTyping(payload.payload.typing);
         }
@@ -134,13 +134,17 @@ export default function ChatSystem() {
       setUploading(false);
       setAttachment(null);
     }
-    await supabase.from("messages1").insert({
+    const { error } = await supabase.from("messages1").insert({
       chat_id: activeChat.id,
       sender_id: user.id,
       content: newMessage,
       read: false,
       attachment_url: fileUrl
     });
+    if (error) {
+      console.error('Supabase insert error:', error);
+      alert('Supabase insert error: ' + JSON.stringify(error));
+    }
     setNewMessage("");
   };
 
@@ -255,59 +259,96 @@ export default function ChatSystem() {
                 <div className="text-xs text-gray-400 text-center my-2">
                   {(() => {
                     const today = new Date().toLocaleDateString();
-                    const yesterday = new Date(Date.now() - 86400000).toLocaleDateString();
-                    if (date === today) return 'Aujourd\'hui';
-                    if (date === yesterday) return 'Hier';
+                    const yesterday = new Date(
+                      Date.now() - 86400000
+                    ).toLocaleDateString();
+                    if (date === today) return "Aujourd'hui";
+                    if (date === yesterday) return "Hier";
                     return date;
                   })()}
                 </div>
                 {msgs.map((msg) => {
-                  const sender = users.find(u => u.id === msg.sender_id);
+                  const sender = users.find((u) => u.id === msg.sender_id);
                   return (
                     <div
                       key={msg.id}
-                      className={`flex items-end gap-2 ${msg.sender_id === user?.id ? "justify-end" : "justify-start"}`}
-                    >
-                      {msg.sender_id !== user?.id && (
-                        sender?.profile_picture_url ? (
-                          <img src={sender.profile_picture_url} alt={sender.full_name || sender.email} className="w-8 h-8 rounded-full object-cover border border-gray-200" />
+                      className={`flex items-end gap-2 mb-2 ${msg.sender_id === user?.id ? "justify-end" : "justify-start"}`}>
+                      {msg.sender_id !== user?.id &&
+                        (sender?.profile_picture_url ? (
+                          <img
+                            src={sender.profile_picture_url}
+                            alt={sender.full_name || sender.email}
+                            className="w-8 h-8 rounded-full object-cover border border-gray-200"
+                          />
                         ) : (
                           <div className="w-8 h-8 rounded-full bg-blue-200 flex items-center justify-center text-blue-700 font-bold text-sm">
-                            {sender?.full_name ? sender.full_name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0,2) : '?'}
+                            {sender?.full_name
+                              ? sender.full_name
+                                  .split(" ")
+                                  .map((n) => n[0])
+                                  .join("")
+                                  .toUpperCase()
+                                  .slice(0, 2)
+                              : "?"}
                           </div>
-                        )
-                      )}
-                      <div className={`px-5 py-3 rounded-2xl max-w-lg shadow-sm font-medium text-base relative ${msg.sender_id === user?.id ? "bg-blue-100 text-blue-900" : "bg-gray-100 text-gray-800"}`}>
-                        {/* Attachment preview */}
-                        {msg.attachment_url && (
-                          msg.attachment_url.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
-                            <img src={msg.attachment_url} alt="attachment" className="mb-2 max-h-48 rounded-xl border border-gray-200" />
+                        ))}
+                      <div
+                        className={`px-5 py-3 rounded-2xl max-w-lg shadow-sm font-medium text-base relative ${msg.sender_id === user?.id
+                            ? "bg-blue-100 text-blue-900"
+                            : "bg-gray-100 text-gray-800"
+                          }`}>
+                        {msg.attachment_url &&
+                          (msg.attachment_url.match(
+                            /\.(jpg|jpeg|png|gif|webp)$/i
+                          ) ? (
+                            <img
+                              src={msg.attachment_url}
+                              alt="attachment"
+                              className="mb-2 max-h-48 rounded-xl border border-gray-200"
+                            />
                           ) : (
-                            <a href={msg.attachment_url} target="_blank" rel="noopener noreferrer" className="block mb-2 text-blue-500 underline">
+                            <a
+                              href={msg.attachment_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="block mb-2 text-blue-500 underline">
                               Fichier joint
                             </a>
-                          )
-                        )}
+                          ))}
                         {msg.content}
                         <div className="flex justify-between items-center mt-1">
                           <span className="text-xs text-gray-500">
-                            {new Date(msg.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                            {new Date(msg.created_at).toLocaleTimeString([], {
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
                           </span>
-                          {/* Read receipt */}
                           {msg.sender_id === user?.id && msg.read && (
-                            <span title="Lu" className="ml-2 text-green-400">&#10003;</span>
+                            <span title="Lu" className="ml-2 text-green-400">
+                              &#10003;
+                            </span>
                           )}
                         </div>
                       </div>
-                      {msg.sender_id === user?.id && (
-                        user?.user_metadata?.profile_picture_url ? (
-                          <img src={user.user_metadata.profile_picture_url} alt={user.email} className="w-8 h-8 rounded-full object-cover border border-gray-200" />
+                      {msg.sender_id === user?.id &&
+                        (user?.user_metadata?.profile_picture_url ? (
+                          <img
+                            src={user.user_metadata.profile_picture_url}
+                            alt={user.email || ''}
+                            className="w-8 h-8 rounded-full object-cover border border-gray-200"
+                          />
                         ) : (
                           <div className="w-8 h-8 rounded-full bg-blue-200 flex items-center justify-center text-blue-700 font-bold text-sm">
-                            {user?.user_metadata?.full_name ? user.user_metadata.full_name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0,2) : '?'}
+                            {user?.user_metadata?.full_name
+                              ? user.user_metadata.full_name
+                                  .split(" ")
+                                  .map((n: string) => n[0])
+                                  .join("")
+                                  .toUpperCase()
+                                  .slice(0, 2)
+                              : "?"}
                           </div>
-                        )
-                      )}
+                        ))}
                     </div>
                   );
                 })}
