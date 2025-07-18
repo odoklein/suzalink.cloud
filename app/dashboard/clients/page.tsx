@@ -204,24 +204,38 @@ export default function ClientsPage() {
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {clients.map((client) => (
-                <Card key={client.id} className="p-6 relative">
-                  <CardHeader className="flex flex-row items-center justify-between">
-                    <CardTitle className="text-lg font-semibold">
-                      {client.name}
-                    </CardTitle>
-                    <span className={`ml-2 px-2 py-1 rounded text-xs text-white ${STATUS_COLORS[client.status]}`}>{STATUS_LABELS[client.status]}</span>
-                  </CardHeader>
-                  <CardContent className="space-y-1">
-                    <div className="text-sm text-gray-600">{client.company}</div>
-                    <div className="text-sm text-gray-500">{client.contact_email}</div>
-                    {client.region && <div className="text-xs text-gray-400">Région: {client.region}</div>}
-                  </CardContent>
-                  <CardFooter className="flex gap-2 justify-end">
-                    <Button variant="outline" size="sm" onClick={() => openEditDialog(client)}>Modifier</Button>
-                    <Button variant="destructive" size="sm" onClick={() => openDeleteDialog(client.id)}>Supprimer</Button>
-                    <Link href={`/dashboard/clients/${client.id}/agenda`} className="ml-2 underline text-xs text-blue-600">Agenda</Link>
-                  </CardFooter>
-                </Card>
+                <Link
+                  key={client.id}
+                  href={`/dashboard/clients/${client.id}`}
+                  className="group block focus:outline-none"
+                  style={{ textDecoration: 'none' }}
+                >
+                  <Card
+                    className="p-6 relative transition-transform duration-150 group-hover:scale-[1.02] group-hover:shadow-lg cursor-pointer"
+                    tabIndex={0}
+                    aria-label={`Voir le client ${client.name}`}
+                    onClick={e => {
+                      // Prevent navigating when clicking edit/delete
+                      if ((e.target as HTMLElement).closest('button')) return;
+                    }}
+                  >
+                    <CardHeader className="flex flex-row items-center justify-between">
+                      <CardTitle className="text-lg font-semibold">
+                        {client.name}
+                      </CardTitle>
+                      <span className={`ml-2 px-2 py-1 rounded text-xs text-white ${STATUS_COLORS[client.status]}`}>{STATUS_LABELS[client.status]}</span>
+                    </CardHeader>
+                    <CardContent className="space-y-1">
+                      <div className="text-sm text-gray-600">{client.company}</div>
+                      <div className="text-sm text-gray-500">{client.contact_email}</div>
+                      {client.region && <div className="text-xs text-gray-400">Région: {client.region}</div>}
+                    </CardContent>
+                    <CardFooter className="flex gap-2 justify-end">
+                      <Button variant="outline" size="sm" onClick={e => { e.preventDefault(); openEditDialog(client); }}>Modifier</Button>
+                      <Button variant="destructive" size="sm" onClick={e => { e.preventDefault(); openDeleteDialog(client.id); }}>Supprimer</Button>
+                    </CardFooter>
+                  </Card>
+                </Link>
               ))}
             </div>
             <div className="flex justify-center mt-8 gap-2">
