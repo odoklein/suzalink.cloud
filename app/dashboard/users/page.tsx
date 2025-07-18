@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { AdminOnly } from "@/components/RoleGuard";
+
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -57,7 +57,7 @@ export default function UsersPage() {
     queryFn: async () => {
       let query = supabase
         .from('users')
-        .select('*')
+        .select('id, email, full_name, role, created_at')
         .order('created_at', { ascending: false })
         .range((page - 1) * pageSize, page * pageSize - 1);
       if (search) query = query.ilike('full_name', `%${search}%`);
@@ -154,7 +154,7 @@ export default function UsersPage() {
   const filteredUsers = users; // No local filtering needed
 
   return (
-    <AdminOnly>
+    <>
       <div className="w-full px-0 md:px-8 py-8">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
           <div>
@@ -168,21 +168,8 @@ export default function UsersPage() {
               onChange={e => setSearch(e.target.value)}
               className="max-w-xs"
             />
-<<<<<<< HEAD
-            <Button variant="outline" className="flex gap-2"><Filter className="w-4 h-4" /> Filters</Button>
-            <Button className="flex gap-2"><Plus className="w-4 h-4" /> Add user</Button>
-=======
             <Button variant="outline" className="flex gap-2"><Filter className="w-4 h-4" /> Filtres</Button>
-            <Button 
-              variant="outline" 
-              onClick={addTestActivity}
-              disabled={testLoading}
-              className="flex gap-2"
-            >
-              <Plus className="w-4 h-4" /> {testLoading ? 'Ajout en cours...' : 'Ajouter activité de test'}
-            </Button>
             <Button className="flex gap-2"><Plus className="w-4 h-4" /> Ajouter un utilisateur</Button>
->>>>>>> 468de3144bcf47ba7be291c2b3fbf40892302106
           </div>
         </div>
         <div className="bg-white rounded-xl border shadow-sm overflow-x-auto w-full">
@@ -217,12 +204,12 @@ export default function UsersPage() {
                     <TableCell></TableCell>
                   </TableRow>
                 ))
-              ) : filteredUsers.length === 0 ? (
+              ) : users.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={10} className="text-center py-8 text-gray-400">Aucun utilisateur trouvé.</TableCell>
                 </TableRow>
               ) : (
-                filteredUsers.map((user) => {
+                users.map((user) => {
                   const summary = activitySummaries[user.id];
                   const isCurrentUser = user.id === userProfile?.id;
                   
@@ -281,31 +268,7 @@ export default function UsersPage() {
                       </TableCell>
                       <TableCell className="text-gray-500">{new Date(user.created_at).toLocaleDateString()}</TableCell>
                       <TableCell>
-<<<<<<< HEAD
-                        {/* Action buttons removed: View Activity and Edit Role dialogs are obsolete in this refactor */}
-=======
-                        <div className="flex gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => openUserActivity(user)}
-                          >
-                            <Activity className="w-4 h-4 mr-1" /> Voir l'activité
-                          </Button>
-                          {user.id !== userProfile?.id && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                setEditingUser(user);
-                                setOpen(true);
-                              }}
-                            >
-                              Modifier le rôle
-                            </Button>
-                          )}
-                        </div>
->>>>>>> 468de3144bcf47ba7be291c2b3fbf40892302106
+
                       </TableCell>
                     </TableRow>
                   );
@@ -314,90 +277,7 @@ export default function UsersPage() {
             </TableBody>
           </Table>
         </div>
-<<<<<<< HEAD
-=======
-        {/* Activity Dialog */}
-        <Dialog open={activityDialogOpen} onOpenChange={setActivityDialogOpen}>
-          <DialogContent className="max-w-lg">
-            <DialogHeader>
-              <DialogTitle>Activité de l'utilisateur</DialogTitle>
-              <DialogDescription>
-                Journal d'activité de {activityUser?.full_name}
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-2 max-h-96 overflow-y-auto">
-              {activityLogs.length === 0 ? (
-                <div className="text-gray-400 text-center py-8">Aucune activité trouvée.</div>
-              ) : (
-                activityLogs.map((log) => (
-                  <div key={log.id} className="border rounded-lg p-3 flex flex-col gap-1 bg-gray-50">
-                    <div className="flex justify-between items-center">
-                      <span className="font-medium text-gray-800">{log.action}</span>
-                      <span className="text-xs text-gray-500">{new Date(log.created_at).toLocaleString()}</span>
-                    </div>
-                    {log.details && (
-                      <pre className="text-xs text-gray-600 bg-gray-100 rounded p-2 mt-1 overflow-x-auto">{JSON.stringify(log.details, null, 2)}</pre>
-                    )}
-                  </div>
-                ))
-              )}
-            </div>
-          </DialogContent>
-        </Dialog>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Modifier le rôle de l'utilisateur</DialogTitle>
-              <DialogDescription>
-                Changer le rôle pour {editingUser?.full_name}
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="role">Rôle</Label>
-                <Select
-                  value={selectedRole}
-                  onValueChange={(value: 'admin' | 'manager' | 'user') => {
-                    setSelectedRole(value);
-                  }}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Sélectionner un rôle" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="user">Utilisateur</SelectItem>
-                    <SelectItem value="manager">Gestionnaire</SelectItem>
-                    <SelectItem value="admin">Administrateur</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex justify-end gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setOpen(false);
-                    setEditingUser(null);
-                  }}
-                  disabled={updating}
-                >
-                  Annuler
-                </Button>
-                <Button
-                  onClick={() => {
-                    if (editingUser && selectedRole && selectedRole !== editingUser.role) {
-                      handleUpdateRole(editingUser.id, selectedRole as 'admin' | 'manager' | 'user');
-                    }
-                  }}
-                  disabled={updating || !editingUser || selectedRole === editingUser?.role}
-                >
-                  {updating ? 'Saving...' : 'Confirm'}
-                </Button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
->>>>>>> 468de3144bcf47ba7be291c2b3fbf40892302106
       </div>
-    </AdminOnly>
+    </>
   );
 }

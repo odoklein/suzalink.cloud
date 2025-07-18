@@ -1,15 +1,70 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { Paperclip, Send, Mic, Smile, Video, Phone, MoreVertical } from "lucide-react";
+import UsersList from "./users-list";
 
 // Pour la gestion audio
+import { useRef as useReactRef } from "react";
 import { useRef as useReactRef2 } from "react";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth-context";
 import { toast } from "sonner";
-import { useRef as useReactRef } from "react";
 
 export default function ChatPage() {
+  // ...existing state and hooks
+
+  // Handler to open (or create) a private chat with a selected user
+  // Rule: When selecting a user, if a private conversation exists between the two users, enter it; if not, create it and enter it.
+  const handleSelectUser = async (targetUser: any) => {
+    if (!user || !targetUser?.id || user.id === targetUser.id) return;
+    // Step 1: Try to find an existing private conversation between these two users
+    const { data: rpcResult, error: rpcError } = await supabase
+      .rpc('get_private_conversation_id', { user1: user.id, user2: targetUser.id });
+    if (rpcError) {
+      toast("Erreur lors de la recherche de la conversation privée");
+      return;
+    }
+    let conversation = null;
+    if (rpcResult) {
+      // If the RPC returns an ID, fetch the conversation and enter it
+      const { data, error } = await supabase
+        .from("conversations")
+        .select("*, conversation_participants!inner(user_id)")
+        .eq("type", "private")
+        .in("id", [rpcResult]);
+      if (error) {
+        toast("Erreur lors de la récupération de la conversation privée");
+        return;
+      }
+      if (data && data.length > 0) {
+        conversation = data[0];
+        setSelectedChat(conversation);
+        return;
+      }
+      // If the ID exists but the conversation is not found, fall through to creation.
+    }
+    // Step 2: No conversation found, create a new one
+    const { data: newConversation, error: createError } = await supabase
+      .from("conversations")
+      .insert({ type: "private" })
+      .select()
+      .single();
+    if (createError || !newConversation) {
+      toast("Erreur lors de la création de la conversation privée");
+      return;
+    }
+    // Add both users as participants
+    const { error: insertError } = await supabase.from("conversation_participants").insert([
+      { conversation_id: newConversation.id, user_id: user.id },
+      { conversation_id: newConversation.id, user_id: targetUser.id },
+    ]);
+    if (insertError) {
+      toast("Erreur lors de l'ajout des participants à la conversation privée");
+      return;
+    }
+    setSelectedChat(newConversation);
+  };
+
   const { user } = useAuth();
   const [chats, setChats] = useState<any[]>([]);
   const [chatDetails, setChatDetails] = useState<Record<string, any>>({}); // infos participants et last message
@@ -33,59 +88,48 @@ const [recordingError, setRecordingError] = useState<string | null>(null);
     const fetchChats = async () => {
       setLoadingChats(true);
       const { data: participantRows } = await supabase
-        .from("chat_participants")
-        .select("chat_id")
+        .from("conversation_participants")
+        .select("conversation_id")
         .eq("user_id", user.id);
-      const chatIds = participantRows?.map((row: { chat_id: string }) => row.chat_id) || [];
-      if (chatIds.length === 0) {
+      const conversationIds = participantRows?.map((row: { conversation_id: string }) => row.conversation_id) || [];
+      if (conversationIds.length === 0) {
         setChats([]);
         setChatDetails({});
         setLoadingChats(false);
         return;
       }
-      const { data: chatsList } = await supabase
-        .from("chats")
+      const { data: conversationsList } = await supabase
+        .from("conversations")
         .select("*")
-        .in("id", chatIds)
+        .in("id", conversationIds)
         .order("created_at", { ascending: false });
-      setChats(chatsList || []);
-      // Pour chaque chat, fetch participants et last message
+      setChats(conversationsList || []);
+      // For each conversation, fetch participants and last message
       const details: Record<string, any> = {};
-      await Promise.all((chatsList || []).map(async (chat: any) => {
+      await Promise.all((conversationsList || []).map(async (conversation: any) => {
         // Participants
         const { data: participants } = await supabase
-          .from("chat_participants")
+          .from("conversation_participants")
           .select("user_id, users(full_name, email)")
-          .eq("chat_id", chat.id);
+          .eq("conversation_id", conversation.id);
         // Last message
         const { data: lastMsg } = await supabase
-          .from("chat_messages")
-          .select("content, sent_at, sender_id")
-          .eq("chat_id", chat.id)
-          .order("sent_at", { ascending: false })
+          .from("messages")
+          .select("content, created_at, sender_id")
+          .eq("conversation_id", conversation.id)
+          .order("created_at", { ascending: false })
           .limit(1)
           .single();
-        // Nom du projet si chat de type project
-        let projectTitle = null;
-        if (chat.type === "project" && chat.project_id) {
-          const { data: project } = await supabase
-            .from("projects")
-            .select("title")
-            .eq("id", chat.project_id)
-            .single();
-          projectTitle = project?.title || null;
-        }
-        details[chat.id] = {
+        details[conversation.id] = {
           participants: participants || [],
           lastMsg: lastMsg || null,
-          projectTitle,
         };
       }));
       setChatDetails(details);
-      // Trie les chats par date du dernier message (plus récent en haut)
-      const sortedChats = [...(chatsList || [])].sort((a, b) => {
-        const aDate = details[a.id]?.lastMsg?.sent_at || a.created_at;
-        const bDate = details[b.id]?.lastMsg?.sent_at || b.created_at;
+      // Sort conversations by last message date (most recent first)
+      const sortedChats = [...(conversationsList || [])].sort((a, b) => {
+        const aDate = details[a.id]?.lastMsg?.created_at || a.created_at;
+        const bDate = details[b.id]?.lastMsg?.created_at || b.created_at;
         return new Date(bDate).getTime() - new Date(aDate).getTime();
       });
       setChats(sortedChats);
@@ -98,15 +142,15 @@ const [recordingError, setRecordingError] = useState<string | null>(null);
   const refreshChatDetails = async (chatId: string) => {
     // Participants
     const { data: participants } = await supabase
-      .from("chat_participants")
+      .from("conversation_participants")
       .select("user_id, users(full_name, email)")
-      .eq("chat_id", chatId);
+      .eq("conversation_id", chatId);
     // Last message
     const { data: lastMsg } = await supabase
-      .from("chat_messages")
-      .select("content, sent_at, sender_id")
-      .eq("chat_id", chatId)
-      .order("sent_at", { ascending: false })
+      .from("messages")
+      .select("content, created_at, sender_id")
+      .eq("conversation_id", chatId)
+      .order("created_at", { ascending: false })
       .limit(1)
       .single();
     setChatDetails((prev) => ({
@@ -119,8 +163,8 @@ const [recordingError, setRecordingError] = useState<string | null>(null);
     // Trie la liste des chats après update
     setChats((prev) => {
       const sorted = [...prev].sort((a, b) => {
-        const aDate = (chatId === a.id ? lastMsg?.sent_at : chatDetails[a.id]?.lastMsg?.sent_at) || a.created_at;
-        const bDate = (chatId === b.id ? lastMsg?.sent_at : chatDetails[b.id]?.lastMsg?.sent_at) || b.created_at;
+        const aDate = (chatId === a.id ? lastMsg?.created_at : chatDetails[a.id]?.lastMsg?.created_at) || a.created_at;
+        const bDate = (chatId === b.id ? lastMsg?.created_at : chatDetails[b.id]?.lastMsg?.created_at) || b.created_at;
         return new Date(bDate).getTime() - new Date(aDate).getTime();
       });
       return sorted;
@@ -154,10 +198,10 @@ const [recordingError, setRecordingError] = useState<string | null>(null);
     const fetchMessages = async () => {
       setLoadingMessages(true);
       const { data, error } = await supabase
-        .from("chat_messages")
+        .from("messages")
         .select("*")
-        .eq("chat_id", selectedChat.id)
-        .order("sent_at", { ascending: true });
+        .eq("conversation_id", selectedChat.id)
+        .order("created_at", { ascending: true });
       setMessages(data || []);
       setLoadingMessages(false);
       // Remonter le chat sélectionné en haut de la liste
@@ -305,65 +349,7 @@ const [recordingError, setRecordingError] = useState<string | null>(null);
   return (
     <div className="flex h-[calc(100vh-32px)] bg-[#f7f8fa]">
       {/* Sidebar */}
-      <aside className="w-80 min-w-[280px] bg-white border-r border-gray-100 flex flex-col p-6 rounded-3xl m-4 ml-0 shadow-sm">
-        <h2 className="text-2xl font-bold mb-6">Discussions</h2>
-        <div className="mb-4">
-          <input
-            type="text"
-            placeholder="Rechercher..."
-            className="w-full px-4 py-2 rounded-xl border border-gray-200 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-100 text-sm"
-          />
-        </div>
-        <div className="flex-1 overflow-y-auto pr-2">
-          {loadingChats ? (
-            <div className="text-center text-gray-400 mt-8">Chargement...</div>
-          ) : chats.length === 0 ? (
-            <div className="text-center text-gray-400 mt-8">Aucune discussion</div>
-          ) : (
-            chats.map((chat) => {
-              const details = chatDetails[chat.id] || {};
-              let displayName = "";
-              if (chat.type === "private" && details.participants && user) {
-                // DEBUG: log participants
-                // console.log('participants', details.participants);
-                const other = details.participants.find((p: any) => p.user_id !== user.id);
-                displayName = (other?.users?.full_name && other?.users?.full_name.trim())
-                  ? other.users.full_name
-                  : (other?.users?.email || "Private chat");
-              } else if (chat.type === "project" && details.projectTitle) {
-                displayName = details.projectTitle;
-              } else if (chat.type === "group" && chat.name) {
-                displayName = chat.name;
-              } else if (chat.type === "group") {
-                displayName = "Group chat";
-              }
-              const lastMsg = details.lastMsg;
-              return (
-                <div
-                  key={chat.id}
-                  className={`flex flex-col gap-1 p-3 rounded-2xl cursor-pointer mb-2 transition-all hover:bg-blue-50 ${selectedChat?.id === chat.id ? "bg-blue-50" : ""}`}
-                  onClick={() => setSelectedChat(chat)}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center text-gray-400 font-bold text-lg">
-                      {displayName ? displayName.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0,2) : "?"}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <span className="font-semibold text-base truncate">{displayName}</span>
-                      {lastMsg && (
-                        <span className="text-xs text-gray-400 ml-2 whitespace-nowrap float-right">{lastMsg.sent_at?.slice(11, 16)}</span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="text-xs text-gray-500 truncate flex items-center gap-1 pl-14">
-                    {lastMsg ? lastMsg.content : <span className="italic text-gray-300">Aucun message</span>}
-                  </div>
-                </div>
-              );
-            })
-          )}
-        </div>
-      </aside>
+      <UsersList onSelectUser={handleSelectUser} />
 
       {/* Main Chat Area */}
       <main className="flex-1 flex flex-col bg-white rounded-3xl m-4 ml-0 shadow-xl overflow-hidden">

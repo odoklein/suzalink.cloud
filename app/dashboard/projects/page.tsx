@@ -43,6 +43,17 @@ export default function ProjectsPage() {
   const [page, setPage] = useState(1);
   const pageSize = 8;
   const [totalCount, setTotalCount] = useState<number>(0);
+  // Debounced filters
+  const [debouncedFilterStatus, setDebouncedFilterStatus] = useState(filterStatus);
+  const [debouncedFilterClient, setDebouncedFilterClient] = useState(filterClient);
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedFilterStatus(filterStatus), 300);
+    return () => clearTimeout(t);
+  }, [filterStatus]);
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedFilterClient(filterClient), 300);
+    return () => clearTimeout(t);
+  }, [filterClient]);
 
   // Fetch projects with React Query
   const {

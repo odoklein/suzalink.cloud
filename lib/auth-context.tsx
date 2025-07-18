@@ -62,21 +62,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const now = new Date().toISOString();
       setSessionStartTime(now);
       
-      // Log session start
-      const logSessionStart = async () => {
-        try {
-          await supabase.from("user_activity").insert([
-            {
-              user_id: user.id,
-              action: 'session_start',
-              details: { startTime: now, page: window.location.pathname }
-            }
-          ]);
-        } catch (error) {
-          console.error('Session start log error:', error);
-        }
-      };
-      logSessionStart();
+      // Log session start (guarded for SSR)
+      if (typeof window !== "undefined") {
+        const logSessionStart = async () => {
+          try {
+            await supabase.from("user_activity").insert([
+              {
+                user_id: user.id,
+                action: 'session_start',
+                details: { startTime: now, page: window.location.pathname }
+              }
+            ]);
+          } catch (error) {
+            console.error('Session start log error:', error);
+          }
+        };
+        logSessionStart();
+      }
     }
   }, [user, sessionStartTime]);
 
@@ -96,7 +98,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Log page visits
   useEffect(() => {
-    if (user) {
+    if (user && typeof window !== "undefined") {
       const logPageVisit = async () => {
         try {
           await supabase.from("user_activity").insert([
@@ -153,7 +155,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await fetchUserProfile(session.user.id);
       } else {
         setUserProfile(null);
+        setSessionStartTime(null); // Reset session timing on logout
+        setSessionDuration(0);
       }
+      setLoading(false); // Ensure loading is updated on auth state change
     });
     return () => {
       listener.subscription.unsubscribe();

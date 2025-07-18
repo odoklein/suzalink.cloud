@@ -1,15 +1,60 @@
 'use client'
 import React, { useEffect, useState } from "react";
+import ComposeEmailModal from "./ComposeEmailModal";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
 import { useRouter } from "next/navigation";
 
 export default function InboxPage() {
+  const [composeOpen, setComposeOpen] = useState(false);
   const { session, loading: authLoading } = useAuth();
   const [emails, setEmails] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+
+  // Helper to refresh inbox
+  const fetchEmails = async (force = false) => {
+    if (!session) return;
+    setLoading(true);
+    setError(null);
+    // Try cache first
+    if (!force && typeof window !== "undefined") {
+      const cached = sessionStorage.getItem("inbox_cache");
+      if (cached) {
+        try {
+          const { emails: cachedEmails, timestamp } = JSON.parse(cached);
+          if (Date.now() - timestamp < 2 * 60 * 1000) { // 2 min cache
+            setEmails(cachedEmails);
+            setLoading(false);
+            return;
+          }
+        } catch {}
+      }
+    }
+    try {
+      const res = await fetch("/api/emails/inbox", {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        setError(data.error || "Failed to fetch emails");
+        setLoading(false);
+        return;
+      }
+      const data = await res.json();
+      setEmails(data.emails || []);
+      // Save to cache
+      if (typeof window !== "undefined") {
+        sessionStorage.setItem("inbox_cache", JSON.stringify({ emails: data.emails || [], timestamp: Date.now() }));
+      }
+    } catch (e) {
+      setError("Failed to fetch emails");
+    }
+    setLoading(false);
+  };
 
   useEffect(() => {
     const fetchEmails = async () => {
@@ -40,11 +85,18 @@ export default function InboxPage() {
 
   return (
     <>
+      <ComposeEmailModal open={composeOpen} onOpenChange={setComposeOpen} onSent={fetchEmails} />
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold text-gray-800">Inbox</h1>
         <nav className="text-sm text-gray-500">
           Home <span className="mx-1">/</span> <span className="text-gray-800 font-semibold">Inbox</span>
         </nav>
+        <button
+          className="fixed bottom-10 right-10 bg-blue-600 text-white px-6 py-3 rounded-full shadow-lg hover:bg-blue-700 transition z-50"
+          onClick={() => setComposeOpen(true)}
+        >
+          + Compose
+        </button>
       </div>
       <div className="bg-white rounded-xl shadow-sm p-4">
         {/* Toolbar */}

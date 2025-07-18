@@ -26,29 +26,12 @@ function getMonthRange() {
   return { start, end };
 }
 
-<<<<<<< HEAD
 export default function DashboardPage() {
   // Prospects count
   const { data: prospects, isLoading: loadingProspects } = useQuery({
     queryKey: ["dashboard", "prospectsCount"],
     queryFn: async () => {
       const { count } = await supabase
-=======
-export default function TableauDeBordPage() {
-  const [stats, setStats] = useState({
-    prospects: 0,
-    clients: 0,
-    revenu: 0,
-    depenses: 0,
-    loading: true,
-  });
-
-  useEffect(() => {
-    async function fetchStats() {
-      setStats((s) => ({ ...s, loading: true }));
-      // Total prospects
-      const { count: prospects } = await supabase
->>>>>>> 468de3144bcf47ba7be291c2b3fbf40892302106
         .from("prospects")
         .select("id", { count: "exact", head: true });
       return count || 0;
@@ -62,7 +45,6 @@ export default function TableauDeBordPage() {
       const { count } = await supabase
         .from("clients")
         .select("id", { count: "exact", head: true });
-<<<<<<< HEAD
       return count || 0;
     },
   });
@@ -99,42 +81,6 @@ export default function TableauDeBordPage() {
   });
 
   const balance = (income || 0) - (expenses || 0);
-=======
-      // Revenu this month
-      const { data: revenuRows } = await supabase
-        .from("entries")
-        .select("amount, date, type")
-        .eq("type", "revenu");
-      // Depenses this month
-      const { data: depenseRows } = await supabase
-        .from("entries")
-        .select("amount, date, type")
-        .eq("type", "depense");
-      // Calculate sums for current month
-      const now = new Date();
-      const month = now.getMonth();
-      const year = now.getFullYear();
-      const revenu = (revenuRows || []).reduce((sum, row) => {
-        const d = new Date(row.date);
-        return d.getMonth() === month && d.getFullYear() === year ? sum + Number(row.amount) : sum;
-      }, 0);
-      const depenses = (depenseRows || []).reduce((sum, row) => {
-        const d = new Date(row.date);
-        return d.getMonth() === month && d.getFullYear() === year ? sum + Number(row.amount) : sum;
-      }, 0);
-      setStats({
-        prospects: prospects || 0,
-        clients: clients || 0,
-        revenu,
-        depenses,
-        loading: false,
-      });
-    }
-    fetchStats();
-  }, []);
-
-  const balance = stats.revenu - stats.depenses;
->>>>>>> 468de3144bcf47ba7be291c2b3fbf40892302106
 
   return (
     <div className="space-y-8 p-6">
@@ -190,11 +136,7 @@ export default function TableauDeBordPage() {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold text-purple-900 mb-1">
-<<<<<<< HEAD
                 {loadingIncome ? <Skeleton className="h-8 w-24" /> : `$${(income || 0).toLocaleString()}`}
-=======
-                {stats.loading ? <Skeleton className="h-8 w-24" /> : `$${stats.revenu.toLocaleString()}`}
->>>>>>> 468de3144bcf47ba7be291c2b3fbf40892302106
               </div>
               <div className="flex items-center text-sm text-purple-600">
                 <ArrowTrendingUpIcon className="h-4 w-4 mr-1" />
@@ -213,11 +155,7 @@ export default function TableauDeBordPage() {
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold text-orange-900 mb-1">
-<<<<<<< HEAD
                 {loadingExpenses ? <Skeleton className="h-8 w-24" /> : `$${(expenses || 0).toLocaleString()}`}
-=======
-                {stats.loading ? <Skeleton className="h-8 w-24" /> : `$${stats.depenses.toLocaleString()}`}
->>>>>>> 468de3144bcf47ba7be291c2b3fbf40892302106
               </div>
               <div className="flex items-center text-sm text-orange-600">
                 <ArrowTrendingUpIcon className="h-4 w-4 mr-1" />

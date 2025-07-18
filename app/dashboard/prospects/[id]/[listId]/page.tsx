@@ -16,6 +16,10 @@ export default function ProspectionListPage() {
   const [prospects, setProspects] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Pagination
+  const [page, setPage] = useState(1);
+  const PAGE_SIZE = 20;
+  const [totalCount, setTotalCount] = useState(0);
   const [prospectModalOpen, setProspectModalOpen] = useState(false);
   const [editingProspect, setEditingProspect] = useState<any | null>(null);
   const [deleteProspectId, setDeleteProspectId] = useState<string | null>(null);
@@ -36,22 +40,35 @@ export default function ProspectionListPage() {
   // Fetch prospects for this list
   async function fetchProspects() {
     setLoading(true);
-    const { data, error } = await supabase
+    setError(null);
+    const from = (page - 1) * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
+    let query = supabase
       .from("prospects")
-      .select("*")
+      .select("id,name,email,status,assigned_user,custom_fields", { count: "exact" })
       .eq("prospection_list_id", listId);
+    if (filterStatus) query = query.eq("status", filterStatus);
+    if (filterAssigned) query = query.eq("assigned_user", filterAssigned);
+    // For custom fields filtering (JSONB), use .contains if supported
+    Object.entries(filterCustom).forEach(([key, value]) => {
+      if (value) query = query.contains("custom_fields", { [key]: value });
+    });
+    query = query.range(from, to);
+    const { data, error, count } = await query;
     if (error) {
       setError(error.message);
       setProspects([]);
     } else {
       setProspects(data || []);
+      if (typeof count === 'number') setTotalCount(count);
     }
     setLoading(false);
   }
 
   useEffect(() => {
     if (listId) fetchProspects();
-  }, [listId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [listId, page, filterStatus, filterAssigned, JSON.stringify(filterCustom)]);
 
   // Collect all custom field keys
   const customFieldKeys = Array.from(
@@ -60,10 +77,21 @@ export default function ProspectionListPage() {
     )
   );
 
+  // Debounce filter changes
+  const [debouncedFilterStatus, setDebouncedFilterStatus] = useState(filterStatus);
+  const [debouncedFilterAssigned, setDebouncedFilterAssigned] = useState(filterAssigned);
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedFilterStatus(filterStatus), 300);
+    return () => clearTimeout(t);
+  }, [filterStatus]);
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedFilterAssigned(filterAssigned), 300);
+    return () => clearTimeout(t);
+  }, [filterAssigned]);
   // Filtered prospects
   const filteredProspects = prospects.filter(p => {
-    if (filterStatus && p.status !== filterStatus) return false;
-    if (filterAssigned && p.assigned_user !== filterAssigned) return false;
+    if (debouncedFilterStatus && p.status !== debouncedFilterStatus) return false;
+    if (debouncedFilterAssigned && p.assigned_user !== debouncedFilterAssigned) return false;
     for (const key of Object.keys(filterCustom)) {
       if (filterCustom[key] && (!p.custom_fields || p.custom_fields[key] !== filterCustom[key])) return false;
     }
@@ -200,11 +228,19 @@ export default function ProspectionListPage() {
       <Card>
         <CardContent className="p-0">
           {loading ? (
-            <div className="p-8 text-center text-gray-500">Loading...</div>
+            <div className="p-8 text-center text-gray-500">
+              {/* Loading skeleton for table */}
+              <div className="animate-pulse space-y-4">
+                {[...Array(PAGE_SIZE)].map((_, i) => (
+                  <div key={i} className="h-6 bg-gray-200 rounded w-full" />
+                ))}
+              </div>
+            </div>
           ) : error ? (
             <div className="p-8 text-center text-red-500">{error}</div>
           ) : (
             <div className="overflow-x-auto">
+              {/* Consider using react-window for virtualization if list grows large */}
               <table className="min-w-full text-sm">
                 <thead>
                   <tr className="border-b">
@@ -240,6 +276,12 @@ export default function ProspectionListPage() {
                   ))}
                 </tbody>
               </table>
+              {/* Pagination Controls */}
+              <div className="flex justify-between items-center mt-4">
+                <Button disabled={page === 1} onClick={() => setPage(p => Math.max(1, p - 1))}>Previous</Button>
+                <span>Page {page} of {Math.ceil(totalCount / PAGE_SIZE)}</span>
+                <Button disabled={page >= Math.ceil(totalCount / PAGE_SIZE)} onClick={() => setPage(p => p + 1)}>Next</Button>
+              </div>
             </div>
           )}
         </CardContent>

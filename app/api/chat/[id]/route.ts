@@ -7,19 +7,19 @@ const supabase = createClient(
 );
 
 export async function GET(req: NextRequest, context: any) {
-  const chatId = context.params.id;
+  const conversationId = context.params.id;
   const userId = req.headers.get('x-user-id');
-  if (!chatId) {
-    return NextResponse.json({ error: 'Missing chat id' }, { status: 400 });
+  if (!conversationId) {
+    return NextResponse.json({ error: 'Missing conversation id' }, { status: 400 });
   }
   if (!userId) {
     return NextResponse.json({ error: 'Missing user id' }, { status: 401 });
   }
   // Check if user is a participant
   const { data: participant, error: partError } = await supabase
-    .from('chat_participants')
+    .from('conversation_participants')
     .select('*')
-    .eq('chat_id', chatId)
+    .eq('conversation_id', conversationId)
     .eq('user_id', userId)
     .single();
   if (partError || !participant) {
@@ -27,17 +27,17 @@ export async function GET(req: NextRequest, context: any) {
   }
   // Get messages
   const { data: messages, error } = await supabase
-    .from('chat_messages')
+    .from('messages')
     .select('*')
-    .eq('chat_id', chatId)
-    .order('sent_at', { ascending: true });
+    .eq('conversation_id', conversationId)
+    .order('created_at', { ascending: true });
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
   // Get participants with user info
   const { data: participants } = await supabase
-    .from('chat_participants')
+    .from('conversation_participants')
     .select('user_id, users(full_name, email)')
-    .eq('chat_id', chatId);
+    .eq('conversation_id', conversationId);
   return NextResponse.json({ messages, participants });
 } 

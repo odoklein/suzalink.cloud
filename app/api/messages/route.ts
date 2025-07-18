@@ -7,23 +7,23 @@ const supabase = createClient(
 );
 
 export async function POST(req: NextRequest) {
-  const { chat_id, sender_id, content, file_url } = await req.json();
-  if (!chat_id || !sender_id || !content) {
+  const { conversation_id, sender_id, content, file_url } = await req.json();
+  if (!conversation_id || !sender_id || !content) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
   }
   // Check if sender is a participant
   const { data: participant, error: partError } = await supabase
-    .from('chat_participants')
+    .from('conversation_participants')
     .select('*')
-    .eq('chat_id', chat_id)
+    .eq('conversation_id', conversation_id)
     .eq('user_id', sender_id)
     .single();
   if (partError || !participant) {
     return NextResponse.json({ error: 'Not a participant' }, { status: 403 });
   }
   const { data, error } = await supabase
-    .from('chat_messages')
-    .insert([{ chat_id, sender_id, content, file_url }])
+    .from('messages')
+    .insert([{ conversation_id, sender_id, content, file_url }])
     .select()
     .single();
   if (error) {

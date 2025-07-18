@@ -78,38 +78,12 @@ export default function ClientsPage() {
   });
   const clients = data?.data || [];
   const total = data?.count || 0;
+
+  // Pagination helpers
+  const totalPages = Math.ceil(total / PAGE_SIZE);
   const router = useRouter();
 
-<<<<<<< HEAD
-=======
-  // Fetch clients
-  useEffect(() => {
-    fetchClients();
-  }, [search, statusFilter, regionFilter, page]);
 
-  async function fetchClients() {
-    setLoading(true);
-    setError(null);
-    try {
-      const params = new URLSearchParams();
-      if (search) params.append('name', search);
-      if (statusFilter) params.append('status', statusFilter);
-      if (regionFilter) params.append('region', regionFilter);
-      params.append('limit', PAGE_SIZE.toString());
-      params.append('offset', ((page - 1) * PAGE_SIZE).toString());
-      const res = await fetch(`/api/clients?${params.toString()}`);
-      if (!res.ok) throw new Error('Échec de la récupération des clients');
-      const { data, count } = await res.json();
-      setClients(data);
-      setTotal(count || 0);
-    } catch (e: any) {
-      setError(e.message);
-    } finally {
-      setLoading(false);
-    }
-  }
-
->>>>>>> 468de3144bcf47ba7be291c2b3fbf40892302106
   function openAddDialog() {
     setEditingClient(null);
     setForm({ name: "", contact_email: "", company: "", status: 'active', region: '' });
@@ -228,42 +202,28 @@ export default function ClientsPage() {
           <div className="text-center text-gray-500 py-8">Aucun client trouvé.</div>
         ) : (
           <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-<<<<<<< HEAD
-              {clients.map((client: import("./useClientsQuery").Client) => (
-=======
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {clients.map((client) => (
->>>>>>> 468de3144bcf47ba7be291c2b3fbf40892302106
-                <Link key={client.id} href={`/dashboard/clients/${client.id}`} className="group">
-                  <Card
-                    className="border-[1.5px] border-black/20 shadow-lg bg-white flex flex-col justify-between h-full cursor-pointer transition-all duration-200 group-hover:bg-purple-50 group-hover:shadow-xl"
-                    tabIndex={0}
-                    aria-label={`View details for ${client.name}`}
-                  >
-                    <CardHeader>
-                      <CardTitle className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                        <span
-                          className={`w-3 h-3 rounded-full ${STATUS_COLORS[client.status]}`}
-                          title={STATUS_LABELS[client.status]}
-                        ></span>
-                        {client.name}
-                      </CardTitle>
-                      <div className="text-sm text-gray-500 font-normal">{client.company}</div>
-                      {client.region && <div className="text-xs text-gray-400">{client.region}</div>}
-                    </CardHeader>
-                    <CardContent>
-                      <div className="text-sm text-gray-600 break-all">{client.contact_email}</div>
-                    </CardContent>
-                    <CardFooter className="flex gap-2 justify-end opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none group-hover:pointer-events-auto">
-                      <Button size="sm" variant="secondary" tabIndex={-1} onClick={e => { e.preventDefault(); router.push(`/dashboard/clients/${client.id}`); }}>Détails</Button>
-                      <Button size="sm" variant="outline" tabIndex={-1} onClick={e => { e.preventDefault(); openEditDialog(client); }}>Modifier</Button>
-                      <Button size="sm" variant="destructive" tabIndex={-1} onClick={e => { e.preventDefault(); openDeleteDialog(client.id); }}>Supprimer</Button>
-                    </CardFooter>
-                  </Card>
-                </Link>
+                <Card key={client.id} className="p-6 relative">
+                  <CardHeader className="flex flex-row items-center justify-between">
+                    <CardTitle className="text-lg font-semibold">
+                      {client.name}
+                    </CardTitle>
+                    <span className={`ml-2 px-2 py-1 rounded text-xs text-white ${STATUS_COLORS[client.status]}`}>{STATUS_LABELS[client.status]}</span>
+                  </CardHeader>
+                  <CardContent className="space-y-1">
+                    <div className="text-sm text-gray-600">{client.company}</div>
+                    <div className="text-sm text-gray-500">{client.contact_email}</div>
+                    {client.region && <div className="text-xs text-gray-400">Région: {client.region}</div>}
+                  </CardContent>
+                  <CardFooter className="flex gap-2 justify-end">
+                    <Button variant="outline" size="sm" onClick={() => openEditDialog(client)}>Modifier</Button>
+                    <Button variant="destructive" size="sm" onClick={() => openDeleteDialog(client.id)}>Supprimer</Button>
+                    <Link href={`/dashboard/clients/${client.id}/agenda`} className="ml-2 underline text-xs text-blue-600">Agenda</Link>
+                  </CardFooter>
+                </Card>
               ))}
             </div>
-            {/* Pagination Controls */}
             <div className="flex justify-center mt-8 gap-2">
               <Button
                 variant="outline"

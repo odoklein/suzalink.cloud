@@ -116,7 +116,7 @@ const id = typeof params.id === 'string' ? params.id : Array.isArray(params.id) 
       return data?.[0];
     },
     onMutate: async (newTask: any) => {
-      await queryClient.cancelQueries(['tasks', id]);
+      await queryClient.cancelQueries({ queryKey: ['tasks', id] });
       const prevTasks = queryClient.getQueryData(['tasks', id]) || [];
       queryClient.setQueryData(['tasks', id], (old: any[] = []) => [...old, { ...newTask, id: Math.random().toString(36).slice(2) }]);
       return { prevTasks };
@@ -126,7 +126,7 @@ const id = typeof params.id === 'string' ? params.id : Array.isArray(params.id) 
       toast.error('Failed to create task', { description: err.message });
     },
     onSettled: () => {
-      queryClient.invalidateQueries(['tasks', id]);
+      queryClient.invalidateQueries({ queryKey: ['tasks', id] });
     },
     onSuccess: () => {
       toast.success('Task created successfully');

@@ -166,6 +166,138 @@ export default function ProfilePage() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            <h2 className="text-lg font-bold text-gray-900">Informations personnelles</h2>
+            <div className="flex items-center gap-3">
+              <UserIcon className="w-4 h-4 text-gray-500" />
+              <div>
+                <p className="text-sm font-medium text-gray-700">Nom complet</p>
+                <Input
+                  value={profileFields?.full_name || ''}
+                  onChange={e => setProfileFields((f: UserProfile | null) => f ? { ...f, full_name: e.target.value } : f)}
+                  className="w-full max-w-xs"
+                  placeholder="Entrez votre nom complet"
+                  
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <EnvelopeIcon className="w-4 h-4 text-gray-500" />
+              <div>
+                <p className="text-sm font-medium text-gray-700">E-mail</p>
+                <p className="text-gray-900">{userProfile.email}</p>
+              </div>
+            </div>
+
+            <h2 className="text-lg font-bold text-gray-900 mt-4">Informations de contact</h2>
+            <div className="flex items-center gap-3">
+              <UserIcon className="w-4 h-4 text-gray-500" />
+              <div>
+                <p className="text-sm font-medium text-gray-700">Téléphone</p>
+                <Input
+                  type="tel"
+                  value={profileFields?.phone || ''}
+                  onChange={e => setProfileFields((f: UserProfile | null) => f ? { ...f, phone: e.target.value } : f)}
+                  className="w-full max-w-xs"
+                  placeholder="Entrez votre numéro de téléphone"
+                  
+                />
+              </div>
+            </div>
+
+            <h2 className="text-lg font-bold text-gray-900 mt-4">Informations professionnelles</h2>
+            <div className="flex items-center gap-3">
+              <UserIcon className="w-4 h-4 text-gray-500" />
+              <div>
+                <p className="text-sm font-medium text-gray-700">Job Title</p>
+                <Input
+                  value={profileFields?.job_title || ''}
+                  onChange={e => setProfileFields((f: UserProfile | null) => f ? { ...f, job_title: e.target.value } : f)}
+                  className="w-full max-w-xs"
+                  placeholder="Entrez votre titre de travail"
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <UserIcon className="w-4 h-4 text-gray-500" />
+              <div>
+                <p className="text-sm font-medium text-gray-700">Department</p>
+                <Input
+                  value={profileFields?.department || ''}
+                  onChange={e => setProfileFields((f: UserProfile | null) => f ? { ...f, department: e.target.value } : f)}
+                  className="w-full max-w-xs"
+                  placeholder="Entrez votre département"
+                />
+              </div>
+            </div>
+
+            <h2 className="text-lg font-bold text-gray-900 mt-4">Liens sociaux</h2>
+            <div className="flex items-center gap-3">
+              <UserIcon className="w-4 h-4 text-gray-500" />
+              <div>
+                <p className="text-sm font-medium text-gray-700">LinkedIn</p>
+                <Input
+                  type="url"
+                  value={profileFields?.linkedin_url || ''}
+                  onChange={e => setProfileFields((f: UserProfile | null) => f ? { ...f, linkedin_url: e.target.value } : f)}
+                  className="w-full max-w-xs"
+                  placeholder="https://linkedin.com/in/username"
+                  
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <UserIcon className="w-4 h-4 text-gray-500" />
+              <div>
+                <p className="text-sm font-medium text-gray-700">Website</p>
+                <Input
+                  type="url"
+                  value={profileFields?.website_url || ''}
+                  onChange={e => setProfileFields((f: UserProfile | null) => f ? { ...f, website_url: e.target.value } : f)}
+                  className="w-full max-w-xs"
+                  placeholder="https://yourwebsite.com"
+                  
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <UserIcon className="w-4 h-4 text-gray-500" />
+              <div className="w-full">
+                <p className="text-sm font-medium text-gray-700">Bio</p>
+                <textarea
+                  value={profileFields?.bio || ''}
+                  onChange={e => setProfileFields((f: UserProfile | null) => f ? { ...f, bio: e.target.value } : f)}
+                  className="w-full max-w-xs border rounded p-2 min-h-[60px]"
+                  placeholder="Tell us about yourself..."
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <ShieldCheckIcon className="w-4 h-4 text-gray-500" />
+              <div>
+                <p className="text-sm font-medium text-gray-700">Role</p>
+                <Badge className={getRoleBadgeColor(userProfile.role)}>
+                  {userProfile.role.charAt(0).toUpperCase() + userProfile.role.slice(1)}
+                </Badge>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <CalendarIcon className="w-4 h-4 text-gray-500" />
+              <div>
+                <p className="text-sm font-medium text-gray-700">Member Since</p>
+                <p className="text-gray-900">
+                  {new Date(userProfile.created_at).toLocaleDateString()}
+                </p>
+              </div>
+            </div>
+
+            <Button type="button" className="mt-4" onClick={handleSaveProfile} disabled={loading}>Save Profile</Button>
+
             {/* Profile Picture Upload */}
             <div className="flex flex-col items-center gap-2 pb-4 border-b mb-4">
               <div className="relative w-24 h-24">
@@ -212,211 +344,27 @@ export default function ProfilePage() {
               )}
             </div>
 
-            <div className="flex items-center gap-3">
-              <EnvelopeIcon className="w-4 h-4 text-gray-500" />
-              <div>
-                <p className="text-sm font-medium text-gray-700">E-mail</p>
-                <p className="text-gray-900">{userProfile.email}</p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3">
-<<<<<<< HEAD
-  <UserIcon className="w-4 h-4 text-gray-500" />
-  <div>
-    <p className="text-sm font-medium text-gray-700">Full Name</p>
-    <Input
-      value={profileFields?.full_name || ''}
-      onChange={e => setProfileFields((f: UserProfile | null) => f ? { ...f, full_name: e.target.value } : f)}
-      className="w-full max-w-xs"
-    />
-  </div>
-</div>
-
-<div className="flex items-center gap-3">
-  <UserIcon className="w-4 h-4 text-gray-500" />
-  <div>
-    <p className="text-sm font-medium text-gray-700">Username</p>
-    <Input
-      value={profileFields?.username || ''}
-      onChange={e => setProfileFields((f: UserProfile | null) => f ? { ...f, username: e.target.value } : f)}
-      className="w-full max-w-xs"
-    />
-  </div>
-</div>
-
-<div className="flex items-center gap-3">
-  <UserIcon className="w-4 h-4 text-gray-500" />
-  <div>
-    <p className="text-sm font-medium text-gray-700">Job Title</p>
-    <Input
-      value={profileFields?.job_title || ''}
-      onChange={e => setProfileFields((f: UserProfile | null) => f ? { ...f, job_title: e.target.value } : f)}
-      className="w-full max-w-xs"
-    />
-  </div>
-</div>
-
-<div className="flex items-center gap-3">
-  <UserIcon className="w-4 h-4 text-gray-500" />
-  <div>
-    <p className="text-sm font-medium text-gray-700">Department</p>
-    <Input
-      value={profileFields?.department || ''}
-      onChange={e => setProfileFields((f: UserProfile | null) => f ? { ...f, department: e.target.value } : f)}
-      className="w-full max-w-xs"
-    />
-  </div>
-</div>
-
-<div className="flex items-center gap-3">
-  <UserIcon className="w-4 h-4 text-gray-500" />
-  <div>
-    <p className="text-sm font-medium text-gray-700">Phone</p>
-    <Input
-      value={profileFields?.phone || ''}
-      onChange={e => setProfileFields((f: UserProfile | null) => f ? { ...f, phone: e.target.value } : f)}
-      className="w-full max-w-xs"
-    />
-  </div>
-</div>
-
-<div className="flex items-center gap-3">
-  <UserIcon className="w-4 h-4 text-gray-500" />
-  <div>
-    <p className="text-sm font-medium text-gray-700">Location</p>
-    <Input
-      value={profileFields?.location || ''}
-      onChange={e => setProfileFields((f: UserProfile | null) => f ? { ...f, location: e.target.value } : f)}
-      className="w-full max-w-xs"
-    />
-  </div>
-</div>
-
-<div className="flex items-center gap-3">
-  <CalendarIcon className="w-4 h-4 text-gray-500" />
-  <div>
-    <p className="text-sm font-medium text-gray-700">Birthday</p>
-    <Input
-      type="date"
-      value={profileFields?.birthday || ''}
-      onChange={e => setProfileFields((f: UserProfile | null) => f ? { ...f, birthday: e.target.value } : f)}
-      className="w-full max-w-xs"
-    />
-  </div>
-</div>
-
-<div className="flex items-center gap-3">
-  <UserIcon className="w-4 h-4 text-gray-500" />
-  <div>
-    <p className="text-sm font-medium text-gray-700">LinkedIn</p>
-    <Input
-      value={profileFields?.linkedin_url || ''}
-      onChange={e => setProfileFields((f: UserProfile | null) => f ? { ...f, linkedin_url: e.target.value } : f)}
-      className="w-full max-w-xs"
-      placeholder="https://linkedin.com/in/username"
-    />
-  </div>
-</div>
-
-<div className="flex items-center gap-3">
-  <UserIcon className="w-4 h-4 text-gray-500" />
-  <div>
-    <p className="text-sm font-medium text-gray-700">Website</p>
-    <Input
-      value={profileFields?.website_url || ''}
-      onChange={e => setProfileFields((f: UserProfile | null) => f ? { ...f, website_url: e.target.value } : f)}
-      className="w-full max-w-xs"
-      placeholder="https://yourwebsite.com"
-    />
-  </div>
-</div>
-
-<div className="flex items-center gap-3">
-  <UserIcon className="w-4 h-4 text-gray-500" />
-  <div className="w-full">
-    <p className="text-sm font-medium text-gray-700">Bio</p>
-    <textarea
-      value={profileFields?.bio || ''}
-      onChange={e => setProfileFields((f: UserProfile | null) => f ? { ...f, bio: e.target.value } : f)}
-      className="w-full max-w-xs border rounded p-2 min-h-[60px]"
-      placeholder="Tell us about yourself..."
-    />
-  </div>
-</div>
-
-<div className="flex items-center gap-3">
-  <ShieldCheckIcon className="w-4 h-4 text-gray-500" />
-  <div>
-    <p className="text-sm font-medium text-gray-700">Role</p>
-    <Badge className={getRoleBadgeColor(userProfile.role)}>
-      {userProfile.role.charAt(0).toUpperCase() + userProfile.role.slice(1)}
-    </Badge>
-  </div>
-</div>
-
-<div className="flex items-center gap-3">
-  <CalendarIcon className="w-4 h-4 text-gray-500" />
-  <div>
-    <p className="text-sm font-medium text-gray-700">Member Since</p>
-    <p className="text-gray-900">
-      {new Date(userProfile.created_at).toLocaleDateString()}
-    </p>
-  </div>
-</div>
-
-<Button type="button" className="mt-4" onClick={handleSaveProfile}>Save Profile</Button>
-
-=======
-              <UserIcon className="w-4 h-4 text-gray-500" />
-              <div>
-                <p className="text-sm font-medium text-gray-700">Nom complet</p>
-                <p className="text-gray-900">{userProfile.full_name}</p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <ShieldCheckIcon className="w-4 h-4 text-gray-500" />
-              <div>
-                <p className="text-sm font-medium text-gray-700">Rôle</p>
-                <Badge className={getRoleBadgeColor(userProfile.role)}>
-                  {userProfile.role === 'admin' ? 'Administrateur' : userProfile.role === 'manager' ? 'Gestionnaire' : 'Utilisateur'}
-                </Badge>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <CalendarIcon className="w-4 h-4 text-gray-500" />
-              <div>
-                <p className="text-sm font-medium text-gray-700">Membre depuis</p>
-                <p className="text-gray-900">
-                  {new Date(userProfile.created_at).toLocaleDateString()}
-                </p>
-              </div>
-            </div>
->>>>>>> 468de3144bcf47ba7be291c2b3fbf40892302106
-          </CardContent>
-        </Card>
-
-        {/* Change Password Card */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <KeyIcon className="w-5 h-5" />
-              Change Password
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <Input
-              type="password"
-              placeholder="Nouveau mot de passe"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              disabled={loading}
-            />
-            <Button onClick={handleChangePassword} disabled={loading || !newPassword}>
-              {loading ? "Enregistrement..." : "Enregistrer"}
-            </Button>
+            {/* Change Password Card */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <KeyIcon className="w-5 h-5" />
+                  Changer le mot de passe
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <Input
+                  type="password"
+                  placeholder="Nouveau mot de passe"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  disabled={loading}
+                />
+                <Button onClick={handleChangePassword} disabled={loading || !newPassword}>
+                  {loading ? "Enregistrement..." : "Enregistrer"}
+                </Button>
+              </CardContent>
+            </Card>
           </CardContent>
         </Card>
       </div>
