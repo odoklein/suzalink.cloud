@@ -9,6 +9,13 @@ import {
   EnvelopeIcon,
   CalendarIcon,
   KeyIcon,
+  PhoneIcon,
+  BriefcaseIcon,
+  BuildingOfficeIcon,
+  LinkIcon,
+  GlobeAltIcon,
+  MapPinIcon,
+  CakeIcon
 } from "@heroicons/react/24/outline";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
@@ -16,11 +23,13 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/lib/supabase";
 import { useState, useRef, useEffect } from "react";
 import type { UserProfile } from "../../types/user";
+import { ProfileSectionCard, ProfileAvatar, ProfileField } from "./components";
 
 export default function ProfilePage() {
   const { userProfile, session } = useAuth();
   const [newPassword, setNewPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
 
   const [selectedImage, setSelectedImage] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -150,223 +159,240 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="p-6">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">Profil</h1>
-        <p className="text-gray-600 mt-2">Informations de votre compte</p>
-      </div>
+    <div className="min-h-screen bg-gray-50 p-2 md:p-4">
+      <div className="w-full">
+        {/* Header */}
+        <div className="mb-4">
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Profile</h1>
+          <p className="text-gray-600 mt-1 md:mt-2 text-sm md:text-base">Manage your account information and settings</p>
+        </div>
 
-      <div className="max-w-2xl space-y-6">
-        {/* Profile Info Card */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <UserIcon className="w-5 h-5" />
-              Informations personnelles
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <h2 className="text-lg font-bold text-gray-900">Informations personnelles</h2>
-            <div className="flex items-center gap-3">
-              <UserIcon className="w-4 h-4 text-gray-500" />
-              <div>
-                <p className="text-sm font-medium text-gray-700">Nom complet</p>
-                <Input
-                  value={profileFields?.full_name || ''}
-                  onChange={e => setProfileFields((f: UserProfile | null) => f ? { ...f, full_name: e.target.value } : f)}
-                  className="w-full max-w-xs"
-                  placeholder="Entrez votre nom complet"
-                  
-                />
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <EnvelopeIcon className="w-4 h-4 text-gray-500" />
-              <div>
-                <p className="text-sm font-medium text-gray-700">E-mail</p>
-                <p className="text-gray-900">{userProfile.email}</p>
-              </div>
-            </div>
-
-            <h2 className="text-lg font-bold text-gray-900 mt-4">Informations de contact</h2>
-            <div className="flex items-center gap-3">
-              <UserIcon className="w-4 h-4 text-gray-500" />
-              <div>
-                <p className="text-sm font-medium text-gray-700">Téléphone</p>
-                <Input
-                  type="tel"
-                  value={profileFields?.phone || ''}
-                  onChange={e => setProfileFields((f: UserProfile | null) => f ? { ...f, phone: e.target.value } : f)}
-                  className="w-full max-w-xs"
-                  placeholder="Entrez votre numéro de téléphone"
-                  
-                />
-              </div>
-            </div>
-
-            <h2 className="text-lg font-bold text-gray-900 mt-4">Informations professionnelles</h2>
-            <div className="flex items-center gap-3">
-              <UserIcon className="w-4 h-4 text-gray-500" />
-              <div>
-                <p className="text-sm font-medium text-gray-700">Job Title</p>
-                <Input
-                  value={profileFields?.job_title || ''}
-                  onChange={e => setProfileFields((f: UserProfile | null) => f ? { ...f, job_title: e.target.value } : f)}
-                  className="w-full max-w-xs"
-                  placeholder="Entrez votre titre de travail"
-                />
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <UserIcon className="w-4 h-4 text-gray-500" />
-              <div>
-                <p className="text-sm font-medium text-gray-700">Department</p>
-                <Input
-                  value={profileFields?.department || ''}
-                  onChange={e => setProfileFields((f: UserProfile | null) => f ? { ...f, department: e.target.value } : f)}
-                  className="w-full max-w-xs"
-                  placeholder="Entrez votre département"
-                />
-              </div>
-            </div>
-
-            <h2 className="text-lg font-bold text-gray-900 mt-4">Liens sociaux</h2>
-            <div className="flex items-center gap-3">
-              <UserIcon className="w-4 h-4 text-gray-500" />
-              <div>
-                <p className="text-sm font-medium text-gray-700">LinkedIn</p>
-                <Input
-                  type="url"
-                  value={profileFields?.linkedin_url || ''}
-                  onChange={e => setProfileFields((f: UserProfile | null) => f ? { ...f, linkedin_url: e.target.value } : f)}
-                  className="w-full max-w-xs"
-                  placeholder="https://linkedin.com/in/username"
-                  
-                />
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <UserIcon className="w-4 h-4 text-gray-500" />
-              <div>
-                <p className="text-sm font-medium text-gray-700">Website</p>
-                <Input
-                  type="url"
-                  value={profileFields?.website_url || ''}
-                  onChange={e => setProfileFields((f: UserProfile | null) => f ? { ...f, website_url: e.target.value } : f)}
-                  className="w-full max-w-xs"
-                  placeholder="https://yourwebsite.com"
-                  
-                />
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <UserIcon className="w-4 h-4 text-gray-500" />
-              <div className="w-full">
-                <p className="text-sm font-medium text-gray-700">Bio</p>
-                <textarea
-                  value={profileFields?.bio || ''}
-                  onChange={e => setProfileFields((f: UserProfile | null) => f ? { ...f, bio: e.target.value } : f)}
-                  className="w-full max-w-xs border rounded p-2 min-h-[60px]"
-                  placeholder="Tell us about yourself..."
-                />
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <ShieldCheckIcon className="w-4 h-4 text-gray-500" />
-              <div>
-                <p className="text-sm font-medium text-gray-700">Role</p>
-                <Badge className={getRoleBadgeColor(userProfile.role)}>
-                  {userProfile.role.charAt(0).toUpperCase() + userProfile.role.slice(1)}
-                </Badge>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <CalendarIcon className="w-4 h-4 text-gray-500" />
-              <div>
-                <p className="text-sm font-medium text-gray-700">Member Since</p>
-                <p className="text-gray-900">
-                  {new Date(userProfile.created_at).toLocaleDateString()}
-                </p>
-              </div>
-            </div>
-
-            <Button type="button" className="mt-4" onClick={handleSaveProfile} disabled={loading}>Save Profile</Button>
-
-            {/* Profile Picture Upload */}
-            <div className="flex flex-col items-center gap-2 pb-4 border-b mb-4">
-              <div className="relative w-24 h-24">
-                <img
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-5 lg:gap-6 xl:gap-8">
+          {/* Profile Picture & Basic Info */}
+          <div className="lg:col-span-1">
+            <ProfileSectionCard title="Profile Picture">
+              <div className="flex flex-col items-center space-y-4">
+                <ProfileAvatar 
                   src={previewUrl || profilePictureUrl}
-                  alt="Aperçu du profil"
-                  className="w-24 h-24 rounded-full object-cover border border-gray-200 shadow-sm"
+                  alt="Profile picture"
+                  size="lg"
                 />
-                {selectedImage && (
-                  <button
-                    className="absolute top-0 right-0 bg-white rounded-full p-1 border border-gray-300 text-xs"
-                    onClick={handleRemoveImage}
+                
+                <div className="text-center">
+                  <h3 className="text-lg font-semibold text-gray-900">{userProfile.full_name}</h3>
+                  <p className="text-sm text-gray-600">{userProfile.email}</p>
+                  <Badge className={getRoleBadgeColor(userProfile.role)}>
+                    {userProfile.role.charAt(0).toUpperCase() + userProfile.role.slice(1)}
+                  </Badge>
+                </div>
+
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  ref={fileInputRef}
+                  onChange={handleImageChange}
+                />
+                
+                <div className="flex flex-col gap-2 w-full">
+                  <Button
                     type="button"
-                    aria-label="Remove selected image"
+                    variant="outline"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-full"
                   >
-                    ✕
-                  </button>
+                    {selectedImage ? "Change" : "Upload"} Photo
+                  </Button>
+                  
+                  {selectedImage && (
+                    <Button
+                      type="button"
+                      onClick={handleUpload}
+                      disabled={uploading}
+                      className="w-full"
+                    >
+                      {uploading ? "Uploading..." : "Save Photo"}
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </ProfileSectionCard>
+
+            {/* Account Info */}
+            <div className="mt-6">
+              <ProfileSectionCard title="Account Information">
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3">
+                    <CalendarIcon className="w-4 h-4 text-gray-500" />
+                    <div>
+                      <p className="text-sm font-medium text-gray-700">Member Since</p>
+                      <p className="text-sm text-gray-900">
+                        {new Date(userProfile.created_at).toLocaleDateString()}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </ProfileSectionCard>
+            </div>
+          </div>
+
+          {/* Main Profile Information */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* Personal Information */}
+            <ProfileSectionCard 
+              title="Personal Information" 
+              onEdit={() => setIsEditing(!isEditing)}
+            >
+              <div className="space-y-6">
+                <ProfileField
+                  label="Full Name"
+                  value={profileFields?.full_name || ''}
+                  icon={<UserIcon className="w-4 h-4" />}
+                  isEditable={isEditing}
+                  placeholder="Enter your full name"
+                  onChange={(value) => setProfileFields((f: UserProfile | null) => f ? { ...f, full_name: value } : f)}
+                />
+                
+                <ProfileField
+                  label="Email Address"
+                  value={userProfile.email}
+                  icon={<EnvelopeIcon className="w-4 h-4" />}
+                  isEditable={false}
+                />
+                
+                <ProfileField
+                  label="Phone Number"
+                  value={profileFields?.phone || ''}
+                  icon={<PhoneIcon className="w-4 h-4" />}
+                  isEditable={isEditing}
+                  type="tel"
+                  placeholder="Enter your phone number"
+                  onChange={(value) => setProfileFields((f: UserProfile | null) => f ? { ...f, phone: value } : f)}
+                />
+                
+                <ProfileField
+                  label="Location"
+                  value={profileFields?.location || ''}
+                  icon={<MapPinIcon className="w-4 h-4" />}
+                  isEditable={isEditing}
+                  placeholder="Enter your location"
+                  onChange={(value) => setProfileFields((f: UserProfile | null) => f ? { ...f, location: value } : f)}
+                />
+                
+                <ProfileField
+                  label="Birthday"
+                  value={profileFields?.birthday || ''}
+                  icon={<CakeIcon className="w-4 h-4" />}
+                  isEditable={isEditing}
+                  type="text"
+                  placeholder="YYYY-MM-DD"
+                  onChange={(value) => setProfileFields((f: UserProfile | null) => f ? { ...f, birthday: value } : f)}
+                />
+                
+                {isEditing && (
+                  <div className="flex gap-2 pt-4">
+                    <Button onClick={handleSaveProfile} disabled={loading}>
+                      {loading ? "Saving..." : "Save Changes"}
+                    </Button>
+                    <Button variant="outline" onClick={() => setIsEditing(false)}>
+                      Cancel
+                    </Button>
+                  </div>
                 )}
               </div>
-              <input
-                type="file"
-                accept="image/*"
-                className="hidden"
-                ref={fileInputRef}
-                onChange={handleImageChange}
-              />
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => fileInputRef.current?.click()}
-                className="mt-2"
-              >
-                {selectedImage ? "Changer" : "Télécharger"} la photo de profil
-              </Button>
-              {selectedImage && (
-                <Button
-                  type="button"
-                  className="mt-2"
-                  onClick={handleUpload}
-                  disabled={uploading}
-                >
-                  {uploading ? "Envoi en cours..." : "Enregistrer"}
-                </Button>
-              )}
-            </div>
+            </ProfileSectionCard>
 
-            {/* Change Password Card */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <KeyIcon className="w-5 h-5" />
-                  Changer le mot de passe
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <Input
-                  type="password"
-                  placeholder="Nouveau mot de passe"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  disabled={loading}
+            {/* Professional Information */}
+            <ProfileSectionCard title="Professional Information">
+              <div className="space-y-6">
+                <ProfileField
+                  label="Job Title"
+                  value={profileFields?.job_title || ''}
+                  icon={<BriefcaseIcon className="w-4 h-4" />}
+                  isEditable={isEditing}
+                  placeholder="Enter your job title"
+                  onChange={(value) => setProfileFields((f: UserProfile | null) => f ? { ...f, job_title: value } : f)}
                 />
-                <Button onClick={handleChangePassword} disabled={loading || !newPassword}>
-                  {loading ? "Enregistrement..." : "Enregistrer"}
-                </Button>
-              </CardContent>
-            </Card>
-          </CardContent>
-        </Card>
+                
+                <ProfileField
+                  label="Department"
+                  value={profileFields?.department || ''}
+                  icon={<BuildingOfficeIcon className="w-4 h-4" />}
+                  isEditable={isEditing}
+                  placeholder="Enter your department"
+                  onChange={(value) => setProfileFields((f: UserProfile | null) => f ? { ...f, department: value } : f)}
+                />
+              </div>
+            </ProfileSectionCard>
+
+            {/* Social Links */}
+            <ProfileSectionCard title="Social Links">
+              <div className="space-y-6">
+                <ProfileField
+                  label="LinkedIn"
+                  value={profileFields?.linkedin_url || ''}
+                  icon={<LinkIcon className="w-4 h-4" />}
+                  isEditable={isEditing}
+                  type="url"
+                  placeholder="https://linkedin.com/in/username"
+                  onChange={(value) => setProfileFields((f: UserProfile | null) => f ? { ...f, linkedin_url: value } : f)}
+                />
+                
+                <ProfileField
+                  label="Website"
+                  value={profileFields?.website_url || ''}
+                  icon={<GlobeAltIcon className="w-4 h-4" />}
+                  isEditable={isEditing}
+                  type="url"
+                  placeholder="https://yourwebsite.com"
+                  onChange={(value) => setProfileFields((f: UserProfile | null) => f ? { ...f, website_url: value } : f)}
+                />
+              </div>
+            </ProfileSectionCard>
+
+            {/* Bio */}
+            <ProfileSectionCard title="About">
+              <ProfileField
+                label="Bio"
+                value={profileFields?.bio || ''}
+                icon={<UserIcon className="w-4 h-4" />}
+                isEditable={isEditing}
+                type="textarea"
+                placeholder="Tell us about yourself..."
+                onChange={(value) => setProfileFields((f: UserProfile | null) => f ? { ...f, bio: value } : f)}
+              />
+            </ProfileSectionCard>
+
+            {/* Change Password */}
+            <ProfileSectionCard title="Security">
+              <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <KeyIcon className="w-4 h-4 text-gray-500" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-gray-700 mb-2">Change Password</p>
+                    <div className="flex gap-2">
+                      <Input
+                        type="password"
+                        placeholder="New password"
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        disabled={loading}
+                        className="max-w-xs"
+                      />
+                      <Button 
+                        onClick={handleChangePassword} 
+                        disabled={loading || !newPassword}
+                        variant="outline"
+                      >
+                        {loading ? "Updating..." : "Update"}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </ProfileSectionCard>
+          </div>
+        </div>
       </div>
     </div>
   );
