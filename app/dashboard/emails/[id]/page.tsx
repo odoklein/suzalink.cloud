@@ -1,5 +1,8 @@
-import React from "react";
+'use client';
+import React, { useEffect, useState } from "react";
 import Link from "next/link";
+import { useParams, useRouter } from "next/navigation";
+import { useAuth } from "@/lib/auth-context";
 
 export default function EmailDetailsPage() {
   // Mock data for demonstration

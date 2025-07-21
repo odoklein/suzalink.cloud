@@ -97,6 +97,12 @@ export default function ChatSystem() {
         const unreadIds = (messagesData || []).filter(m => !m.read && m.sender_id !== user.id).map(m => m.id);
         if (unreadIds.length > 0) {
           await supabase.from("messages1").update({ read: true }).in("id", unreadIds);
+          // Update allMessages locally so the badge disappears immediately
+          setAllMessages(prev =>
+            prev.map(m =>
+              unreadIds.includes(m.id) ? { ...m, read: true } : m
+            )
+          );
         }
       }
       setLoadingMessages(false);
@@ -368,51 +374,79 @@ export default function ChatSystem() {
       <aside className="w-full md:w-1/4 bg-white border-r border-gray-200 p-6 flex flex-col gap-4 min-h-[500px]">
         <h2 className="text-xs text-gray-400 uppercase tracking-wider mb-2 font-semibold">Communication</h2>
         <div className="bg-[#f6f7fa] rounded-xl shadow-sm p-4">
-          <div className="text-sm font-semibold text-gray-700 mb-3">Utilisateurs</div>
-          <ul className="space-y-2">
-            {loadingInitialData ? (
-              [...Array(5)].map((_, i) => (
-                <li key={i} className="flex items-center gap-3 px-3 py-2">
-                  <div className="w-10 h-10 rounded-full bg-gray-200 animate-pulse" />
-                  <div className="flex-1">
-                    <div className="h-4 bg-gray-200 rounded w-3/4 animate-pulse mb-1"></div>
-                    <div className="h-3 bg-gray-200 rounded w-1/2 animate-pulse"></div>
-                  </div>
-                </li>
-              ))
+  <div className="text-sm font-semibold text-gray-700 mb-3">Chats</div>
+  <ul className="space-y-2">
+    {loadingInitialData ? (
+      [...Array(5)].map((_, i) => (
+        <li key={i} className="flex items-center gap-3 px-3 py-4">
+          <div className="w-12 h-12 rounded-full bg-gray-200 animate-pulse" />
+          <div className="flex-1">
+            <div className="h-5 bg-gray-200 rounded w-1/2 animate-pulse mb-2"></div>
+            <div className="h-4 bg-gray-200 rounded w-3/4 animate-pulse"></div>
+          </div>
+          <div className="h-4 w-10 rounded bg-gray-200 animate-pulse" />
+        </li>
+      ))
+    ) : (
+      chats.map((chat) => {
+        const otherId = chat.participants.find(pid => pid !== user?.id);
+        const otherUser = users.find(u => u.id === otherId);
+        const chatMessages = allMessages.filter(m => m.chat_id === chat.id);
+        const lastMessage = chatMessages.length > 0 ? chatMessages.reduce((a, b) => new Date(a.created_at) > new Date(b.created_at) ? a : b) : null;
+        const isTyping = typingUsers.some(u => u.id === otherId);
+        const unreadCount = chat.id !== activeChat?.id ? chatMessages.filter(m => !m.read && m.sender_id === otherId).length : 0;
+        return (
+          <li
+            key={chat.id}
+            className={`flex items-center gap-3 px-3 py-4 rounded-xl cursor-pointer transition-all hover:bg-blue-50 ${activeChat && chat.id === activeChat.id ? 'bg-blue-100' : ''}`}
+            onClick={() => setActiveChat(chat)}
+          >
+            {otherUser?.profile_picture_url ? (
+              <img src={otherUser.profile_picture_url} alt={otherUser.full_name || '?'} className="w-12 h-12 rounded-full object-cover border border-gray-200" />
             ) : (
-              users.map((u) => {
-                // Unread count for this user
-                const chat = chats.find(c => c.participants.length === 2 && c.participants.includes(u.id));
-                const unreadCount = chat && chat.id !== activeChat?.id
-                  ? allMessages.filter(m => m.chat_id === chat.id && !m.read && m.sender_id === u.id).length
-                  : 0;
-                return (
-                  <li
-                    key={u.id}
-                    className={`flex items-center gap-3 px-3 py-2 rounded-xl cursor-pointer transition-all hover:bg-blue-50 ${activeChat && chat && chat.id === activeChat.id ? 'bg-blue-100' : ''}`}
-                    onClick={() => handleSelectUser(u.id)}
-                  >
-                    {u.profile_picture_url ? (
-                      <img src={u.profile_picture_url} alt={u.full_name || u.email} className="w-10 h-10 rounded-full object-cover border border-gray-200" />
-                    ) : (
-                      <div className="w-10 h-10 rounded-full bg-blue-200 flex items-center justify-center text-blue-700 font-bold text-lg">
-                        {u.full_name ? u.full_name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0,2) : '?'}
-                      </div>
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <span className="font-semibold text-base truncate">{u.full_name || u.email}</span>
-                      <span className="block text-xs text-gray-400">{u.email}</span>
-                    </div>
-                    {unreadCount > 0 && (
-                      <span className="ml-2 bg-red-500 text-white rounded-full px-2 py-0.5 text-xs font-bold">{unreadCount}</span>
-                    )}
-                  </li>
-                );
-              })
+              <div className="w-12 h-12 rounded-full bg-blue-200 flex items-center justify-center text-blue-700 font-bold text-lg">
+                {otherUser?.full_name ? otherUser.full_name.split(' ').map((n: string) => n[0]).join('').toUpperCase().slice(0,2) : '?'}
+              </div>
             )}
-          </ul>
-        </div>
+            <div className="flex-1 min-w-0 flex flex-col">
+              <div className="flex items-center justify-between">
+                <span className="font-semibold text-base truncate">{otherUser?.full_name || '?'}</span>
+                <span className="text-xs text-gray-400 ml-2">
+                  {lastMessage ? new Date(lastMessage.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                </span>
+              </div>
+              <div className="flex items-center text-sm text-gray-500 min-h-[20px]">
+                {isTyping ? (
+                  <span className="text-blue-500 font-medium">Typing...</span>
+                ) : lastMessage ? (
+                  lastMessage.attachment_url ? (
+                    <span className="italic text-gray-400">📎 Attachment</span>
+                  ) : (
+                    <span className="truncate">{lastMessage.content}</span>
+                  )
+                ) : (
+                  <span className="italic text-gray-300">No messages yet</span>
+                )}
+                {lastMessage && lastMessage.sender_id === user?.id && (
+                  <span className="ml-2">
+                    {lastMessage.read ? (
+                      <svg className="inline w-4 h-4 text-green-500" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                    ) : (
+                      <svg className="inline w-4 h-4 text-gray-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" /></svg>
+                    )}
+                  </span>
+                )}
+              </div>
+            </div>
+            {unreadCount > 0 && (
+              <span className="ml-2 bg-red-500 text-white rounded-full px-2 py-0.5 text-xs font-bold min-w-[20px] text-center">{unreadCount}</span>
+            )}
+          </li>
+        );
+      })
+    )}
+  </ul>
+</div>
       </aside>
       {/* Chat window */}
       <main className="flex-1 flex flex-col justify-between h-full bg-gradient-to-br from-[#f6f7fa] to-[#f8fcff] rounded-xl shadow-md">

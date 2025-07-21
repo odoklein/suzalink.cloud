@@ -94,7 +94,7 @@ export default function ComposeEmailModal({ open, onOpenChange, onSent }: Compos
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg w-full">
+      <DialogContent className="max-w-3xl w-full sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>Compose Email</DialogTitle>
         </DialogHeader>
@@ -159,7 +159,7 @@ export default function ComposeEmailModal({ open, onOpenChange, onSent }: Compos
           </div>
           <div>
             <label className="block text-sm font-medium mb-1">Body</label>
-            <div className="border rounded min-h-[120px] bg-white focus-within:ring-2">
+            <div className="border rounded min-h-[300px] bg-white focus-within:ring-2">
               <Toolbar editor={editor} />
               <EditorContent editor={editor} />
             </div>

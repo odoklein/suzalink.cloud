@@ -21,6 +21,7 @@ import {
   ShieldCheck,
   FolderKanban,
   FileBarChart,
+  Bot
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -87,6 +88,7 @@ export function Sidebar() {
       label: "Communication",
       links: [
         { href: "/dashboard/ChatSystem", label: "Messagerie", icon: MessageCircle },
+        { href: "/dashboard/ai-chat", label: "AI Chat", icon: Bot },
         { href: "/dashboard/emails", label: "E-mails", icon: Mail },
       ],
     },
