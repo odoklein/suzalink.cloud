@@ -26,14 +26,6 @@ import {
 import { toast } from "sonner";
 
 export function Sidebar() {
-  return (
-    <div className="fixed left-0 top-0 h-screen w-64 bg-white border-r z-30 flex flex-col">
-      <SidebarContent />
-    </div>
-  );
-}
-
-function SidebarContent() {
   const pathname = usePathname();
   const { userProfile } = useAuth();
   const router = useRouter();
