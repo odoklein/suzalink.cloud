@@ -2,6 +2,8 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { User } from "@supabase/supabase-js";
+import AudioRecorderModal from "./AudioRecorderModal";
+import VoiceMessagePlayer from "./VoiceMessagePlayer";
 
 // Types
 type Message = {
@@ -31,6 +33,7 @@ export default function ChatSystem() {
   const [isTyping, setIsTyping] = useState(false);
   const [typingUsers, setTypingUsers] = useState<{id: string, full_name: string, profile_picture_url?: string}[]>([]);
   const [attachment, setAttachment] = useState<File | null>(null);
+const [audioModalOpen, setAudioModalOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [activeChat, setActiveChat] = useState<Chat | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -555,23 +558,30 @@ export default function ChatSystem() {
                           </div>
                         )}
                         {msg.attachment_url &&
-                          (msg.attachment_url.match(
-                            /\.(jpg|jpeg|png|gif|webp)$/i
-                          ) ? (
-                            <img
-                              src={msg.attachment_url}
-                              alt="attachment"
-                              className="mb-2 max-h-48 rounded-xl border border-gray-200"
-                            />
-                          ) : (
-                            <a
-                              href={msg.attachment_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="block mb-2 text-blue-500 underline">
-                              Fichier joint
-                            </a>
-                          ))}
+  (msg.attachment_url.match(/\.(mp3|wav|ogg|webm|m4a)$/i)
+    ? (
+        <div className="mb-2">
+          <VoiceMessagePlayer url={msg.attachment_url} />
+        </div>
+      )
+    : msg.attachment_url.match(/\.(jpg|jpeg|png|gif|webp)$/i)
+      ? (
+        <img
+          src={msg.attachment_url}
+          alt="attachment"
+          className="mb-2 max-h-48 rounded-xl border border-gray-200"
+        />
+      )
+      : (
+        <a
+          href={msg.attachment_url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="block mb-2 text-blue-500 underline">
+          Fichier joint
+        </a>
+      )
+  )}
                         {msg.content}
                         {/* Reactions row */}
                             {messageReactions[msg.id] && (
@@ -673,6 +683,18 @@ export default function ChatSystem() {
           {attachment && (
             <span className="text-xs text-blue-500 font-medium mr-2">{attachment.name}</span>
           )}
+          <button
+            type="button"
+            className="p-2 rounded-full hover:bg-blue-100 transition mr-2"
+            title="Envoyer un message vocal"
+            onClick={() => setAudioModalOpen(true)}
+            disabled={!activeChat || uploading}
+          >
+            <svg width="24" height="24" fill="none" stroke="#2563eb" strokeWidth="2" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="10" stroke="#2563eb" strokeWidth="2" fill="#dbeafe" />
+              <rect x="10" y="8" width="4" height="8" rx="2" fill="#2563eb" />
+            </svg>
+          </button>
           <input
             type="text"
             className="flex-1 border border-gray-200 rounded-xl px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-100 bg-[#f9f9fb] text-gray-800 placeholder-gray-400"
@@ -691,6 +713,51 @@ export default function ChatSystem() {
           </button>
         </form>
       </main>
+      <AudioRecorderModal
+        open={audioModalOpen}
+        onOpenChange={setAudioModalOpen}
+        user={user}
+        activeChat={activeChat}
+        supabase={supabase}
+        onSendAudio={async (audioBlob: Blob) => {
+          if (!user || !activeChat) return;
+          setUploading(true);
+          try {
+            // Upload audio to Supabase Storage
+            const fileExt = 'webm';
+            const fileName = `vocal_${Date.now()}_${user.id}.${fileExt}`;
+            const { data: uploadData, error: uploadError } = await supabase.storage
+              .from('chat-audios')
+              .upload(fileName, audioBlob, {
+                cacheControl: '3600',
+                upsert: false,
+                contentType: 'audio/webm',
+              });
+            if (uploadError) throw uploadError;
+            const { data: urlData } = supabase.storage.from('chat-audios').getPublicUrl(fileName);
+            const publicUrl = urlData?.publicUrl;
+            if (!publicUrl) throw new Error('Erreur lors de la récupération de l’URL du vocal');
+            // Crée le message avec attachment_url
+            await supabase.from('messages1').insert({
+              chat_id: activeChat.id,
+              sender_id: user.id,
+              content: '',
+              attachment_url: publicUrl,
+              created_at: new Date().toISOString(),
+              read: false,
+            });
+            setAudioModalOpen(false);
+          } catch (e) {
+            if (e instanceof Error) {
+              alert('Erreur lors de l’envoi du vocal : ' + e.message);
+            } else {
+              alert('Erreur lors de l’envoi du vocal');
+            }
+          } finally {
+            setUploading(false);
+          }
+        }}
+      />
     </div>
   );
 }
