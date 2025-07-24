@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/client';
 
 // PATCH /api/prospects/items/[itemId]
-export async function PATCH(req: NextRequest, { params }: { params: { itemId: string } }) {
+export async function PATCH(req: NextRequest, { params }: any) {
   const supabase = createClient();
   const { itemId } = params;
   try {

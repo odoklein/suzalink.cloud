@@ -87,7 +87,6 @@ export function Sidebar() {
       label: "Communication",
       links: [
         { href: "/dashboard/ChatSystem", label: "Messagerie", icon: MessageCircle },
-        { href: "/dashboard/ai-chat", label: "AI Chat", icon: Bot },
       ],
     },
     {

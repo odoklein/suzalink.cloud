@@ -9,7 +9,7 @@ async function fetchCsv(url: string): Promise<string> {
   return await res.text();
 }
 
-export async function GET(req: NextRequest, { params }: { params: { listId: string } }) {
+export async function GET(req: NextRequest, { params }: any) {
   const supabase = createClient();
   const { listId } = params;
   try {
