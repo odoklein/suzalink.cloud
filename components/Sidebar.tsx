@@ -81,6 +81,7 @@ export function Sidebar() {
         { href: "/dashboard/projects", label: "Projets", icon: Briefcase },
         { href: "/dashboard/prospects", label: "Prospects", icon: FolderKanban },
         { href: "/dashboard/commandes", label: "Commandes", icon: FileBarChart }, // Ajout Commandes
+        { href: "/dashboard/email", label: "email", icon: Email }, 
       ],
     },
     {
