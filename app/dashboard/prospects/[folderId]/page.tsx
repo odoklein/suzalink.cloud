@@ -24,6 +24,11 @@ export default function FolderListsPage() {
   const params = useParams();
   const router = useRouter();
   const supabase = createClient();
+  
+  if (!params?.folderId) {
+    return <div>Folder ID is required</div>;
+  }
+  
   const folderId = params.folderId as string;
   const [folderName, setFolderName] = useState("");
   const [lists, setLists] = useState<List[]>([]);
@@ -36,7 +41,7 @@ export default function FolderListsPage() {
   const [listName, setListName] = useState("");
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
-const [columnError, setColumnError] = useState<string>("");
+  const [columnError, setColumnError] = useState<string>("");
 
   useEffect(() => {
     const fetchData = async () => {
@@ -82,31 +87,31 @@ const [columnError, setColumnError] = useState<string>("");
   };
 
   const handleColumnToggle = (col: string) => {
-  setColumnError("");
-  setSelectedColumns((prev) => {
-    let newCols;
-    if (prev.includes(col)) {
-      newCols = prev.filter((c) => c !== col);
-    } else {
-      newCols = [...prev, col];
-    }
-    if (newCols.length === 0) {
-      setColumnError("You must select at least one column to import.");
-    }
-    return newCols;
-  });
-};
+    setColumnError("");
+    setSelectedColumns((prev) => {
+      let newCols;
+      if (prev.includes(col)) {
+        newCols = prev.filter((c) => c !== col);
+      } else {
+        newCols = [...prev, col];
+      }
+      if (newCols.length === 0) {
+        setColumnError("You must select at least one column to import.");
+      }
+      return newCols;
+    });
+  };
 
   const handleUpload = async () => {
-  setUploadError(""); // new error state for user feedback
-  setColumnError("");
-  if (!file || !listName.trim()) return;
-  if (selectedColumns.length === 0) {
-    setColumnError("Please select at least one column to import.");
-    return;
-  }
-  setUploading(true);
-  // 1. Upload CSV to Supabase Storage
+    setUploadError(""); // new error state for user feedback
+    setColumnError("");
+    if (!file || !listName.trim()) return;
+    if (selectedColumns.length === 0) {
+      setColumnError("Please select at least one column to import.");
+      return;
+    }
+    setUploading(true);
+    // 1. Upload CSV to Supabase Storage
     const fileExt = file.name.split(".").pop();
     const filePath = `${folderId}/${Date.now()}_${file.name}`;
     const { data: storageData, error: storageError } = await supabase.storage
@@ -120,16 +125,16 @@ const [columnError, setColumnError] = useState<string>("");
     const { data: urlData } = supabase.storage.from("lists").getPublicUrl(filePath);
     // 3. Insert list metadata
     const { data: listData, error: listError } = await supabase
-  .from("lists")
-  .insert({
-    name: listName.trim(),
-    folder_id: folderId,
-    csv_url: urlData.publicUrl,
-    columns: selectedColumns,
-    // user_id intentionally omitted for guest import
-  })
-  .select()
-  .single();
+      .from("lists")
+      .insert({
+        name: listName.trim(),
+        folder_id: folderId,
+        csv_url: urlData.publicUrl,
+        columns: selectedColumns,
+        // user_id intentionally omitted for guest import
+      })
+      .select()
+      .single();
     setUploading(false);
     if (!listError && listData) {
       // Parse the CSV file and insert rows into list_items
@@ -179,7 +184,6 @@ const [columnError, setColumnError] = useState<string>("");
       setListName("");
     }
   };
-
 
   return (
     <div className="p-6">

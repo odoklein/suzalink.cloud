@@ -20,8 +20,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Suzalink CRM",
-  description: "Modern CRM for business management",
+  title: "Suzali",
+  description: "Suzali Cloud Platform",
 };
 
 export default function RootLayout({
@@ -30,8 +30,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased bg-[#FFFFFF]`}>
+    <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
+      <head>
+        <link href="https://fonts.googleapis.com/css2?family=Pacifico&display=swap" rel="stylesheet" />
+      </head>
+      <body className={`antialiased bg-[#FFFFFF]`}>
         <AuthProvider>
           <ReactQueryProvider>
             {children}

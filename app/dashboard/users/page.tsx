@@ -9,12 +9,15 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-
 import { Badge } from "@/components/ui/badge";
+import EditUserEmailCredentialsModal from "@/components/EditUserEmailCredentialsModal";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Filter, Plus, MoreVertical, Activity, BarChart2, Clock, Wifi, WifiOff } from "lucide-react";
+import { Card } from "@/components/ui/card";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Edit, Trash2 } from "lucide-react";
 
 interface User {
   id: string;
@@ -40,12 +43,57 @@ interface UserActivityLog {
   created_at: string;
 }
 
+interface UserActivityModalProps {
+  user: User;
+  open: boolean;
+  onClose: () => void;
+  activityLogs: UserActivityLog[];
+}
+
+function UserActivityModal({ user, open, onClose, activityLogs }: UserActivityModalProps) {
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>{user.full_name}'s Activity</DialogTitle>
+          <DialogDescription>
+            Detailed view of recent user actions
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          {activityLogs.length > 0 ? (
+            activityLogs.map((log) => (
+              <div key={log.id} className="border-b pb-2 last:border-0">
+                <div className="flex justify-between">
+                  <p className="font-medium">{log.action}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {new Date(log.created_at).toLocaleString()}
+                  </p>
+                </div>
+                {log.details && (
+                  <pre className="text-sm text-muted-foreground mt-1 overflow-x-auto">
+                    {JSON.stringify(log.details, null, 2)}
+                  </pre>
+                )}
+              </div>
+            ))
+          ) : (
+            <p className="text-center text-muted-foreground py-4">No activity found</p>
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function UsersPage() {
+  const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const { userProfile, sessionDuration } = useAuth();
   const [page, setPage] = useState(1);
   const pageSize = 20;
   const [search, setSearch] = useState("");
   const [selectedRole, setSelectedRole] = useState<string | undefined>(undefined);
+  const [viewingActivityUserId, setViewingActivityUserId] = useState<string | null>(null);
 
   // Users paginated
   const {
@@ -61,7 +109,7 @@ export default function UsersPage() {
         .order('created_at', { ascending: false })
         .range((page - 1) * pageSize, page * pageSize - 1);
       if (search) query = query.ilike('full_name', `%${search}%`);
-      if (selectedRole) query = query.eq('role', selectedRole);
+      if (selectedRole && selectedRole !== 'all') query = query.eq('role', selectedRole);
       const { data, error } = await query;
       if (error) throw error;
       return data || [];
@@ -130,154 +178,229 @@ export default function UsersPage() {
     return `${hours}h ${remainingMinutes}m`;
   }
 
-  // All legacy state and handlers removed; React Query handles all loading/data.
-
-
-  // Role update logic can be added here using React Query mutation if needed
-  // For now, only display and filtering are supported
-
-
-  const getRoleBadge = (role: string) => {
-    switch (role) {
-      case 'admin':
-        return <Badge variant="default" className="bg-green-100 text-green-800 border-green-200">Administrateur</Badge>;
-      case 'manager':
-        return <Badge variant="default" className="bg-blue-100 text-blue-800 border-blue-200">Gestionnaire</Badge>;
-      case 'user':
-        return <Badge variant="default" className="bg-gray-100 text-gray-800 border-gray-200">Utilisateur</Badge>;
-      default:
-        return <Badge variant="default">User</Badge>;
-    }
-  };
-
-  // Filtering is handled by React Query search param
-  const filteredUsers = users; // No local filtering needed
+  // Mock activity logs - replace with real data
+  const activityLogs: UserActivityLog[] = [
+    {
+      id: "1",
+      action: "Logged in",
+      details: { ip: "192.168.1.1", device: "Chrome on Windows" },
+      created_at: new Date().toISOString(),
+    },
+    {
+      id: "2",
+      action: "Updated profile",
+      details: { fields: ["email", "phone"] },
+      created_at: new Date(Date.now() - 3600000).toISOString(),
+    },
+  ];
 
   return (
     <>
-      <div className="w-full px-0 md:px-8 py-8">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">Gestion des utilisateurs</h1>
-            <p className="text-gray-600 mt-1">Gérez les membres de votre équipe et leurs autorisations ici.</p>
-          </div>
-          <div className="flex gap-2 items-center w-full md:w-auto">
-            <Input
-              placeholder="Rechercher"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              className="max-w-xs"
-            />
-            <Button variant="outline" className="flex gap-2"><Filter className="w-4 h-4" /> Filtres</Button>
-            <Button className="flex gap-2"><Plus className="w-4 h-4" /> Ajouter un utilisateur</Button>
-          </div>
+      <div className="space-y-6">
+      {/* Header Section */}
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">User Management</h1>
+          <p className="text-muted-foreground">
+            Manage all registered users and their permissions
+          </p>
         </div>
-        <div className="bg-white rounded-xl border shadow-sm overflow-x-auto w-full">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-10"><input type="checkbox" aria-label="Select all" /></TableHead>
-                <TableHead>Nom d'utilisateur</TableHead>
-                <TableHead>Rôle</TableHead>
-                <TableHead>Statut</TableHead>
-                <TableHead>Session</TableHead>
-                <TableHead>Dernière activité</TableHead>
-                <TableHead>Aujourd'hui</TableHead>
-                <TableHead>Ce mois</TableHead>
-                <TableHead>Ajouté le</TableHead>
-                <TableHead></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loadingUsers ? (
-                [...Array(6)].map((_, i) => (
-                  <TableRow key={i}>
-                    <TableCell><Skeleton className="h-5 w-5 rounded-full" /></TableCell>
-                    <TableCell><Skeleton className="h-5 w-32" /></TableCell>
-                    <TableCell><Skeleton className="h-5 w-16" /></TableCell>
-                    <TableCell><Skeleton className="h-5 w-16" /></TableCell>
-                    <TableCell><Skeleton className="h-5 w-16" /></TableCell>
-                    <TableCell><Skeleton className="h-5 w-20" /></TableCell>
-                    <TableCell><Skeleton className="h-5 w-10" /></TableCell>
-                    <TableCell><Skeleton className="h-5 w-10" /></TableCell>
-                    <TableCell><Skeleton className="h-5 w-20" /></TableCell>
-                    <TableCell></TableCell>
-                  </TableRow>
-                ))
-              ) : users.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={10} className="text-center py-8 text-gray-400">Aucun utilisateur trouvé.</TableCell>
-                </TableRow>
-              ) : (
-                users.map((user) => {
-                  const summary = activitySummaries[user.id];
-                  const isCurrentUser = user.id === userProfile?.id;
-                  
-                  return (
-                    <TableRow key={user.id}>
-                      <TableCell><input type="checkbox" aria-label={`Select ${user.full_name}`} /></TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-3">
-                          <Avatar>
-                            <AvatarFallback>{user.full_name ? user.full_name.split(' ').map(n => n[0]).join('').slice(0,2).toUpperCase() : '?'}</AvatarFallback>
-                          </Avatar>
-                          <div>
-                            <div className="font-medium text-gray-900">{user.full_name}</div>
-                            <div className="text-gray-500 text-sm">{user.email}</div>
-                          </div>
-                        </div>
-                      </TableCell>
-                      <TableCell className="space-x-2">
-                        {getRoleBadge(user.role)}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          {summary?.isCurrentlyActive ? (
-                            <>
-                              <Wifi className="w-4 h-4 text-green-500" />
-                              <span className="text-green-600 text-sm font-medium">Actif</span>
-                            </>
-                          ) : (
-                            <>
-                              <WifiOff className="w-4 h-4 text-gray-400" />
-                              <span className="text-gray-500 text-sm">Inactif</span>
-                            </>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        {isCurrentUser && sessionDuration > 0 ? (
-                          <div className="flex items-center gap-2">
-                            <Clock className="w-4 h-4 text-blue-500" />
-                            <span className="text-blue-600 text-sm font-medium">
-                              {formatSessionDuration(sessionDuration)}
-                            </span>
-                          </div>
-                        ) : (
-                          <span className="text-gray-400 text-sm">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-gray-500">
-                        {loadingActivitySummaries ? <Skeleton className="h-5 w-20" /> : summary?.lastActive ? new Date(summary.lastActive).toLocaleString() : '—'}
-                      </TableCell>
-                      <TableCell className="text-gray-500 text-center">
-                        {loadingActivitySummaries ? <Skeleton className="h-5 w-10" /> : summary?.actionsToday ?? '—'}
-                      </TableCell>
-                      <TableCell className="text-gray-500 text-center">
-                        {loadingActivitySummaries ? <Skeleton className="h-5 w-10" /> : summary?.actionsThisMonth ?? '—'}
-                      </TableCell>
-                      <TableCell className="text-gray-500">{new Date(user.created_at).toLocaleDateString()}</TableCell>
-                      <TableCell>
-
-                      </TableCell>
-                    </TableRow>
-                  );
-                })
-              )}
-            </TableBody>
-          </Table>
-        </div>
+        <Button>
+          <Plus className="mr-2 h-4 w-4" /> Add User
+        </Button>
       </div>
+
+      {/* Search and Filters */}
+      <div className="flex flex-col gap-4 md:flex-row">
+        <div className="relative flex-1">
+          <Input
+            placeholder="Search users..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-8"
+          />
+          <Filter className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        </div>
+        <Select value={selectedRole} onValueChange={setSelectedRole}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Filter by role" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All</SelectItem>
+            <SelectItem value="admin">Admin</SelectItem>
+            <SelectItem value="manager">Manager</SelectItem>
+            <SelectItem value="user">User</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Stats Cards */}
+      <div className="grid gap-4 md:grid-cols-3">
+        <Card className="p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">Total Users</p>
+              <p className="text-2xl font-bold">{users?.length || 0}</p>
+            </div>
+            <Activity className="h-6 w-6 text-primary" />
+          </div>
+        </Card>
+        <Card className="p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">Active Today</p>
+              <p className="text-2xl font-bold">
+                {users?.filter(u => activitySummaries[u.id]?.isCurrentlyActive).length || 0}
+              </p>
+            </div>
+            <Wifi className="h-6 w-6 text-green-500" />
+          </div>
+        </Card>
+        <Card className="p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-muted-foreground">New This Month</p>
+              <p className="text-2xl font-bold">
+                {users?.filter(u => new Date(u.created_at) > new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)).length || 0}
+              </p>
+            </div>
+            <BarChart2 className="h-6 w-6 text-blue-500" />
+          </div>
+        </Card>
+      </div>
+
+      {/* Table */}
+      <div className="rounded-md border">
+        <Table>
+          <TableHeader className="bg-muted/50">
+            <TableRow>
+              <TableHead className="w-[100px]">User</TableHead>
+              <TableHead>Email</TableHead>
+              <TableHead>Role</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Joined</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {loadingUsers ? (
+              [...Array(6)].map((_, i) => (
+                <TableRow key={i} className="hover:bg-muted/50 transition-colors">
+                  <TableCell className="font-medium">
+                    <Skeleton className="h-5 w-32" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="h-5 w-32" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="h-5 w-16" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="h-5 w-16" />
+                  </TableCell>
+                  <TableCell>
+                    <Skeleton className="h-5 w-20" />
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Skeleton className="h-5 w-10" />
+                  </TableCell>
+                </TableRow>
+              ))
+            ) : users.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={6} className="text-center py-8 text-gray-400">Aucun utilisateur trouvé.</TableCell>
+              </TableRow>
+            ) : (
+              users.map((user) => {
+                const summary = activitySummaries[user.id];
+                const isCurrentUser = user.id === userProfile?.id;
+                
+                return (
+                  <TableRow key={user.id} className="hover:bg-muted/50 transition-colors">
+                    <TableCell className="font-medium">
+                      <div className="flex items-center gap-3">
+                        <Avatar className="h-8 w-8">
+                          <AvatarFallback>
+                            {user.full_name
+                              ?.split(" ")
+                              .map((n) => n[0])
+                              .join("")}
+                          </AvatarFallback>
+                        </Avatar>
+                        {user.full_name}
+                      </div>
+                    </TableCell>
+                    <TableCell>{user.email}</TableCell>
+                    <TableCell>
+                      <Badge variant={user.role === 'admin' ? 'default' : 'draft'}>
+                        {user.role}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {summary?.isCurrentlyActive ? (
+                        <div className="flex items-center gap-1">
+                          <Wifi className="h-4 w-4 text-green-500" />
+                          <span>Active</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1">
+                          <WifiOff className="h-4 w-4 text-muted-foreground" />
+                          <span>Inactive</span>
+                        </div>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {new Date(user.created_at).toLocaleDateString()}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm">
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem 
+                            onClick={() => setViewingActivityUserId(user.id)}
+                          >
+                            <Activity className="mr-2 h-4 w-4" />
+                            View Activity
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => setEditingUserId(user.id)}>
+                            <Edit className="mr-2 h-4 w-4" />
+                            Edit Email
+                          </DropdownMenuItem>
+                          <DropdownMenuItem className="text-red-600">
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Delete User
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </TableCell>
+                  </TableRow>
+                );
+              })
+            )}
+          </TableBody>
+        </Table>
+      </div>
+    </div>
+    {viewingActivityUserId && (
+      <UserActivityModal
+        user={users.find(u => u.id === viewingActivityUserId)!}
+        open={!!viewingActivityUserId}
+        onClose={() => setViewingActivityUserId(null)}
+        activityLogs={activityLogs}
+      />
+    )}
+    {editingUserId && (
+      <EditUserEmailCredentialsModal
+        userId={editingUserId}
+        open={!!editingUserId}
+        onClose={() => setEditingUserId(null)}
+        userEmail={users.find(u => u.id === editingUserId)?.email || ''}
+      />
+    )}
     </>
   );
 }

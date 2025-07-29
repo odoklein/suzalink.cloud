@@ -20,6 +20,24 @@ import { ChevronDown } from "lucide-react";
 import { useQuery } from '@tanstack/react-query';
 import { Skeleton } from "@/components/ui/skeleton";
 
+const statusColors = {
+  active: 'bg-green-100 text-green-800',
+  completed: 'bg-blue-100 text-blue-800',
+  on_hold: 'bg-yellow-100 text-yellow-800',
+  cancelled: 'bg-red-100 text-red-800',
+  archived: 'bg-gray-100 text-gray-800'
+};
+
+const StatusBadge = ({ status }: { status: string }) => (
+  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusColors[status as keyof typeof statusColors] || 'bg-gray-100 text-gray-800'}`}>
+    {status === 'active' ? 'Actif' : 
+     status === 'completed' ? 'Terminé' : 
+     status === 'on_hold' ? 'En attente' : 
+     status === 'cancelled' ? 'Annulé' : 
+     status === 'archived' ? 'Archivé' : status}
+  </span>
+);
+
 export default function ProjectsPage() {
   const { user } = useAuth();
   const [open, setOpen] = useState(false);
@@ -228,8 +246,8 @@ export default function ProjectsPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Tous les statuts</SelectItem>
-                <SelectItem value="active">Active</SelectItem>
-                <SelectItem value="completed">Completed</SelectItem>
+                <SelectItem value="active">Actif</SelectItem>
+                <SelectItem value="completed">Terminé</SelectItem>
                 <SelectItem value="archived">Archivé</SelectItem>
               </SelectContent>
             </Select>
@@ -306,111 +324,41 @@ export default function ProjectsPage() {
             </Card>
           ) : (
             <>
-              {projects.map((project: any) => {
-  // Status badge color
-  const statusColors = {
-    active: 'bg-green-100 text-green-700',
-    planning: 'bg-blue-100 text-blue-700',
-    completed: 'bg-purple-100 text-purple-700',
-    archived: 'bg-gray-200 text-gray-500'
-  };
-  // Client avatar color
-  const avatarColors = [
-    'bg-purple-100 text-purple-700',
-    'bg-pink-100 text-pink-700',
-    'bg-blue-100 text-blue-700',
-    'bg-green-100 text-green-700',
-    'bg-yellow-100 text-yellow-700',
-    'bg-gray-100 text-gray-500'
-  ];
-  const avatarColor = avatarColors[project.client?.name?.charCodeAt(0) % avatarColors.length] || 'bg-gray-100 text-gray-500';
-  return (
-    <Card
-      key={project.id}
-      className="group hover:shadow-xl hover:scale-[1.025] transition-all cursor-pointer rounded-2xl p-5 bg-white border border-gray-100 flex flex-col min-h-[240px] justify-between shadow-sm"
-      onClick={() => router.push(`/dashboard/projects/${project.id}`)}
-      style={{ boxShadow: '0 2px 8px 0 rgba(16,30,54,0.04)' }}
-    >
-      <div>
-        <CardHeader className="p-0 mb-2 flex flex-row items-center gap-2 justify-between">
-          <CardTitle className="text-lg font-semibold mb-1 leading-tight text-gray-900 truncate max-w-[70%]">{project.title}</CardTitle>
-          {(() => {
-            const statusClass = (project.status in statusColors)
-              ? statusColors[project.status as keyof typeof statusColors]
-              : 'bg-gray-100 text-gray-500';
-            return (
-              <span className={`px-2 py-1 rounded-full text-xs font-semibold ${statusClass}`}>{project.status}</span>
-            );
-          })()}
-
-        </CardHeader>
-        <CardContent className="p-0">
-          <div className="text-sm text-gray-500 mb-2 font-normal min-h-[36px]">
-            {project.description || <span className="italic text-gray-300">No description</span>}
-          </div>
-          <div className="flex items-center gap-2 mb-2">
-            {/* Client avatar */}
-            {project.client?.name && (
-              <span className={`inline-flex items-center justify-center w-8 h-8 rounded-full font-bold border border-gray-200 ${avatarColor}`}>
-                {project.client.name.split(' ').map((n: string) => n[0]).join('').slice(0,2)}
-              </span>
-            )}
-            {/* Budget */}
-            {project.budget && (
-              <span className="flex items-center gap-1 text-xs font-medium text-gray-600 bg-gray-50 px-2 py-1 rounded">
-                <svg className="w-4 h-4 text-green-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M12 8v4l3 3" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                ${project.budget}
-              </span>
-            )}
-            {/* Date range */}
-            {(project.start_date || project.end_date) && (
-              <span className="flex items-center gap-1 text-xs text-gray-400">
-                <svg className="w-4 h-4 text-blue-300" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
-                {project.start_date || '?'} - {project.end_date || '?'}
-              </span>
-            )}
-          </div>
-          <div className="flex flex-wrap gap-2 text-xs text-gray-400 mb-2">
-            <span>Client: {project.client?.name || <span className="italic text-gray-300">No client</span>}</span>
-            <span>Created: {project.created_at ? new Date(project.created_at).toLocaleDateString() : "-"}</span>
-          </div>
-        </CardContent>
-      </div>
-      <div className="flex items-center justify-between mt-3">
-        <span className="text-xs text-gray-400 flex items-center gap-1">
-          <svg className="w-3 h-3 text-gray-300" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></svg>
-          {project.start_date ? `${project.start_date}` : "No start"}
-        </span>
-        <div className="flex gap-2 items-center">
-          {/* More menu (edit/delete) */}
-          <button
-            type="button"
-            className="text-gray-400 hover:text-purple-500 text-xl rounded-full focus:outline-none p-1"
-            onClick={e => {
-              e.stopPropagation();
-              openEdit(project);
-            }}
-            title="Edit project"
-            aria-label="Edit project"
-          >
-            ⋯
-          </button>
-          <button
-            type="button"
-            className="text-red-400 hover:text-red-600 text-xl rounded-full focus:outline-none p-1"
-            onClick={e => {
-              e.stopPropagation();
-              setDeleteModal({ open: true, projectId: project.id });
-            }}
-            title="Delete project"
-          >
-            🗑️
-          </button>
-        </div>
-      </div>
-    </Card>
-  );
-})}
+              {projects.map((project: any) => (
+                <Card 
+                  key={project.id} 
+                  className="transition-all duration-200 hover:shadow-md hover:border-gray-300 group"
+                  onClick={() => router.push(`/dashboard/projects/${project.id}`)}
+                >
+                  <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+                    <CardTitle className="text-sm font-medium group-hover:text-blue-600 transition-colors">
+                      {project.title}
+                    </CardTitle>
+                    <StatusBadge status={project.status} />
+                  </CardHeader>
+                  <CardContent>
+                    {project.status === 'active' && (
+                      <div className="mt-2 mb-4">
+                        <div className="flex justify-between text-xs text-gray-500 mb-1">
+                          <span>Progress</span>
+                          <span>{Math.round((project.progress || 0) * 100)}%</span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-1.5">
+                          <div 
+                            className="bg-blue-600 h-1.5 rounded-full" 
+                            style={{ width: `${Math.round((project.progress || 0) * 100)}%` }}
+                          />
+                        </div>
+                      </div>
+                    )}
+                    <p className="text-sm text-gray-600 line-clamp-2">{project.description}</p>
+                    <div className="mt-3 flex justify-between items-center text-xs text-gray-500">
+                      <span>{project.client?.name || 'No client'}</span>
+                      <span>{new Date(project.created_at).toLocaleDateString()}</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
               {/* Add Project Card */}
               <Card
                 className="flex flex-col items-center justify-center border-2 border-dashed border-gray-200 bg-gray-50/60 hover:bg-purple-50 transition-all cursor-pointer min-h-[220px] shadow-none"
@@ -546,4 +494,5 @@ export default function ProjectsPage() {
       </DialogContent>
       </Dialog>
     </div>
-  );}
+  );
+}
