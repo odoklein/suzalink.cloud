@@ -31,6 +31,8 @@ interface UserActivitySummary {
   lastActive: string | null;
   actionsToday: number;
   actionsThisMonth: number;
+  businessHoursToday: number;
+  businessHoursThisWeek: number;
   isCurrentlyActive?: boolean;
   sessionStartTime?: string;
   sessionDuration?: number; // in minutes
@@ -51,35 +53,80 @@ interface UserActivityModalProps {
 }
 
 function UserActivityModal({ user, open, onClose, activityLogs }: UserActivityModalProps) {
+  // Filter activities to Algerian business hours (9AM-5PM GMT+1)
+  const getBusinessHoursActivity = (logs: UserActivityLog[]) => {
+    return logs.filter(log => {
+      const date = new Date(log.created_at);
+      // Convert to Algerian time (GMT+1)
+      const algerianTime = new Date(date.getTime() + (1 * 60 * 60 * 1000));
+      const hour = algerianTime.getHours();
+      return hour >= 9 && hour < 17; // 9 AM to 5 PM
+    });
+  };
+
+  const businessHoursLogs = getBusinessHoursActivity(activityLogs);
+
+  // Format time in Algerian timezone
+  const formatAlgerianTime = (dateString: string) => {
+    const date = new Date(dateString);
+    const algerianTime = new Date(date.getTime() + (1 * 60 * 60 * 1000));
+    return algerianTime.toLocaleString('fr-DZ', {
+      timeZone: 'Africa/Algiers',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    });
+  };
+
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>{user.full_name}'s Activity</DialogTitle>
+          <DialogTitle>{user.full_name}'s Business Hours Activity</DialogTitle>
           <DialogDescription>
-            Detailed view of recent user actions
+            Activity from 9:00 AM to 5:00 PM (Algeria Time - GMT+1)
           </DialogDescription>
         </DialogHeader>
-        <div className="space-y-4">
-          {activityLogs.length > 0 ? (
-            activityLogs.map((log) => (
-              <div key={log.id} className="border-b pb-2 last:border-0">
-                <div className="flex justify-between">
-                  <p className="font-medium">{log.action}</p>
-                  <p className="text-sm text-muted-foreground">
-                    {new Date(log.created_at).toLocaleString()}
-                  </p>
+        <div className="space-y-4 max-h-96 overflow-y-auto">
+          {businessHoursLogs.length > 0 ? (
+            businessHoursLogs.map((log) => (
+              <div key={log.id} className="border-b pb-3 last:border-0">
+                <div className="flex justify-between items-start">
+                  <div className="flex-1">
+                    <p className="font-medium text-gray-900">{log.action}</p>
+                    {log.details && (
+                      <div className="text-sm text-gray-600 mt-1">
+                        {typeof log.details === 'string' ? log.details : JSON.stringify(log.details)}
+                      </div>
+                    )}
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm text-muted-foreground">
+                      {formatAlgerianTime(log.created_at)}
+                    </p>
+                    <p className="text-xs text-blue-600">Algeria Time</p>
+                  </div>
                 </div>
-                {log.details && (
-                  <pre className="text-sm text-muted-foreground mt-1 overflow-x-auto">
-                    {JSON.stringify(log.details, null, 2)}
-                  </pre>
-                )}
               </div>
             ))
           ) : (
-            <p className="text-center text-muted-foreground py-4">No activity found</p>
+            <div className="text-center text-muted-foreground py-8">
+              <Clock className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+              <p className="font-medium">No business hours activity found</p>
+              <p className="text-sm">No activity recorded between 9:00 AM - 5:00 PM (Algeria Time)</p>
+            </div>
           )}
+        </div>
+        <div className="border-t pt-4">
+          <div className="flex items-center justify-between text-sm text-muted-foreground">
+            <span>Total business hours activities: {businessHoursLogs.length}</span>
+            <span>Ce mois: {businessHoursLogs.filter(log => 
+              new Date(log.created_at).toDateString() === new Date().toDateString()
+            ).length}</span>
+          </div>
         </div>
       </DialogContent>
     </Dialog>
@@ -148,6 +195,32 @@ export default function UsersPage() {
         .select('user_id')
         .in('user_id', userIds)
         .gte('created_at', monthStart.toISOString());
+      // Helper function to check if time is in business hours (9AM-5PM Algeria Time)
+      const isBusinessHours = (timestamp: string) => {
+        const date = new Date(timestamp);
+        // Convert to Algerian time (GMT+1)
+        const algerianTime = new Date(date.getTime() + (1 * 60 * 60 * 1000));
+        const hour = algerianTime.getHours();
+        return hour >= 9 && hour < 17;
+      };
+
+      // Business hours today
+      const { data: businessHoursTodayRows } = await supabase
+        .from('user_activity')
+        .select('user_id, created_at')
+        .in('user_id', userIds)
+        .gte('created_at', today.toISOString());
+
+      // Business hours this week
+      const weekStart = new Date();
+      weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+      weekStart.setHours(0,0,0,0);
+      const { data: businessHoursWeekRows } = await supabase
+        .from('user_activity')
+        .select('user_id, created_at')
+        .in('user_id', userIds)
+        .gte('created_at', weekStart.toISOString());
+
       // Build summaries
       const summaries: Record<string, UserActivitySummary> = {};
       for (const id of userIds) {
@@ -158,10 +231,21 @@ export default function UsersPage() {
         const actionsToday = todayRows?.filter((r: any) => r.user_id === id).length || 0;
         // Actions this month
         const actionsThisMonth = monthRows?.filter((r: any) => r.user_id === id).length || 0;
+        // Business hours activities today
+        const businessHoursToday = businessHoursTodayRows?.filter((r: any) => 
+          r.user_id === id && isBusinessHours(r.created_at)
+        ).length || 0;
+        // Business hours activities this week
+        const businessHoursThisWeek = businessHoursWeekRows?.filter((r: any) => 
+          r.user_id === id && isBusinessHours(r.created_at)
+        ).length || 0;
+        
         summaries[id] = {
           lastActive,
           actionsToday,
-          actionsThisMonth
+          actionsThisMonth,
+          businessHoursToday,
+          businessHoursThisWeek
         };
       }
       return summaries;
@@ -178,21 +262,36 @@ export default function UsersPage() {
     return `${hours}h ${remainingMinutes}m`;
   }
 
-  // Mock activity logs - replace with real data
-  const activityLogs: UserActivityLog[] = [
-    {
-      id: "1",
-      action: "Logged in",
-      details: { ip: "192.168.1.1", device: "Chrome on Windows" },
-      created_at: new Date().toISOString(),
+  // Fetch real activity logs for the selected user
+  const {
+    data: activityLogs = [],
+    isLoading: loadingActivityLogs,
+  } = useQuery<UserActivityLog[]>({
+    queryKey: ["userActivityLogs", viewingActivityUserId],
+    queryFn: async () => {
+      if (!viewingActivityUserId) return [];
+      
+      // Fetch last 30 days of activity
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      
+      const { data, error } = await supabase
+        .from('user_activity')
+        .select('id, action, details, created_at')
+        .eq('user_id', viewingActivityUserId)
+        .gte('created_at', thirtyDaysAgo.toISOString())
+        .order('created_at', { ascending: false })
+        .limit(100);
+      
+      if (error) {
+        console.error('Error fetching activity logs:', error);
+        throw error;
+      }
+      
+      return data || [];
     },
-    {
-      id: "2",
-      action: "Updated profile",
-      details: { fields: ["email", "phone"] },
-      created_at: new Date(Date.now() - 3600000).toISOString(),
-    },
-  ];
+    enabled: !!viewingActivityUserId,
+  });
 
   return (
     <>
@@ -259,12 +358,12 @@ export default function UsersPage() {
         <Card className="p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-muted-foreground">New This Month</p>
+              <p className="text-sm text-muted-foreground">Business Hours Activities Today</p>
               <p className="text-2xl font-bold">
-                {users?.filter(u => new Date(u.created_at) > new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)).length || 0}
+                {users?.reduce((total, u) => total + (activitySummaries[u.id]?.businessHoursToday || 0), 0)}
               </p>
             </div>
-            <BarChart2 className="h-6 w-6 text-blue-500" />
+            <Clock className="h-6 w-6 text-blue-500" />
           </div>
         </Card>
       </div>
@@ -278,6 +377,7 @@ export default function UsersPage() {
               <TableHead>Email</TableHead>
               <TableHead>Role</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead>Business Hours Activity</TableHead>
               <TableHead>Joined</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
@@ -301,6 +401,9 @@ export default function UsersPage() {
                   <TableCell>
                     <Skeleton className="h-5 w-20" />
                   </TableCell>
+                  <TableCell>
+                    <Skeleton className="h-5 w-16" />
+                  </TableCell>
                   <TableCell className="text-right">
                     <Skeleton className="h-5 w-10" />
                   </TableCell>
@@ -308,7 +411,7 @@ export default function UsersPage() {
               ))
             ) : users.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-8 text-gray-400">Aucun utilisateur trouvé.</TableCell>
+                <TableCell colSpan={7} className="text-center py-8 text-gray-400">Aucun utilisateur trouvé.</TableCell>
               </TableRow>
             ) : (
               users.map((user) => {
@@ -348,6 +451,18 @@ export default function UsersPage() {
                           <span>Inactive</span>
                         </div>
                       )}
+                    </TableCell>
+                    <TableCell>
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2 text-sm">
+                          <Clock className="h-3 w-3 text-blue-500" />
+                          <span className="font-medium">Ce mois: {summary?.businessHoursToday || 0}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <BarChart2 className="h-3 w-3" />
+                          <span>Week: {summary?.businessHoursThisWeek || 0}</span>
+                        </div>
+                      </div>
                     </TableCell>
                     <TableCell>
                       {new Date(user.created_at).toLocaleDateString()}
