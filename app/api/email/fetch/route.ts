@@ -16,27 +16,18 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     if (!creds) {
       return NextResponse.json({ error: 'No credentials found' }, { status: 404 });
     }
-    const emailConfig = getEmailConfig();
     return await new Promise<NextResponse>((resolve) => {
       const imap = new Imap({
         user: creds.imap_username,
         password: creds.imap_password,
-        host: emailConfig.IMAP_HOST,
-        port: emailConfig.IMAP_PORT,
-        tls: emailConfig.IMAP_SECURE,
+        host: 'imap.titan.email',
+        port: 993,
+        tls: true,
       });
-      
-      console.log('[IMAP DEBUG] Connecting to server:', emailConfig.IMAP_HOST, 'port:', emailConfig.IMAP_PORT);
-      
-      imap.on('error', function(err: any) {
-        console.error('[IMAP DEBUG] Connection error:', err);
-      });
-      
       function openMailbox(cb: any) {
-        console.log('[IMAP DEBUG] Opening mailbox:', mailbox);
+        console.log(`Opening mailbox: ${mailbox}`);
         imap.openBox(mailbox, true, (err: any, box: any) => {
           if (err) {
-            console.error('[IMAP DEBUG] Mailbox open error:', err);
             // Try alternative folder names for sent emails
             const alternatives: Record<string, string[]> = {
               'Sent': ['INBOX.Sent', 'Sent Messages', 'Sent Items', 'Outbox'],
@@ -46,19 +37,16 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
             
             const altNames = alternatives[mailbox];
             if (altNames && altNames.length > 0) {
-              console.log('[IMAP DEBUG] Trying alternative mailbox names:', altNames);
               const tryNext = (index: number) => {
                 if (index >= altNames.length) {
                   cb(err, null);
                   return;
                 }
-                console.log('[IMAP DEBUG] Trying mailbox:', altNames[index]);
                 imap.openBox(altNames[index], true, (altErr: any, altBox: any) => {
                   if (altErr) {
-                    console.error('[IMAP DEBUG] Alternative mailbox error:', altErr);
                     tryNext(index + 1);
                   } else {
-                    console.log('[IMAP DEBUG] Successfully opened alternative mailbox:', altNames[index]);
+                    console.log(`Successfully opened alternative mailbox: ${altNames[index]}`);
                     cb(null, altBox);
                   }
                 });
@@ -68,39 +56,31 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
               cb(err, box);
             }
           } else {
-            console.log('[IMAP DEBUG] Mailbox opened successfully:', mailbox, 'Total messages:', box.messages.total);
             cb(null, box);
           }
         });
       }
       imap.once('ready', function() {
-        console.log('[IMAP DEBUG] Connection ready');
         openMailbox(function(err: any, box: any) {
           if (err) {
             imap.end();
             resolve(NextResponse.json({ error: err.message }, { status: 500 }));
             return;
           }
-          const fetchRange = `${Math.max(1, box.messages.total - limit + 1)}:*`;
-          console.log('[IMAP DEBUG] Fetching sequence:', fetchRange);
-          const fetch = imap.seq.fetch(fetchRange, { bodies: '', struct: true });
+          const fetch = imap.seq.fetch(`${Math.max(1, box.messages.total - limit + 1)}:*`, { bodies: '', struct: true });
           const emails: any[] = [];
           fetch.on('message', function(msg: any) {
             const email: any = {};
             let fullMessage = '';
-            let chunkCount = 0;
             
             msg.on('body', function(stream: any, info: any) {
               stream.on('data', function(chunk: any) {
-                chunkCount++;
                 fullMessage += chunk.toString('utf8');
               });
               stream.on('end', async function() {
-                console.log('[IMAP DEBUG] Message received, chunks:', chunkCount, 'size:', fullMessage.length, 'bytes');
                 // Parse the entire email message
                 try {
                   const parsed = await simpleParser(fullMessage);
-                  console.log('[IMAP DEBUG] Message parsed successfully');
                   
                   // More robust from field parsing
                   let fromValue = 'Expéditeur inconnu';

@@ -53,7 +53,7 @@ export function EmailSidebar({ selectedLabel, onLabelSelect, onCompose, unopened
       <div className="p-4 border-b border-gray-200">
         <Button 
           onClick={onCompose}
-          className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-3 rounded-lg flex items-center justify-center gap-2 shadow-sm"
+          className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 rounded-lg flex items-center justify-center gap-2 shadow-sm"
         >
           <PlusIcon className="w-5 h-5" />
           Nouveau message
@@ -77,8 +77,8 @@ export function EmailSidebar({ selectedLabel, onLabelSelect, onCompose, unopened
                   onClick={() => onLabelSelect(folder.id)}
                   className={`w-full flex items-center justify-between px-3 py-2.5 text-sm rounded-lg transition-all duration-200 group ${
                     isSelected 
-                      ? 'bg-indigo-50 text-indigo-700 border border-indigo-200 shadow-sm' 
-                      : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900 border border-transparent'
+                      ? 'bg-blue-50 text-blue-700 border border-blue-200 shadow-sm' 
+                      : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
                   }`}
                 >
                   <div className="flex items-center gap-3">
@@ -87,9 +87,9 @@ export function EmailSidebar({ selectedLabel, onLabelSelect, onCompose, unopened
                   </div>
                   
                   {(folder.count ?? 0) > 0 && (
-                  <span className="bg-indigo-100 text-indigo-800 text-xs font-medium px-2 py-0.5 rounded-full">
-                  {folder.count}
-                  </span>
+                    <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-0.5 rounded-full">
+                      {folder.count}
+                    </span>
                   )}
                 </button>
               );

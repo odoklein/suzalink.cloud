@@ -183,6 +183,7 @@ const EmailPage = () => {
     };
 
     // Fetch emails on component mount and when userProfile changes
+    
     useEffect(() => {
         fetchEmails(true);
     }, [userProfile?.id, selectedLabel]);

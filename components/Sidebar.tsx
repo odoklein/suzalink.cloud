@@ -15,6 +15,7 @@ import {
   Settings,
   UserCog,
   LogOut,
+  UserPlus,
   UserCircle,
   ShieldCheck,
   FolderKanban,
@@ -191,12 +192,12 @@ export function Sidebar() {
                       href={link.href}
                       target={link.target}
                       className={`flex items-center ${collapsed ? 'justify-center' : ''} gap-3 rounded-lg px-3 py-2 font-medium transition-colors text-sm group
-                        ${isActive ? 'bg-purple-100 text-purple-900 border border-purple-200' : 'text-gray-700 hover:bg-purple-50 hover:text-purple-900 border border-transparent'}
+                        ${isActive ? 'bg-purple-100 text-purple-900' : 'text-gray-700 hover:bg-purple-50 hover:text-purple-900'}
                       `}
                       title={collapsed ? link.label : ''}
                     >
-                      <link.icon className={`w-5 h-5 flex-shrink-0 ${isActive ? 'text-purple-700' : 'text-gray-400 group-hover:text-purple-700'}`} />
-                      {!collapsed && <span className={isActive ? 'text-purple-900' : 'text-gray-700 group-hover:text-purple-900'}>{link.label}</span>}
+                      <link.icon className={`w-5 h-5 ${isActive ? 'text-purple-700' : 'text-gray-400 group-hover:text-purple-700'}`} />
+                      {!collapsed && <span>{link.label}</span>}
                       {!collapsed && link.href === "/dashboard/commandes" && unopenedCount > 0 && (
                         <span className="ml-2 inline-block w-2 h-2 rounded-full bg-red-500 align-middle" title="Nouvelles demandes" />
                       )}
