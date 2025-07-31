@@ -44,7 +44,7 @@ export default function LoginPage() {
             </div>
           )}
           
-          <form className="space-y-6" onSubmit={handleLogin}>
+          <form className="space-y-6" method="post" onSubmit={handleLogin} noValidate>
             <div>
               <Label htmlFor="email" className="block text-sm font-medium">
                 Adresse e-mail

@@ -15,8 +15,6 @@ import {
   Settings,
   UserCog,
   LogOut,
-  UserCheck,
-  UserPlus,
   UserCircle,
   ShieldCheck,
   FolderKanban,
@@ -24,6 +22,7 @@ import {
   Bot,
   ChevronRight,
   ChevronLeft,
+  UserCheck,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -98,6 +97,7 @@ export function Sidebar() {
         { href: "/dashboard", label: "Tableau de bord", icon: LayoutDashboard },
         { href: "/dashboard/projects", label: "Projets", icon: Briefcase },
         { href: "/dashboard/prospects", label: "Prospects", icon: FolderKanban },
+        { href: "/dashboard/clients", label: "Clients", icon: UserCheck },
         { href: "/dashboard/email", label: "Email", icon: Mail}, 
       ],
     },

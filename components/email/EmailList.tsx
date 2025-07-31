@@ -68,7 +68,7 @@ export function EmailList({
   };
 
   return (
-    <div className="flex-1 flex flex-col bg-white border-r border-gray-200">
+    <div className="flex-1 flex flex-col bg-white border-r border-gray-200 max-h-screen">
       {/* Search Header */}
       <div className="p-4 border-b border-gray-200 bg-gray-50">
         <div className="flex gap-3 mb-3">
@@ -105,7 +105,7 @@ export function EmailList({
       </div>
 
       {/* Email List Content */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto min-h-0">
         {loading ? (
           <div className="flex items-center justify-center h-full">
             <div className="flex items-center gap-3">

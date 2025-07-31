@@ -59,7 +59,7 @@ export function EmailDetails({
 }: EmailDetailsProps) {
   if (!email) {
     return (
-      <div className="w-[40%] bg-white flex items-center justify-center border-l border-gray-200 h-full">
+      <div className="w-[60%] bg-white flex items-center justify-center border-l border-gray-200 h-full">
         <div className="text-center p-8">
           <svg className="w-16 h-16 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 8l7.89 3.26a2 2 0 001.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
@@ -146,7 +146,7 @@ export function EmailDetails({
   };
 
   return (
-    <div className="w-[40%] bg-white flex flex-col border-l border-gray-200 h-full">
+    <div className="w-[60%] bg-white flex flex-col border-l border-gray-200 h-full max-h-screen">
       {/* Header */}
       <div className="border-b border-gray-200 p-4">
         <div className="flex items-start justify-between mb-3">
@@ -257,7 +257,7 @@ export function EmailDetails({
       </div>
 
       {/* Email Content */}
-      <div className="flex-1 overflow-y-auto p-6">
+      <div className="flex-1 overflow-y-auto p-6 min-h-0">
         <div className="max-w-none">
           {getEmailContent()}
         </div>

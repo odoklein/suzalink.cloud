@@ -338,7 +338,7 @@ const EmailPage = () => {
     };
 
     return (
-        <div className="h-full flex bg-gray-50 overflow-hidden">
+        <div className="h-screen flex bg-gray-50 overflow-hidden">
             {/* Left Sidebar */}
             <EmailSidebar
                 selectedLabel={selectedLabel}

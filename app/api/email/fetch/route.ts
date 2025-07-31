@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getUserEmailCredentials } from '@/lib/user-email-credentials';
+import { getEmailConfig } from '@/lib/email-config';
 import { supabase } from '@/lib/supabase';
 import Imap from 'node-imap';
 import { simpleParser } from 'mailparser';
@@ -15,13 +16,14 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     if (!creds) {
       return NextResponse.json({ error: 'No credentials found' }, { status: 404 });
     }
+    const emailConfig = getEmailConfig();
     return await new Promise<NextResponse>((resolve) => {
       const imap = new Imap({
         user: creds.imap_username,
         password: creds.imap_password,
-        host: process.env.IMAP_HOST,
-        port: Number(process.env.IMAP_PORT) || 993,
-        tls: String(process.env.IMAP_SECURE) === 'true',
+        host: emailConfig.IMAP_HOST,
+        port: emailConfig.IMAP_PORT,
+        tls: emailConfig.IMAP_SECURE,
       });
       function openMailbox(cb: any) {
         console.log(`Opening mailbox: ${mailbox}`);

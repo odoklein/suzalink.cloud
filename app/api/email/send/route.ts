@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getUserEmailCredentials } from '@/lib/user-email-credentials';
+import { getEmailConfig } from '@/lib/email-config';
 import nodemailer from 'nodemailer';
 
 export async function POST(req: NextRequest) {
@@ -13,10 +14,11 @@ export async function POST(req: NextRequest) {
     if (!creds) {
       return NextResponse.json({ error: 'No credentials found' }, { status: 404 });
     }
+    const emailConfig = getEmailConfig();
     const transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: Number(process.env.SMTP_PORT) || 465,
-      secure: String(process.env.SMTP_SECURE) === 'true',
+      host: emailConfig.SMTP_HOST,
+      port: emailConfig.SMTP_PORT,
+      secure: emailConfig.SMTP_SECURE,
       auth: {
         user: creds.smtp_username,
         pass: creds.smtp_password,
