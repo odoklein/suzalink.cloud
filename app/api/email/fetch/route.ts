@@ -82,9 +82,35 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
                 // Parse the entire email message
                 try {
                   const parsed = await simpleParser(fullMessage);
+                  
+                  // More robust from field parsing
+                  let fromValue = 'Expéditeur inconnu';
+                  if (parsed.from) {
+                    if (typeof parsed.from === 'string') {
+                      fromValue = parsed.from;
+                    } else if ((parsed.from as any).text) {
+                      fromValue = (parsed.from as any).text;
+                    } else if ((parsed.from as any).value && (parsed.from as any).value.length > 0) {
+                      const addr = (parsed.from as any).value[0];
+                      fromValue = addr.name ? `${addr.name} <${addr.address}>` : addr.address;
+                    } else if ((parsed.from as any).address) {
+                      fromValue = (parsed.from as any).address;
+                    }
+                  }
+                  
+                  // More robust subject parsing  
+                  let subjectValue = '(Sans objet)';
+                  if (parsed.subject) {
+                    if (typeof parsed.subject === 'string') {
+                      subjectValue = parsed.subject;
+                    } else if ((parsed.subject as any).text) {
+                      subjectValue = (parsed.subject as any).text;
+                    }
+                  }
+                  
                   const emailData = {
-                    from: parsed.from?.text || parsed.from?.value?.[0]?.address || null,
-                    subject: parsed.subject || null,
+                    from: fromValue,
+                    subject: subjectValue,
                     date: parsed.date ? parsed.date.toISOString() : new Date().toISOString(),
                     text: parsed.text || '',
                     html: parsed.html || '',
@@ -124,9 +150,9 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
                   email.id = Date.now() + Math.random(); // Generate temporary ID
                 } catch (err) {
                   console.error('Email parsing error:', err);
-                  // Fallback parsing
-                  email.from = null;
-                  email.subject = null;
+                  // Fallback parsing with better defaults
+                  email.from = 'Expéditeur inconnu';
+                  email.subject = '(Sans objet)';
                   email.date = new Date().toISOString();
                   email.text = fullMessage.substring(0, 200);
                   email.html = '';

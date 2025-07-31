@@ -133,14 +133,27 @@ const EmailPage = () => {
             console.log('IMAP fetch response:', data);
 
             const emailsData = (data.emails || []).map((e: any, i: number) => {
-                console.log('Processing email:', { from: e.from, subject: e.subject });
+                console.log('Processing email:', { from: e.from, subject: e.subject, rawEmail: e });
+                
+                // Ensure we have valid strings for from and subject
+                let fromValue = 'Expéditeur inconnu';
+                let subjectValue = '(Sans objet)';
+                
+                if (e.from && typeof e.from === 'string' && e.from.trim() !== '') {
+                    fromValue = e.from.replace(/^"|"$/g, '').trim();
+                }
+                
+                if (e.subject && typeof e.subject === 'string' && e.subject.trim() !== '') {
+                    subjectValue = e.subject.trim();
+                }
+                
                 return {
                     id: i + 1,
-                    from: e.from || 'Expéditeur inconnu',
-                    subject: e.subject || '(Sans objet)',
+                    from: fromValue,
+                    subject: subjectValue,
                     date: e.date || new Date().toISOString(),
-                    text: e.text || '',
-                    html: e.html || '',
+                    text: e.text || e.subject || '(Aucun contenu textuel)',
+                    html: e.html || `<p>${e.text || e.subject || '(Aucun contenu)'}</p>`,
                     labels: [selectedLabel === 'Boîte de réception' ? 'Inbox' : selectedLabel],
                     attachments: e.attachments || [],
                     read: e.read || false,
