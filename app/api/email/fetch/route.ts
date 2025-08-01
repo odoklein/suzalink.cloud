@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getUserEmailCredentials } from '@/lib/user-email-credentials';
 import { getEmailConfig } from '@/lib/email-config';
 import { supabase } from '@/lib/supabase';
+import { getReadEmailIds, storeEmailIfNotExists } from '@/lib/email-read-status';
 import Imap from 'node-imap';
 import { simpleParser } from 'mailparser';
 
@@ -61,12 +62,15 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
         });
       }
       imap.once('ready', function() {
-        openMailbox(function(err: any, box: any) {
+        openMailbox(async function(err: any, box: any) {
           if (err) {
             imap.end();
             resolve(NextResponse.json({ error: err.message }, { status: 500 }));
             return;
           }
+          // Get read email IDs for this user and mailbox
+          const readEmailIds = await getReadEmailIds(userId, mailbox);
+          
           const fetch = imap.seq.fetch(`${Math.max(1, box.messages.total - limit + 1)}:*`, { bodies: '', struct: true });
           const emails: any[] = [];
           fetch.on('message', function(msg: any) {
@@ -146,16 +150,25 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
                   email.text = emailData.text;
                   email.html = emailData.html;
                   email.attachments = attachments;
+                  email.messageId = emailData.messageId;
                   email.id = Date.now() + Math.random(); // Generate temporary ID
+                  email.read = readEmailIds.includes(emailData.messageId);
+                  
+                  // Store email in read status table if not exists
+                  await storeEmailIfNotExists(userId, emailData.messageId, mailbox);
+                  
+                  // Only push successfully parsed emails
+                  emails.push(email);
                 } catch (err) {
                   console.error('Email parsing error:', err);
-                  // Fallback parsing with better defaults
+                  // Fallback parsing with better defaults - for debugging only, don't push to emails array
                   email.from = 'Expéditeur inconnu';
                   email.subject = '(Sans objet)';
                   email.date = new Date().toISOString();
                   email.text = fullMessage.substring(0, 200);
                   email.html = '';
                   email.attachments = [];
+                  // Do not push fallback emails to the array
                 }
               });
             });
@@ -165,7 +178,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
             });
             
             msg.once('end', function() {
-              emails.push(email);
+              // Email push moved to success block above
             });
           });
           fetch.once('end', function() {

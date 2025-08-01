@@ -226,19 +226,40 @@ const EmailPage = () => {
     });
 
     // Handle email selection
-    const handleEmailSelect = (email: Email) => {
+    const handleEmailSelect = async (email: Email) => {
         setSelectedEmail(email);
         // Mark as read
-        if (!email.read) {
+        if (!email.read && userProfile?.id) {
+            // Mark as read in database
+            try {
+                const folderMap: Record<string, string> = {
+                    'Boîte de réception': 'INBOX',
+                    'Envoyés': 'Sent',
+                    'Brouillons': 'Drafts',
+                    'Corbeille': 'Trash'
+                };
+                const imapFolder = folderMap[selectedLabel] || 'INBOX';
+                
+                await fetch('/api/email/mark-read', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        userId: userProfile.id,
+                        emailMessageId: (email as any).messageId,
+                        mailbox: imapFolder
+                    })
+                });
+            } catch (error) {
+                console.error('Failed to mark email as read:', error);
+            }
+            
             const updatedEmails = emails.map(e =>
                 e.id === email.id ? { ...e, read: true } : e
             );
             setEmails(updatedEmails);
             
             // Update cache with read status
-            if (userProfile?.id) {
-                saveEmailsToStorage(updatedEmails, userProfile.id, selectedLabel);
-            }
+            saveEmailsToStorage(updatedEmails, userProfile.id, selectedLabel);
         }
     };
 

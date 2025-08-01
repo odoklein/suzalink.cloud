@@ -145,7 +145,7 @@ export function EmailCompose({
     const sanitizedContent = DOMPurify.sanitize(signature.content);
     setEmailData({
       ...emailData, 
-      text: emailData.text + "\n\n" + sanitizedContent
+      html: (emailData.html || emailData.text) + "<br><br>" + sanitizedContent
     });
     setShowSignatureDropdown(false);
   };
@@ -270,7 +270,7 @@ export function EmailCompose({
             <label className="block text-sm font-medium text-gray-700 mb-2">Message :</label>
             <SimpleTextEditor
               value={emailData.html || emailData.text}
-              onChange={(value) => setEmailData({ ...emailData, text: value })}
+              onChange={(value) => setEmailData({ ...emailData, html: value })}
               placeholder="Écrivez votre message..."
               className="flex-1 min-h-[300px]"
             />
