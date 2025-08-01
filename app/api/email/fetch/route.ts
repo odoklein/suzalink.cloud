@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getUserEmailCredentials } from '@/lib/user-email-credentials';
 import { getEmailConfig } from '@/lib/email-config';
 import { supabase } from '@/lib/supabase';
-import { getReadEmailIds, storeEmailIfNotExists } from '@/lib/email-read-status';
 import Imap from 'node-imap';
 import { simpleParser } from 'mailparser';
 
@@ -68,8 +67,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
             resolve(NextResponse.json({ error: err.message }, { status: 500 }));
             return;
           }
-          // Get read email IDs for this user and mailbox
-          const readEmailIds = await getReadEmailIds(userId, mailbox);
+
           
           const fetch = imap.seq.fetch(`${Math.max(1, box.messages.total - limit + 1)}:*`, { bodies: '', struct: true });
           const emails: any[] = [];
@@ -152,10 +150,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
                   email.attachments = attachments;
                   email.messageId = emailData.messageId;
                   email.id = Date.now() + Math.random(); // Generate temporary ID
-                  email.read = readEmailIds.includes(emailData.messageId);
-                  
-                  // Store email in read status table if not exists
-                  await storeEmailIfNotExists(userId, emailData.messageId, mailbox);
+                  // Read status will be set from IMAP flags in attributes handler
                   
                   // Only push successfully parsed emails
                   emails.push(email);
@@ -175,6 +170,8 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
             
             msg.once('attributes', function(attrs: any) {
               email.attrs = attrs;
+              // Use IMAP flags to determine read status
+              email.read = attrs.flags && attrs.flags.includes('\\Seen');
             });
             
             msg.once('end', function() {
