@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "send-reminders": "tsx scripts/send-reminders.ts"
   },
   "dependencies": {
     "@handsontable/react-wrapper": "^16.0.1",
@@ -19,11 +20,12 @@
     "@radix-ui/react-label": "^2.1.7",
     "@radix-ui/react-select": "^2.2.5",
     "@radix-ui/react-slot": "^1.2.3",
+    "@radix-ui/react-switch": "^1.2.5",
     "@radix-ui/react-tabs": "^1.1.12",
     "@supabase/auth-helpers-react": "^0.5.0",
     "@supabase/ssr": "^0.6.1",
     "@supabase/supabase-js": "^2.50.3",
-    "@tanstack/react-query": "^5.82.0",
+    "@tanstack/react-query": "^5.84.1",
     "@tanstack/react-table": "^8.21.3",
     "@tiptap/react": "^2.26.1",
     "@tiptap/starter-kit": "^2.26.1",
@@ -52,6 +54,7 @@
     "react-i18next": "^15.6.0",
     "recharts": "^3.0.2",
     "sonner": "^2.0.6",
+    "swr": "^2.3.4",
     "tailwind-merge": "^3.3.1",
     "three": "^0.167.1",
     "wavesurfer.js": "^7.10.0",

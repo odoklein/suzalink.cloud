@@ -1,0 +1,476 @@
+# Suzali Cloud Platform - Style Guide & Visual Design System
+
+## 🎨 Design Philosophy
+The Suzali Cloud Platform follows a **modern, clean, and professional design approach** with emphasis on:
+- **Minimalist aesthetic** with plenty of white space
+- **Consistent visual hierarchy** and typography
+- **Intuitive user experience** with clear navigation
+- **Responsive design** that works across all devices
+- **Professional color scheme** suitable for business applications
+
+## 🎯 Color Palette
+
+### Primary Colors
+```css
+Primary Blue: #0d6efd (blue-600)
+Primary Blue Hover: #1d4ed8 (blue-700)
+Primary Blue Light: #dbeafe (blue-50)
+Primary Blue Border: #bfdbfe (blue-200)
+```
+
+### Secondary Colors
+```css
+Success Green: #16a34a (green-600)
+Warning Yellow: #ca8a04 (yellow-600)
+Error Red: #dc2626 (red-600)
+Info Blue: #2563eb (blue-600)
+```
+
+### Gray Scale
+```css
+Gray 50: #f9fafb
+Gray 100: #f3f4f6
+Gray 200: #e5e7eb
+Gray 300: #d1d5db
+Gray 400: #9ca3af
+Gray 500: #6b7280
+Gray 600: #4b5563
+Gray 700: #374151
+Gray 800: #1f2937
+Gray 900: #111827
+```
+
+### Background Colors
+```css
+Main Background: #ffffff (white)
+Secondary Background: #f9fafb (gray-50)
+Card Background: #ffffff (white)
+Sidebar Background: #ffffff (white)
+```
+
+## 📐 Layout System
+
+### Container Structure
+```css
+Main Container: max-width, centered, responsive padding
+Sidebar: w-64 (256px) expanded, w-16 (64px) collapsed
+Content Area: flex-1, responsive padding
+Modal: fixed inset-0, centered with backdrop
+```
+
+### Spacing Scale
+```css
+Extra Small: 0.25rem (4px) - p-1, m-1
+Small: 0.5rem (8px) - p-2, m-2
+Medium: 1rem (16px) - p-4, m-4
+Large: 1.5rem (24px) - p-6, m-6
+Extra Large: 2rem (32px) - p-8, m-8
+```
+
+### Grid System
+```css
+1 Column: grid-cols-1
+2 Columns: grid-cols-2
+3 Columns: grid-cols-3
+4 Columns: grid-cols-4
+Responsive: grid-cols-1 md:grid-cols-2 lg:grid-cols-4
+```
+
+## 🔧 Component Styling Patterns
+
+### 1. Buttons
+
+#### Primary Button
+```css
+className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 rounded-lg flex items-center justify-center gap-2 shadow-sm transition-all duration-200"
+```
+
+#### Secondary Button
+```css
+className="px-3 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+```
+
+#### Outline Button
+```css
+className="w-full rounded-lg border-gray-200 hover:bg-red-50 hover:text-red-700 hover:border-red-200 transition-all duration-200 flex items-center justify-between gap-2 text-sm font-medium py-2.5"
+```
+
+#### Icon Button
+```css
+className="p-1.5 bg-white rounded-full border border-gray-200 shadow-md hover:bg-gray-50 hover:shadow-lg transition-all duration-200"
+```
+
+### 2. Cards & Containers
+
+#### Main Card
+```css
+className="bg-white border-2 border-gray-200 px-6 py-8 rounded-2xl shadow-xl shadow-primary/5 backdrop-blur-sm"
+```
+
+#### Content Card
+```css
+className="bg-white border border-gray-200 rounded-lg shadow-sm p-4"
+```
+
+#### Sidebar Container
+```css
+className="sticky top-0 h-screen w-64 bg-white border-r border-gray-200 flex flex-col shadow-lg z-20 transition-all duration-200"
+```
+
+### 3. Form Elements
+
+#### Input Field
+```css
+className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
+```
+
+#### Search Input
+```css
+className="relative flex-1"
+/* With icon positioning */
+className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400"
+```
+
+#### Select Dropdown
+```css
+className="w-full border border-gray-300 rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+```
+
+### 4. Navigation Elements
+
+#### Sidebar Navigation Item
+```css
+/* Active State */
+className="flex items-center gap-3 rounded-lg px-3 py-2.5 font-medium transition-all duration-200 text-sm bg-blue-50 text-blue-700 border border-blue-200 shadow-sm"
+
+/* Default State */
+className="flex items-center gap-3 rounded-lg px-3 py-2.5 font-medium transition-all duration-200 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900"
+```
+
+#### Breadcrumb
+```css
+className="text-sm text-gray-500 hover:text-gray-700 transition-colors"
+```
+
+### 5. Status Indicators
+
+#### Badge
+```css
+className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border"
+```
+
+#### Role Badge Colors
+```css
+Admin: "bg-red-100 text-red-800 border-red-200"
+Manager: "bg-blue-100 text-blue-800 border-blue-200"
+User: "bg-gray-100 text-gray-800 border-gray-200"
+```
+
+#### Notification Dot
+```css
+className="inline-flex items-center justify-center w-2 h-2 rounded-full bg-red-500"
+```
+
+#### Unread Count
+```css
+className="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-0.5 rounded-full"
+```
+
+## 🎨 Interactive States
+
+### Hover Effects
+```css
+/* Subtle background change */
+hover:bg-gray-50
+
+/* Color transition */
+hover:text-gray-900
+
+/* Border color change */
+hover:border-blue-500
+
+/* Shadow enhancement */
+hover:shadow-lg
+```
+
+### Active/Selected States
+```css
+/* Selected navigation */
+bg-blue-50 text-blue-700 border border-blue-200 shadow-sm
+
+/* Selected email */
+bg-blue-50 border-l-4 border-blue-500
+
+/* Active button */
+bg-blue-700 text-white
+```
+
+### Focus States
+```css
+/* Input focus */
+focus:ring-2 focus:ring-blue-500 focus:border-blue-500
+
+/* Button focus */
+focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
+```
+
+## 📱 Responsive Design
+
+### Breakpoints
+```css
+Mobile: < 640px (sm:)
+Tablet: 640px - 1024px (md:)
+Desktop: 1024px - 1280px (lg:)
+Large Desktop: > 1280px (xl:)
+```
+
+### Responsive Patterns
+```css
+/* Hidden on mobile */
+hidden sm:inline
+
+/* Grid responsive */
+grid-cols-1 md:grid-cols-2 lg:grid-cols-4
+
+/* Padding responsive */
+p-4 md:p-6 lg:p-8
+
+/* Text size responsive */
+text-sm md:text-base lg:text-lg
+```
+
+## 🎯 Typography System
+
+### Font Family
+```css
+Primary: Geist Sans (--font-geist-sans)
+Monospace: Geist Mono (--font-geist-mono)
+Brand: Pacifico (for logo/brand elements)
+```
+
+### Font Sizes
+```css
+Extra Small: text-xs (12px)
+Small: text-sm (14px)
+Base: text-base (16px)
+Large: text-lg (18px)
+Extra Large: text-xl (20px)
+2XL: text-2xl (24px)
+3XL: text-3xl (30px)
+```
+
+### Font Weights
+```css
+Normal: font-normal (400)
+Medium: font-medium (500)
+Semibold: font-semibold (600)
+Bold: font-bold (700)
+```
+
+### Line Heights
+```css
+Tight: leading-tight
+Normal: leading-normal
+Relaxed: leading-relaxed
+```
+
+## ✨ Animation & Transitions
+
+### Duration Classes
+```css
+Fast: duration-150 (150ms)
+Normal: duration-200 (200ms)
+Slow: duration-300 (300ms)
+```
+
+### Transition Types
+```css
+/* All properties */
+transition-all duration-200
+
+/* Specific properties */
+transition-colors duration-200
+transition-transform duration-200
+transition-shadow duration-200
+```
+
+### Animation Classes
+```css
+/* Pulse animation */
+animate-pulse
+
+/* Fade in */
+animate-fade-in
+
+/* Slide in */
+animate-slide-in
+```
+
+## 🎨 Component-Specific Styles
+
+### Email Interface
+```css
+/* Email List Item */
+className="p-4 border-b border-gray-100 hover:bg-gray-50 cursor-pointer transition-colors"
+
+/* Email Details */
+className="w-[60%] bg-white flex items-center justify-center border-l border-gray-200 h-full"
+
+/* Compose Modal */
+className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+```
+
+### Dashboard Cards
+```css
+/* Metric Card */
+className="border-[1.5px] border-black/20 shadow-lg bg-gradient-to-br from-blue-50 to-blue-100"
+
+/* Chart Card */
+className="bg-white border border-gray-200 rounded-lg shadow-sm p-6"
+```
+
+### Tables
+```css
+/* Table Header */
+className="bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+
+/* Table Cell */
+className="px-6 py-4 whitespace-nowrap text-sm text-gray-900"
+
+/* Table Row Hover */
+className="hover:bg-gray-50 transition-colors"
+```
+
+## 🎯 Accessibility Features
+
+### Focus Indicators
+```css
+/* Default focus ring */
+focus:ring-2 focus:ring-blue-500 focus:ring-offset-2
+
+/* Custom focus styles */
+focus:outline-none focus:ring-2 focus:ring-blue-500
+```
+
+### Color Contrast
+- **Text on white**: Minimum 4.5:1 contrast ratio
+- **Interactive elements**: Minimum 3:1 contrast ratio
+- **Status indicators**: High contrast colors for visibility
+
+### Screen Reader Support
+```css
+/* Hidden visually but accessible */
+sr-only
+
+/* Proper labeling */
+aria-label="Description"
+aria-describedby="help-text"
+```
+
+## 🔧 Utility Classes
+
+### Spacing Utilities
+```css
+/* Margin */
+m-0, m-1, m-2, m-4, m-6, m-8
+mt-*, mb-*, ml-*, mr-*
+mx-*, my-*
+
+/* Padding */
+p-0, p-1, p-2, p-4, p-6, p-8
+pt-*, pb-*, pl-*, pr-*
+px-*, py-*
+```
+
+### Flexbox Utilities
+```css
+/* Flex containers */
+flex, inline-flex
+flex-row, flex-col
+flex-wrap, flex-nowrap
+
+/* Flex items */
+flex-1, flex-auto, flex-none
+justify-start, justify-center, justify-end, justify-between
+items-start, items-center, items-end, items-stretch
+```
+
+### Grid Utilities
+```css
+/* Grid containers */
+grid, inline-grid
+grid-cols-1, grid-cols-2, grid-cols-3, grid-cols-4
+gap-1, gap-2, gap-4, gap-6, gap-8
+```
+
+## 🎨 Dark Mode Support (Configured)
+
+### Dark Mode Variables
+```css
+/* Background */
+--background: oklch(0.145 0 0)
+--card: oklch(0.205 0 0)
+--popover: oklch(0.205 0 0)
+
+/* Text */
+--foreground: oklch(0.985 0 0)
+--card-foreground: oklch(0.985 0 0)
+
+/* Borders */
+--border: oklch(1 0 0 / 10%)
+--input: oklch(1 0 0 / 15%)
+```
+
+## 📋 Implementation Guidelines
+
+### 1. Consistency
+- Always use the defined color palette
+- Maintain consistent spacing using the spacing scale
+- Use the same border radius (rounded-lg) for similar elements
+
+### 2. Responsive Design
+- Start with mobile-first approach
+- Use responsive breakpoints consistently
+- Test on multiple screen sizes
+
+### 3. Accessibility
+- Ensure proper color contrast ratios
+- Include focus indicators for all interactive elements
+- Use semantic HTML elements
+- Provide alternative text for images
+
+### 4. Performance
+- Use CSS custom properties for theming
+- Minimize custom CSS in favor of utility classes
+- Optimize animations for 60fps performance
+
+### 5. Maintenance
+- Document any new design patterns
+- Keep the style guide updated
+- Use consistent naming conventions
+- Review and refactor styles regularly
+
+## 🎯 Brand Integration
+
+### Logo Usage
+```css
+/* Primary logo */
+className="h-8 w-auto" /* For headers */
+className="h-12 w-auto" /* For login pages */
+
+/* Icon logo */
+className="h-8 w-auto" /* For collapsed sidebar */
+```
+
+### Brand Colors
+- **Primary**: Blue (#0d6efd) for main actions and branding
+- **Secondary**: Gray scale for text and backgrounds
+- **Accent**: Green, yellow, red for status indicators
+
+### Typography Hierarchy
+1. **Brand elements**: Pacifico font for logo/brand text
+2. **Headings**: Geist Sans, bold weights
+3. **Body text**: Geist Sans, regular/medium weights
+4. **Code/monospace**: Geist Mono
+
+This style guide ensures consistency across all components and pages in the Suzali Cloud Platform, providing a professional and cohesive user experience. 

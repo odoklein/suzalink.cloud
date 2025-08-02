@@ -6,10 +6,14 @@ import { useEffect } from 'react';
 import { Sidebar } from '@/components/Sidebar';
 import { BellIcon } from "@heroicons/react/24/outline";
 import Link from "next/link";
+import { useRouteRefetch } from '@/lib/use-route-refetch';
 
 export default function DashboardLayoutClient({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   const router = useRouter();
+
+  // Handle route changes and refetch data
+  useRouteRefetch();
 
   useEffect(() => {
     if (!loading && !user) {

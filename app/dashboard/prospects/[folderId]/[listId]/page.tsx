@@ -5,9 +5,33 @@ import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { createClient } from "@/utils/supabase/client";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { toast } from "sonner";
+import { 
+  ArrowLeft, 
+  Search, 
+  Filter, 
+  Download, 
+  Upload, 
+  Plus, 
+  MoreHorizontal,
+  Eye,
+  Edit,
+  Copy,
+  Trash2,
+  Undo2,
+  Redo2,
+  Settings,
+  FileSpreadsheet,
+  Users,
+  Calendar
+} from "lucide-react";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 
 interface List {
   id: string;
@@ -93,6 +117,7 @@ export default function ListSpreadsheetPage() {
     // Remove from local undo stack
     undo();
   }
+  
   // Keyboard shortcut: Ctrl+Z/Cmd+Z for undo, Ctrl+Shift+Z or Ctrl+Y for redo
   React.useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -119,6 +144,7 @@ export default function ListSpreadsheetPage() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [redo, handleUndoWithUI]);
+  
   // CSV import state
   const csvInputRef = useRef<HTMLInputElement>(null);
   const [importingCsv, setImportingCsv] = useState(false);
@@ -182,6 +208,7 @@ export default function ListSpreadsheetPage() {
         }
         setImportingCsv(false);
         if (csvInputRef.current) csvInputRef.current.value = '';
+        toast.success(`${insertedRows.length} prospects importés avec succès`);
       },
       error: (err) => {
         console.error('PapaParse error:', err);
@@ -218,9 +245,12 @@ export default function ListSpreadsheetPage() {
     setList({ ...list, columns: updatedColumns });
     setNewColumnName("");
     setAddingColumn(false);
+    toast.success("Colonne ajoutée avec succès");
   }
+  
   // All state declarations at the top to avoid ReferenceError
   const params = useParams();
+  const router = useRouter();
   const listId = params?.listId as string;
   const supabase = createClient();
   const [list, setList] = useState<List | null>(null);
@@ -270,7 +300,6 @@ export default function ListSpreadsheetPage() {
   // Pagination
   const pageCount = Math.max(1, Math.ceil(filteredProspects.length / pageSize));
   const pagedProspects = filteredProspects.slice((page - 1) * pageSize, page * pageSize);
-
 
   // Inline editing handlers
   function startEdit(row: number, col: number, value: string) {
@@ -346,6 +375,7 @@ export default function ListSpreadsheetPage() {
     setProspects(prev => prev.filter(p => !idsToDelete.includes(p.id)));
     await supabase.from('list_items').delete().in('id', idsToDelete);
     setSelectedRows([]);
+    toast.success(`${idsToDelete.length} prospects supprimés`);
   }
 
   // Undo/redo handlers
@@ -423,9 +453,7 @@ export default function ListSpreadsheetPage() {
       setLoading(false);
     };
     if (listId) fetchListAndProspects();
-    // eslint-disable-next-line
   }, [listId]);
-
 
   async function handleAddRow() {
     setUndoStack(stack => [...stack, JSON.parse(JSON.stringify(prospects))]);
@@ -437,54 +465,190 @@ export default function ListSpreadsheetPage() {
     if (inserted) setProspects(prev => [...prev, inserted]);
   }
 
-  return (
-    <div className="min-h-screen bg-white flex flex-col w-full">
-      {/* Undo/Redo Buttons */}
-      <div className="flex gap-2 mb-4">
-        <Button variant="secondary" onClick={handleUndoWithUI} type="button">Undo</Button>
-        <Button variant="secondary" onClick={handleRedoWithUI} type="button">Redo</Button>
-      </div>
-      <div className="flex items-center gap-4 mb-6 border-b pb-4">
-        <h2 className="text-2xl font-bold flex-1 truncate">
-          {list ? list.name : "List"}
-        </h2>
-        {/* Future: Add save, export, etc. */}
-      </div>
-      {/* CSV Import UI */}
-      <div className="flex flex-wrap gap-4 mb-4 items-center">
-        <input
-          type="file"
-          accept=".csv"
-          style={{ display: 'none' }}
-          ref={csvInputRef}
-          onChange={handleCsvFile}
-        />
-        
-      </div>
-      {/* Search/filter input and column toggles */}
-      <div className="flex flex-wrap gap-4 mb-4 items-center">
-        <div className="max-w-xs">
-          <Input
-            placeholder="Search..."
-            value={filter}
-            onChange={e => setFilter(e.target.value)}
-          />
+  if (loading) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center gap-4">
+          <Skeleton className="h-10 w-32" />
+          <Skeleton className="h-10 w-64" />
         </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Skeleton className="h-24" />
+          <Skeleton className="h-24" />
+          <Skeleton className="h-24" />
+        </div>
+        <Skeleton className="h-96" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">
+        <div className="text-red-500 text-lg font-medium">{error}</div>
+        <Button onClick={() => window.location.reload()}>Réessayer</Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header Section */}
+      <div className="flex items-center gap-4">
+        <Button
+          variant="outline"
+          onClick={() => router.back()}
+          className="border-gray-300 hover:bg-gray-50 transition-all duration-200"
+        >
+          <ArrowLeft className="w-4 h-4 mr-2" />
+          Retour
+        </Button>
+        <div className="flex-1">
+          <h1 className="text-2xl font-bold text-gray-900">{list?.name || "Liste de prospects"}</h1>
+          <p className="text-gray-600 mt-1">Gérez vos prospects et leurs données</p>
+        </div>
+      </div>
+
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <Card className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">
+              <Users className="w-6 h-6" />
+            </div>
+            <div>
+              <p className="text-sm text-gray-500 mb-1">Total prospects</p>
+              <p className="text-2xl font-bold text-gray-900">{prospects.length}</p>
+            </div>
+          </div>
+        </Card>
+        <Card className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center text-green-600">
+              <FileSpreadsheet className="w-6 h-6" />
+            </div>
+            <div>
+              <p className="text-sm text-gray-500 mb-1">Colonnes</p>
+              <p className="text-2xl font-bold text-gray-900">{columns.length}</p>
+            </div>
+          </div>
+        </Card>
+        <Card className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-full bg-yellow-100 flex items-center justify-center text-yellow-600">
+              <Calendar className="w-6 h-6" />
+            </div>
+            <div>
+              <p className="text-sm text-gray-500 mb-1">Créé le</p>
+              <p className="text-sm font-medium text-gray-900">
+                {list?.created_at ? new Date(list.created_at).toLocaleDateString('fr-FR') : 'N/A'}
+              </p>
+            </div>
+          </div>
+        </Card>
+      </div>
+
+      {/* Action Bar */}
+      <Card className="bg-white border border-gray-200 rounded-xl shadow-sm p-6">
+        <div className="flex flex-wrap items-center gap-4">
+          {/* Undo/Redo Buttons */}
+          <div className="flex gap-2">
+            <Button 
+              variant="outline" 
+              onClick={handleUndoWithUI} 
+              size="sm"
+              className="border-gray-300 hover:bg-gray-50 transition-all duration-200"
+            >
+              <Undo2 className="w-4 h-4 mr-2" />
+              Annuler
+            </Button>
+            <Button 
+              variant="outline" 
+              onClick={handleRedoWithUI} 
+              size="sm"
+              className="border-gray-300 hover:bg-gray-50 transition-all duration-200"
+            >
+              <Redo2 className="w-4 h-4 mr-2" />
+              Rétablir
+            </Button>
+          </div>
+
+          {/* Search */}
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <Input
+              placeholder="Rechercher dans les prospects..."
+              value={filter}
+              onChange={e => setFilter(e.target.value)}
+              className="pl-10 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+
+          {/* CSV Import */}
+          <input
+            type="file"
+            accept=".csv"
+            style={{ display: 'none' }}
+            ref={csvInputRef}
+            onChange={handleCsvFile}
+          />
+          <Button
+            variant="outline"
+            onClick={() => csvInputRef.current?.click()}
+            disabled={importingCsv}
+            className="border-gray-300 hover:bg-gray-50 transition-all duration-200"
+          >
+            <Upload className="w-4 h-4 mr-2" />
+            {importingCsv ? "Import..." : "Importer CSV"}
+          </Button>
+
+          {/* Export Selected */}
+          {selectedRows.length > 0 && (
+            <Button
+              variant="outline"
+              onClick={handleExportSelected}
+              className="border-gray-300 hover:bg-gray-50 transition-all duration-200"
+            >
+              <Download className="w-4 h-4 mr-2" />
+              Exporter ({selectedRows.length})
+            </Button>
+          )}
+
+          {/* Add Row */}
+          <Button
+            onClick={handleAddRow}
+            className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 shadow-sm transition-all duration-200"
+          >
+            <Plus className="w-4 h-4" />
+            Ajouter prospect
+          </Button>
+        </div>
+
+        {/* Error Messages */}
+        {importCsvError && (
+          <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
+            {importCsvError}
+          </div>
+        )}
+      </Card>
+
+      {/* Table Controls */}
+      <div className="flex flex-wrap items-center gap-4">
         {/* Column visibility toggles */}
         {columns.length > 0 && (
           <div className="relative">
-            <button
-              type="button"
-              className="inline-flex items-center gap-2 px-3 py-2 rounded-md border bg-white shadow-sm text-sm font-medium hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-ring"
+            <Button
+              variant="outline"
               onClick={() => setShowColsPopover(v => !v)}
+              className="border-gray-300 hover:bg-gray-50 transition-all duration-200"
             >
-              <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 9h6v6H9z"/></svg>
-              Columns
-            </button>
+              <Settings className="w-4 h-4 mr-2" />
+              Colonnes
+            </Button>
             {showColsPopover && (
-              <div className="absolute z-20 mt-2 w-72 max-h-64 overflow-y-auto rounded-md border bg-white shadow-lg p-3 grid grid-cols-2 gap-2" onBlur={() => setShowColsPopover(false)} tabIndex={-1}>
+              <div className="absolute z-20 mt-2 w-72 max-h-64 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg p-4 grid grid-cols-2 gap-2">
                 {columns.map((col, idx) => (
-                  <label key={idx} className="flex items-center gap-2 px-2 py-1 rounded hover:bg-gray-50 cursor-pointer text-xs">
+                  <label key={idx} className="flex items-center gap-2 px-2 py-1 rounded hover:bg-gray-50 cursor-pointer text-sm">
                     <Checkbox
                       checked={colVisible[idx]}
                       onCheckedChange={checked => {
@@ -502,11 +666,12 @@ export default function ListSpreadsheetPage() {
             )}
           </div>
         )}
+
         {/* Page size selector */}
-        <div className="flex items-center gap-1">
-          <span className="text-sm text-muted-foreground">Rows per page:</span>
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-gray-600">Lignes par page:</span>
           <Select value={String(pageSize)} onValueChange={val => { setPageSize(Number(val)); setPage(1); }}>
-            <SelectTrigger className="w-16 h-8">
+            <SelectTrigger className="w-20 h-8 border-gray-300 rounded-lg">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -516,126 +681,231 @@ export default function ListSpreadsheetPage() {
             </SelectContent>
           </Select>
         </div>
+
+        {/* Results count */}
+        <div className="text-sm text-gray-600">
+          {filteredProspects.length} prospect{filteredProspects.length !== 1 ? 's' : ''} trouvé{filteredProspects.length !== 1 ? 's' : ''}
+        </div>
       </div>
 
-
-   
-    
       {/* Table or Empty State */}
       {columns.length === 0 ? (
-        <div className="flex flex-col items-center justify-center flex-1 py-16">
-          <p className="text-lg text-muted-foreground mb-4">This list has no columns yet.</p>
-          <div className="flex gap-2">
-            <Input
-              placeholder="Column name"
-              value={newColumnName}
-              onChange={e => setNewColumnName(e.target.value)}
-              className="w-48"
-            />
-            <Button onClick={handleAddColumn} disabled={!newColumnName.trim() || addingColumn}>
-              {addingColumn ? 'Adding...' : 'Add Column'}
-            </Button>
+        <Card className="bg-white border border-gray-200 rounded-xl shadow-sm p-12">
+          <div className="flex flex-col items-center justify-center text-center space-y-4">
+            <div className="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">
+              <FileSpreadsheet className="w-8 h-8" />
+            </div>
+            <div>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">Aucune colonne définie</h3>
+              <p className="text-gray-500 mb-6">Commencez par ajouter des colonnes à votre liste de prospects</p>
+            </div>
+            <div className="flex gap-3">
+              <Input
+                placeholder="Nom de la colonne"
+                value={newColumnName}
+                onChange={e => setNewColumnName(e.target.value)}
+                className="w-48 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+              <Button 
+                onClick={handleAddColumn} 
+                disabled={!newColumnName.trim() || addingColumn}
+                className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 px-4 rounded-lg transition-all duration-200"
+              >
+                {addingColumn ? 'Ajout...' : 'Ajouter'}
+              </Button>
+            </div>
+            {addColumnError && (
+              <div className="text-red-500 text-sm bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                {addColumnError}
+              </div>
+            )}
           </div>
-          {addColumnError && <span className="text-red-500 mt-2">{addColumnError}</span>}
-        </div>
+        </Card>
       ) : (
-        <div className="overflow-auto bg-gray-50 rounded shadow w-full flex-1" style={{ width: '100vw' }}>
-          <Table>
-            <TableHeader className="sticky top-0 z-10 bg-gray-50">
-              <TableRow>
-                <TableHead className="w-8">
-                  <Checkbox
-                    checked={selectedRows.length === pagedProspects.length && pagedProspects.length > 0}
-                    onCheckedChange={checked => {
-                      if (checked) {
-                        setSelectedRows(pagedProspects.map((_, i) => i));
-                      } else {
-                        setSelectedRows([]);
-                      }
-                    }}
-                    className={selectedRows.length > 0 && selectedRows.length < pagedProspects.length ? "bg-gray-200" : ""}
-                  />
-                </TableHead>
-                {columns.map((col, idx) => (
-                  <TableHead
-                    key={col}
-                    className="cursor-pointer select-none"
-                    onClick={() => {
-                      if (sortCol === idx) setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
-                      else {
-                        setSortCol(idx);
-                        setSortDir('asc');
-                      }
-                    }}
-                  >
-                    {col}
-                    {sortCol === idx ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''}
-                  </TableHead>
-                ))}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {pagedProspects.length === 0 ? (
+                 <Card className="bg-white border border-gray-200 rounded-xl shadow-sm">
+           <div className="max-h-[600px] overflow-y-auto overflow-x-hidden">
+             <div className="min-w-full">
+               <Table>
+              <TableHeader className="sticky top-0 z-10 bg-gray-50">
                 <TableRow>
-                  <TableCell colSpan={columns.length + 2} className="text-center text-muted-foreground py-8">
-                    No prospects yet. Add your first prospect.
-                  </TableCell>
-                </TableRow>
-              ) : (
-                pagedProspects.map((row, rowIdx) => (
-                  <TableRow key={row.id} data-state={selectedRows.includes(rowIdx) ? "selected" : undefined}>
-                    <TableCell className="w-8">
-                      <Checkbox
-                        checked={selectedRows.includes(rowIdx)}
-                        onCheckedChange={checked => {
-                          setSelectedRows(sel => checked ? [...sel, rowIdx] : sel.filter(idx => idx !== rowIdx));
-                        }}
-                      />
-                    </TableCell>
-                    {columns.map((col, colIdx) => (
-                      <TableCell key={col}>
-                        {editingCell && editingCell.row === rowIdx && editingCell.col === colIdx ? (
-                          <Input
-                            autoFocus
-                            value={editValue}
-                            onChange={e => setEditValue(e.target.value)}
-                            onBlur={() => handleSaveEdit(rowIdx, colIdx)}
-                            onKeyDown={e => {
-                              if (e.key === 'Enter') handleSaveEdit(rowIdx, colIdx);
-                              if (e.key === 'Escape') cancelEdit();
-                            }}
-                            className="h-7 text-xs"
-                          />
-                        ) : (
-                          <span
-                            className="block cursor-pointer min-w-[60px]"
-                            onDoubleClick={() => startEdit(rowIdx, colIdx, row.data[col])}
-                            tabIndex={0}
-                            onKeyDown={e => {
-                              if (e.key === 'Enter') startEdit(rowIdx, colIdx, row.data[col]);
-                            }}
-                          >
-                            {row.data[col]}
+                  <TableHead className="w-12 bg-gray-50">
+                    <Checkbox
+                      checked={selectedRows.length === pagedProspects.length && pagedProspects.length > 0}
+                      onCheckedChange={checked => {
+                        if (checked) {
+                          setSelectedRows(pagedProspects.map((_, i) => i));
+                        } else {
+                          setSelectedRows([]);
+                        }
+                      }}
+                      className={selectedRows.length > 0 && selectedRows.length < pagedProspects.length ? "bg-gray-200" : ""}
+                    />
+                  </TableHead>
+                  {columns.map((col, idx) => (
+                    <TableHead
+                      key={col}
+                      className="cursor-pointer select-none hover:bg-gray-100 transition-colors bg-gray-50"
+                      onClick={() => {
+                        if (sortCol === idx) setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
+                        else {
+                          setSortCol(idx);
+                          setSortDir('asc');
+                        }
+                      }}
+                    >
+                      <div className="flex items-center gap-2">
+                        {col}
+                        {sortCol === idx && (
+                          <span className="text-blue-600">
+                            {sortDir === 'asc' ? '▲' : '▼'}
                           </span>
                         )}
-                      </TableCell>
-                    ))}
+                      </div>
+                    </TableHead>
+                  ))}
+                  <TableHead className="w-20 bg-gray-50">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {pagedProspects.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={columns.length + 2} className="text-center py-12">
+                      <div className="flex flex-col items-center space-y-3">
+                        <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center text-gray-400">
+                          <Users className="w-6 h-6" />
+                        </div>
+                        <div>
+                          <p className="text-lg font-medium text-gray-900 mb-1">Aucun prospect trouvé</p>
+                          <p className="text-gray-500">Commencez par ajouter votre premier prospect</p>
+                        </div>
+                      </div>
+                    </TableCell>
                   </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
+                ) : (
+                  pagedProspects.map((row, rowIdx) => (
+                    <TableRow key={row.id} className="hover:bg-gray-50 transition-colors">
+                      <TableCell className="w-12">
+                        <Checkbox
+                          checked={selectedRows.includes(rowIdx)}
+                          onCheckedChange={checked => {
+                            setSelectedRows(sel => checked ? [...sel, rowIdx] : sel.filter(idx => idx !== rowIdx));
+                          }}
+                        />
+                      </TableCell>
+                      {columns.map((col, colIdx) => (
+                        <TableCell key={col} className="py-3">
+                          {editingCell && editingCell.row === rowIdx && editingCell.col === colIdx ? (
+                            <Input
+                              autoFocus
+                              value={editValue}
+                              onChange={e => setEditValue(e.target.value)}
+                              onBlur={() => handleSaveEdit(rowIdx, colIdx)}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter') handleSaveEdit(rowIdx, colIdx);
+                                if (e.key === 'Escape') cancelEdit();
+                              }}
+                              className="h-8 text-sm border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            />
+                          ) : (
+                            <span
+                              className="block cursor-pointer min-w-[60px] px-2 py-1 rounded hover:bg-blue-50 transition-colors"
+                              onDoubleClick={() => startEdit(rowIdx, colIdx, row.data[col])}
+                              tabIndex={0}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter') startEdit(rowIdx, colIdx, row.data[col]);
+                              }}
+                            >
+                              {row.data[col] || ''}
+                            </span>
+                          )}
+                        </TableCell>
+                      ))}
+                      <TableCell className="w-20">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                              <MoreHorizontal className="w-4 h-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => handleViewRow(rowIdx)}>
+                              <Eye className="w-4 h-4 mr-2" />
+                              Voir
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleEditRow(rowIdx)}>
+                              <Edit className="w-4 h-4 mr-2" />
+                              Modifier
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleDuplicateRow(rowIdx)}>
+                              <Copy className="w-4 h-4 mr-2" />
+                              Dupliquer
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
+                              onClick={() => handleDeleteRow(rowIdx)}
+                              className="text-red-600"
+                            >
+                              <Trash2 className="w-4 h-4 mr-2" />
+                              Supprimer
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+                             </TableBody>
+             </Table>
+           </div>
+           </div>
+         </Card>
       )}
 
-      {/* Pagination controls */}
-      <div className="flex gap-2 items-center justify-end mt-4">
-        <Button variant="outline" size="sm" disabled={page === 1} onClick={() => setPage(1)}>&laquo;</Button>
-        <Button variant="outline" size="sm" disabled={page === 1} onClick={() => setPage(page - 1)}>&lsaquo;</Button>
-        <span className="text-sm">Page {page} of {pageCount}</span>
-        <Button variant="outline" size="sm" disabled={page === pageCount} onClick={() => setPage(page + 1)}>&rsaquo;</Button>
-        <Button variant="outline" size="sm" disabled={page === pageCount} onClick={() => setPage(pageCount)}>&raquo;</Button>
-      </div>
+      {/* Pagination */}
+      {pageCount > 1 && (
+        <div className="flex items-center justify-between">
+          <div className="text-sm text-gray-600">
+            Page {page} sur {pageCount} • {filteredProspects.length} prospect{filteredProspects.length !== 1 ? 's' : ''} au total
+          </div>
+          <div className="flex gap-2">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              disabled={page === 1} 
+              onClick={() => setPage(1)}
+              className="border-gray-300 hover:bg-gray-50 transition-all duration-200"
+            >
+              «
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              disabled={page === 1} 
+              onClick={() => setPage(page - 1)}
+              className="border-gray-300 hover:bg-gray-50 transition-all duration-200"
+            >
+              ‹
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              disabled={page === pageCount} 
+              onClick={() => setPage(page + 1)}
+              className="border-gray-300 hover:bg-gray-50 transition-all duration-200"
+            >
+              ›
+            </Button>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              disabled={page === pageCount} 
+              onClick={() => setPage(pageCount)}
+              className="border-gray-300 hover:bg-gray-50 transition-all duration-200"
+            >
+              »
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

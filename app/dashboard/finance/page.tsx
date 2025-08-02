@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useAuth } from "@/lib/auth-context";
@@ -13,6 +13,8 @@ import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from "sonner";
 
 interface FinanceRecord {
   id: string;
@@ -29,10 +31,11 @@ interface FinanceRecord {
 
 export default function FinancePage() {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
+  
   if (!user) return null;
+  
   const [tab, setTab] = useState<"income" | "expense">("income");
-  const [records, setRecords] = useState<FinanceRecord[]>([]);
-  const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({
     id: "",
@@ -49,20 +52,80 @@ export default function FinancePage() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
-  useEffect(() => {
-    if (!user) return;
-    setLoading(true);
-    supabase
-      .from("finance")
-      .select("*")
-      .eq("user_id", user.id)
-      .eq("type", tab)
-      .order("date", { ascending: false })
-      .then(({ data }) => {
-        setRecords(data || []);
-        setLoading(false);
-      });
-  }, [user, tab]);
+  // Fetch finance records with React Query
+  const {
+    data: records = [],
+    isLoading: loadingRecords,
+    error: recordsError,
+    refetch: refetchRecords
+  } = useQuery<FinanceRecord[]>({
+    queryKey: ["finance", "records", user.id, tab],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("finance")
+        .select("*")
+        .eq("user_id", user.id)
+        .eq("type", tab)
+        .order("date", { ascending: false });
+      
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!user
+  });
+
+  // Create/Update record mutation
+  const saveRecordMutation = useMutation({
+    mutationFn: async (recordData: Partial<FinanceRecord>) => {
+      const payload = {
+        user_id: user.id,
+        title: recordData.title,
+        amount: parseFloat(recordData.amount?.toString() || "0"),
+        type: recordData.type,
+        category: recordData.category || null,
+        date: recordData.date,
+        description: recordData.description,
+      };
+
+      if (editing) {
+        const { error } = await supabase.from("finance").update(payload).eq("id", editing.id);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("finance").insert(payload);
+        if (error) throw error;
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["finance", "records", user.id] });
+      setOpen(false);
+      setFormLoading(false);
+      setEditing(null);
+      toast.success(editing ? "Record updated successfully" : "Record created successfully");
+    },
+    onError: (error: Error) => {
+      setFormError(error.message);
+      setFormLoading(false);
+      toast.error(error.message);
+    }
+  });
+
+  // Delete record mutation
+  const deleteRecordMutation = useMutation({
+    mutationFn: async (recordId: string) => {
+      const { error } = await supabase.from("finance").delete().eq("id", recordId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["finance", "records", user.id] });
+      setDeleteId(null);
+      setDeleteLoading(false);
+      toast.success("Record deleted successfully");
+    },
+    onError: (error: Error) => {
+      setDeleteLoading(false);
+      toast.error(error.message);
+    }
+  });
 
   function openCreate() {
     setEditing(null);
@@ -88,62 +151,20 @@ export default function FinancePage() {
     e.preventDefault();
     setFormError(null);
     setFormLoading(true);
-    if (!user) return;
-    const payload = {
-      user_id: user.id,
-      title: form.title,
-      amount: parseFloat(form.amount),
-      type: form.type,
-      category: form.category || null,
-      date: form.date,
-      description: form.description,
+    
+    // Convert form data to match FinanceRecord interface
+    const recordData: Partial<FinanceRecord> = {
+      ...form,
+      amount: parseFloat(form.amount) || 0,
+      category: form.category || undefined
     };
-    let result;
-    if (editing) {
-      result = await supabase.from("finance").update(payload).eq("id", editing.id);
-    } else {
-      result = await supabase.from("finance").insert(payload);
-    }
-    if (result.error) {
-      setFormError(result.error.message);
-      setFormLoading(false);
-      return;
-    }
-    setOpen(false);
-    setFormLoading(false);
-    setEditing(null);
-    // Refresh records
-    setLoading(true);
-    supabase
-      .from("finance")
-      .select("*")
-      .eq("user_id", user.id)
-      .eq("type", tab)
-      .order("date", { ascending: false })
-      .then(({ data }) => {
-        setRecords(data || []);
-        setLoading(false);
-      });
+    
+    saveRecordMutation.mutate(recordData);
   }
 
   async function handleDelete(id: string) {
-    if (!user) return;
     setDeleteLoading(true);
-    await supabase.from("finance").delete().eq("id", id);
-    setDeleteId(null);
-    // Refresh records
-    setLoading(true);
-    supabase
-      .from("finance")
-      .select("*")
-      .eq("user_id", user.id)
-      .eq("type", tab)
-      .order("date", { ascending: false })
-      .then(({ data }) => {
-        setRecords(data || []);
-        setLoading(false);
-      });
-    setDeleteLoading(false);
+    deleteRecordMutation.mutate(id);
   }
 
   // Prepare chart data: group by date, sum amounts
@@ -155,6 +176,34 @@ export default function FinancePage() {
     });
     return Object.entries(map).map(([date, amount]) => ({ date, amount }));
   }, [records]);
+
+  if (loadingRecords) {
+    return (
+      <div className="p-6 space-y-6">
+        <div className="h-8 w-64 bg-gray-200 rounded animate-pulse"></div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {[...Array(3)].map((_, i) => (
+            <div key={i} className="h-32 bg-gray-200 rounded animate-pulse"></div>
+          ))}
+        </div>
+        <div className="h-96 bg-gray-200 rounded animate-pulse"></div>
+      </div>
+    );
+  }
+
+  if (recordsError) {
+    return (
+      <div className="p-6 space-y-6">
+        <div className="text-center py-12">
+          <div className="text-red-500 text-lg font-medium">Error loading records</div>
+          <p className="text-gray-500 mt-2">Unable to load finance records</p>
+          <Button onClick={() => refetchRecords()} className="mt-4">
+            Retry
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 space-y-6">
@@ -193,9 +242,7 @@ export default function FinancePage() {
             </TabsList>
             <TabsContent value="income">
               <div className="mb-4">
-                {loading ? (
-                  <div className="text-gray-400">Loading...</div>
-                ) : records.length === 0 ? (
+                {records.length === 0 ? (
                   <div className="text-gray-400">Aucun revenu trouvé.</div>
                 ) : (
                   <Table>
@@ -258,9 +305,7 @@ export default function FinancePage() {
             </TabsContent>
             <TabsContent value="expense">
               <div className="mb-4">
-                {loading ? (
-                  <div className="text-gray-400">Loading...</div>
-                ) : records.length === 0 ? (
+                {records.length === 0 ? (
                   <div className="text-gray-400">Aucune dépense trouvée.</div>
                 ) : (
                   <Table>
@@ -339,7 +384,7 @@ export default function FinancePage() {
                       value={form.title}
                       onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
                       required
-                      placeholder="ex : Paiement client"
+                      placeholder="ex : Paiement client"
                     />
                   </div>
                   <div>
@@ -371,7 +416,7 @@ export default function FinancePage() {
                     <Input
                       value={form.category}
                       onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
-                      placeholder="ex : Salaire, Bureau, Freelance"
+                      placeholder="ex : Salaire, Bureau, Freelance"
                     />
                   </div>
                   <div>

@@ -34,6 +34,7 @@ interface EmailListProps {
   error?: string | null;
   onSync?: () => void;
   lastSync?: Date | null;
+  currentFolder?: string; // Add current folder prop
 }
 
 export function EmailList({ 
@@ -45,7 +46,8 @@ export function EmailList({
   loading = false,
   error = null,
   onSync,
-  lastSync
+  lastSync,
+  currentFolder = 'Boîte de réception'
 }: EmailListProps) {
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -108,12 +110,15 @@ export function EmailList({
       <div className="flex-1 overflow-y-auto min-h-0">
         {loading ? (
           <div className="flex items-center justify-center h-full">
-            <div className="flex items-center gap-3">
-              <svg className="animate-spin h-6 w-6 text-blue-500" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-              </svg>
-              <span className="text-gray-600 text-sm">Chargement des emails...</span>
+            <div className="flex flex-col items-center gap-3">
+              <div className="flex items-center gap-3">
+                <svg className="animate-spin h-6 w-6 text-blue-500" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                </svg>
+                <span className="text-gray-600 text-sm">Chargement des emails...</span>
+              </div>
+              <span className="text-xs text-gray-500">Dossier: {currentFolder}</span>
             </div>
           </div>
         ) : error ? (
@@ -147,7 +152,7 @@ export function EmailList({
               
               return (
                 <div
-                  key={email.id}
+                  key={`${email.id}-${email.from}-${email.subject}`}
                   onClick={() => onEmailSelect(email)}
                   className={`relative p-4 hover:bg-gray-50 cursor-pointer transition-colors border-l-4 ${
                     isSelected 

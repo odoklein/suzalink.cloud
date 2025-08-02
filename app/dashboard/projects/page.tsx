@@ -16,20 +16,20 @@ import {
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { useRouter } from "next/navigation";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Plus, Filter, Search } from "lucide-react";
 import { useQuery } from '@tanstack/react-query';
 import { Skeleton } from "@/components/ui/skeleton";
 
 const statusColors = {
-  active: 'bg-green-100 text-green-800',
-  completed: 'bg-blue-100 text-blue-800',
-  on_hold: 'bg-yellow-100 text-yellow-800',
-  cancelled: 'bg-red-100 text-red-800',
-  archived: 'bg-gray-100 text-gray-800'
+  active: 'bg-green-100 text-green-800 border-green-200',
+  completed: 'bg-blue-100 text-blue-800 border-blue-200',
+  on_hold: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+  cancelled: 'bg-red-100 text-red-800 border-red-200',
+  archived: 'bg-gray-100 text-gray-800 border-gray-200'
 };
 
 const StatusBadge = ({ status }: { status: string }) => (
-  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusColors[status as keyof typeof statusColors] || 'bg-gray-100 text-gray-800'}`}>
+  <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${statusColors[status as keyof typeof statusColors] || 'bg-gray-100 text-gray-800 border-gray-200'}`}>
     {status === 'active' ? 'Actif' : 
      status === 'completed' ? 'Terminé' : 
      status === 'on_hold' ? 'En attente' : 
@@ -224,274 +224,359 @@ export default function ProjectsPage() {
   if (!user) return null;
 
   return (
-    <div>
-      <div className="flex flex-col gap-6">
-        {/* Filter Bar */}
-        <div className="flex flex-wrap items-center gap-4 justify-between mb-6 px-2 py-3 bg-gradient-to-r from-gray-50 to-purple-50 rounded-xl shadow-sm border border-gray-100">
-          <div className="flex flex-wrap gap-2 items-center">
-            <Select value={filterClient} onValueChange={setFilterClient}>
-              <SelectTrigger className="w-[140px] bg-white border border-gray-200 rounded-lg shadow-sm">
-                <SelectValue placeholder="Client" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tous les clients</SelectItem>
-                {clients.map((c: any) => (
-                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={filterStatus} onValueChange={setFilterStatus}>
-              <SelectTrigger className="w-[120px] bg-white border border-gray-200 rounded-lg shadow-sm">
-                <SelectValue placeholder="Label" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tous les statuts</SelectItem>
-                <SelectItem value="active">Actif</SelectItem>
-                <SelectItem value="completed">Terminé</SelectItem>
-                <SelectItem value="archived">Archivé</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={sortBy} onValueChange={setSortBy}>
-              <SelectTrigger className="w-[140px] bg-white border border-gray-200 rounded-lg shadow-sm">
-                <SelectValue placeholder="Trier par" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="created_at">Plus récent</SelectItem>
-                <SelectItem value="title">Titre</SelectItem>
-              </SelectContent>
-            </Select>
-            <Button
-              variant="outline"
-              size="sm"
-              className="px-2 border-gray-200"
-              onClick={() => setSortDir(d => (d === "asc" ? "desc" : "asc"))}
-              title={`Sort ${sortDir === "asc" ? "Descending" : "Ascending"}`}
-            >
-              {sortDir === "asc" ? "↑" : "↓"}
-            </Button>
+    <div className="space-y-6">
+      {/* Header Section */}
+      <div className="flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Projets</h1>
+            <p className="text-gray-600 mt-1">Gérez vos projets et suivez leur progression</p>
           </div>
-          <Button onClick={openCreate} className="rounded-lg font-medium shadow-sm">+ Nouveau projet</Button>
+          <Button 
+            onClick={openCreate} 
+            className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 shadow-sm transition-all duration-200"
+          >
+            <Plus className="w-4 h-4" />
+            Nouveau projet
+          </Button>
         </div>
-        {/* Project Cards Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">
-          {loadingProjects ? (
-            <>
-              {[...Array(pageSize)].map((_, i) => (
-                <Card key={i} className="rounded-2xl p-4 bg-white border border--100 flex flex-col min-h-[220px] justify-between shadow-sm">
-                  <div>
-                    <CardHeader className="p-0 mb-2">
-                      <Skeleton className="h-6 w-2/3 mb-2" /> {/* Title */}
-                    </CardHeader>
-                    <CardContent className="p-0">
-                      <Skeleton className="h-4 w-full mb-2" /> {/* Description */}
-                      <div className="flex items-center gap-2 mb-2">
-                        <Skeleton className="h-7 w-7 rounded-full" /> {/* Avatar */}
-                      </div>
-                      <Skeleton className="h-3 w-1/2 mb-2" /> {/* Status/Client */}
-                    </CardContent>
-                  </div>
-                  <div className="flex items-center justify-between mt-2">
-                    <Skeleton className="h-3 w-1/4" /> {/* Date */}
-                    <div className="flex gap-2 items-center">
-                      <Skeleton className="h-5 w-5 rounded-full" /> {/* Star */}
-                      <Skeleton className="h-5 w-5 rounded-full" /> {/* Menu */}
+
+        {/* Filter Bar */}
+        <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-4">
+          <div className="flex flex-wrap items-center gap-4 justify-between">
+            <div className="flex flex-wrap gap-3 items-center">
+              <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                <Filter className="w-4 h-4" />
+                Filtres:
+              </div>
+              <Select value={filterClient} onValueChange={setFilterClient}>
+                <SelectTrigger className="w-[160px] bg-white border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                  <SelectValue placeholder="Client" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tous les clients</SelectItem>
+                  {clients.map((c: any) => (
+                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={filterStatus} onValueChange={setFilterStatus}>
+                <SelectTrigger className="w-[140px] bg-white border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                  <SelectValue placeholder="Statut" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Tous les statuts</SelectItem>
+                  <SelectItem value="active">Actif</SelectItem>
+                  <SelectItem value="completed">Terminé</SelectItem>
+                  <SelectItem value="archived">Archivé</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={sortBy} onValueChange={setSortBy}>
+                <SelectTrigger className="w-[160px] bg-white border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                  <SelectValue placeholder="Trier par" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="created_at">Plus récent</SelectItem>
+                  <SelectItem value="title">Titre</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button
+                variant="outline"
+                size="sm"
+                className="px-3 py-2 border-gray-300 hover:bg-gray-50 transition-all duration-200"
+                onClick={() => setSortDir(d => (d === "asc" ? "desc" : "asc"))}
+                title={`Trier ${sortDir === "asc" ? "décroissant" : "croissant"}`}
+              >
+                {sortDir === "asc" ? "↑" : "↓"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Project Cards Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        {loadingProjects ? (
+          <>
+            {[...Array(pageSize)].map((_, i) => (
+              <Card key={i} className="bg-white border border-gray-200 rounded-xl shadow-sm p-6 flex flex-col min-h-[280px] justify-between transition-all duration-200">
+                <div>
+                  <CardHeader className="p-0 mb-4">
+                    <Skeleton className="h-6 w-2/3 mb-2" />
+                    <Skeleton className="h-4 w-full mb-2" />
+                  </CardHeader>
+                  <CardContent className="p-0">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Skeleton className="h-6 w-20 rounded-full" />
                     </div>
+                    <Skeleton className="h-4 w-full mb-2" />
+                    <Skeleton className="h-4 w-3/4" />
+                  </CardContent>
+                </div>
+                <div className="flex items-center justify-between mt-4">
+                  <Skeleton className="h-4 w-1/3" />
+                  <div className="flex gap-2">
+                    <Skeleton className="h-8 w-8 rounded-lg" />
+                    <Skeleton className="h-8 w-8 rounded-lg" />
                   </div>
-                </Card>
-              ))}
-            </>
-          ) : errorProjects ? (
-            <div className="text-red-500">Failed to load projects.</div>
-          ) : projects.length === 0 ? (
+                </div>
+              </Card>
+            ))}
+          </>
+        ) : errorProjects ? (
+          <div className="col-span-full text-center py-12">
+            <div className="text-red-500 text-lg font-medium">Échec du chargement des projets</div>
+            <p className="text-gray-500 mt-2">Veuillez réessayer plus tard</p>
+          </div>
+        ) : projects.length === 0 ? (
+          <Card
+            className="col-span-full flex flex-col items-center justify-center border-2 border-dashed border-gray-200 bg-gray-50/60 hover:bg-blue-50 transition-all cursor-pointer min-h-[280px] shadow-none"
+            onClick={openCreate}
+            tabIndex={0}
+            role="button"
+            aria-label="Ajouter un nouveau projet"
+          >
+            <div className="flex flex-col items-center justify-center gap-3">
+              <div className="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 text-3xl shadow-sm">
+                <Plus className="w-8 h-8" />
+              </div>
+              <div className="text-center">
+                <h3 className="text-lg font-medium text-gray-900 mb-1">Aucun projet</h3>
+                <p className="text-gray-500">Commencez par créer votre premier projet</p>
+              </div>
+            </div>
+          </Card>
+        ) : (
+          <>
+            {projects.map((project: any) => (
+              <Card 
+                key={project.id} 
+                className="bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md hover:border-gray-300 transition-all duration-200 cursor-pointer group"
+                onClick={() => router.push(`/dashboard/projects/${project.id}`)}
+              >
+                <CardHeader className="flex flex-row items-center justify-between pb-3 space-y-0">
+                  <CardTitle className="text-lg font-semibold text-gray-900 group-hover:text-blue-600 transition-colors line-clamp-1">
+                    {project.title}
+                  </CardTitle>
+                  <StatusBadge status={project.status} />
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {project.status === 'active' && (
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm text-gray-600">
+                        <span>Progression</span>
+                        <span className="font-medium">{Math.round((project.progress || 0) * 100)}%</span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div 
+                          className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
+                          style={{ width: `${Math.round((project.progress || 0) * 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                  <p className="text-sm text-gray-600 line-clamp-3 leading-relaxed">
+                    {project.description || "Aucune description"}
+                  </p>
+                  <div className="flex justify-between items-center text-sm text-gray-500 pt-2 border-t border-gray-100">
+                    <span className="font-medium">{project.client?.name || 'Aucun client'}</span>
+                    <span>{new Date(project.created_at).toLocaleDateString('fr-FR')}</span>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+            {/* Add Project Card */}
             <Card
-              className="flex flex-col items-center justify-center border-2 border-dashed border-gray-200 bg-gray-50/60 hover:bg-purple-50 transition-all cursor-pointer min-h-[220px] shadow-none"
+              className="flex flex-col items-center justify-center border-2 border-dashed border-gray-200 bg-gray-50/60 hover:bg-blue-50 transition-all cursor-pointer min-h-[280px] shadow-none"
               onClick={openCreate}
               tabIndex={0}
               role="button"
-              aria-label="Add new project"
+              aria-label="Ajouter un nouveau projet"
             >
-              <button
-                className="flex flex-col items-center justify-center gap-2 focus:outline-none"
-                style={{ width: '100%', height: '100%' }}
-                tabIndex={-1}
-                type="button"
-              >
-                <span className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center text-purple-500 text-3xl mb-2 shadow-sm">
-                  +
-                </span>
-                <span className="text-gray-500 font-medium">New Project</span>
-              </button>
+              <div className="flex flex-col items-center justify-center gap-3">
+                <div className="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 text-3xl shadow-sm">
+                  <Plus className="w-8 h-8" />
+                </div>
+                <div className="text-center">
+                  <h3 className="text-lg font-medium text-gray-900 mb-1">Nouveau projet</h3>
+                  <p className="text-gray-500">Cliquez pour créer un projet</p>
+                </div>
+              </div>
             </Card>
-          ) : (
-            <>
-              {projects.map((project: any) => (
-                <Card 
-                  key={project.id} 
-                  className="transition-all duration-200 hover:shadow-md hover:border-gray-300 group"
-                  onClick={() => router.push(`/dashboard/projects/${project.id}`)}
-                >
-                  <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-                    <CardTitle className="text-sm font-medium group-hover:text-blue-600 transition-colors">
-                      {project.title}
-                    </CardTitle>
-                    <StatusBadge status={project.status} />
-                  </CardHeader>
-                  <CardContent>
-                    {project.status === 'active' && (
-                      <div className="mt-2 mb-4">
-                        <div className="flex justify-between text-xs text-gray-500 mb-1">
-                          <span>Progress</span>
-                          <span>{Math.round((project.progress || 0) * 100)}%</span>
-                        </div>
-                        <div className="w-full bg-gray-200 rounded-full h-1.5">
-                          <div 
-                            className="bg-blue-600 h-1.5 rounded-full" 
-                            style={{ width: `${Math.round((project.progress || 0) * 100)}%` }}
-                          />
-                        </div>
-                      </div>
-                    )}
-                    <p className="text-sm text-gray-600 line-clamp-2">{project.description}</p>
-                    <div className="mt-3 flex justify-between items-center text-xs text-gray-500">
-                      <span>{project.client?.name || 'No client'}</span>
-                      <span>{new Date(project.created_at).toLocaleDateString()}</span>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-              {/* Add Project Card */}
-              <Card
-                className="flex flex-col items-center justify-center border-2 border-dashed border-gray-200 bg-gray-50/60 hover:bg-purple-50 transition-all cursor-pointer min-h-[220px] shadow-none"
-                onClick={openCreate}
-                tabIndex={0}
-                role="button"
-                aria-label="Add new project"
-              >
-                <button
-                  className="flex flex-col items-center justify-center gap-2 focus:outline-none"
-                  style={{ width: '100%', height: '100%' }}
-                  tabIndex={-1}
-                  type="button"
-                >
-                  <span className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center text-purple-500 text-3xl mb-2 shadow-sm">
-                    +
-                  </span>
-                  <span className="text-gray-500 font-medium">New Project</span>
-                </button>
-              </Card>
-            </>
-          )}
-        </div>
-        {/* Pagination Controls */}
-        {totalCount > pageSize && (
-          <div className="flex justify-center mt-6 gap-2">
-            <Button variant="outline" size="sm" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}>&larr; Prev</Button>
-            <span className="px-2 py-1 rounded text-gray-700 bg-gray-100">Page {page} of {Math.ceil(totalCount / pageSize)}</span>
-            <Button variant="outline" size="sm" onClick={() => setPage(p => p + 1)} disabled={page >= Math.ceil(totalCount / pageSize)}>Next &rarr;</Button>
-          </div>
+          </>
         )}
       </div>
-      {/* Dialogs et modales */}
+
+      {/* Pagination Controls */}
+      {totalCount > pageSize && (
+        <div className="flex justify-center mt-8">
+          <div className="flex items-center gap-3 bg-white border border-gray-200 rounded-lg shadow-sm px-4 py-2">
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => setPage(p => Math.max(1, p - 1))} 
+              disabled={page === 1}
+              className="border-gray-300 hover:bg-gray-50 transition-all duration-200"
+            >
+              Précédent
+            </Button>
+            <span className="px-4 py-1 rounded text-gray-700 bg-gray-100 text-sm font-medium">
+              Page {page} sur {Math.ceil(totalCount / pageSize)}
+            </span>
+            <Button 
+              variant="outline" 
+              size="sm" 
+              onClick={() => setPage(p => p + 1)} 
+              disabled={page >= Math.ceil(totalCount / pageSize)}
+              className="border-gray-300 hover:bg-gray-50 transition-all duration-200"
+            >
+              Suivant
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Create/Edit Project Dialog */}
       <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{editing ? "Modifier le projet" : "Nouveau projet"}</DialogTitle>
-          <DialogDescription>
-            {editing ? "Modifiez les informations du projet ci-dessous." : "Créez un nouveau projet en remplissant les informations ci-dessous."}
-          </DialogDescription>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <Input
-            placeholder="Titre du projet"
-            value={form.title}
-            onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
-            required
-            className="rounded-lg"
-          />
-          <Input
-            placeholder="Description (facultatif)"
-            value={form.description}
-            onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-            className="rounded-lg"
-          />
-          <div>
-            <Label>Statut</Label>
-            <Select value={form.status} onValueChange={value => setForm(f => ({ ...f, status: value }))}>
-              <SelectTrigger>
-                <SelectValue placeholder="Sélectionner un statut" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="en_cours">En cours</SelectItem>
-                <SelectItem value="planifié">Planifié</SelectItem>
-                <SelectItem value="terminé">Terminé</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label>Client</Label>
-            <Select value={form.client_id || "none"} onValueChange={value => setForm(f => ({ ...f, client_id: value === "none" ? "" : value }))}>
-              <SelectTrigger>
-                <SelectValue placeholder="Aucun client" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Aucun client</SelectItem>
-                {clients.map((client: any) => (
-                  <SelectItem key={client.id} value={client.id}>{client.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex gap-2">
-            <Input
-              type="date"
-              value={form.start_date}
-              onChange={e => setForm(f => ({ ...f, start_date: e.target.value }))}
-              className="rounded-lg"
-              placeholder="Date de début"
-            />
-            <Input
-              type="date"
-              value={form.end_date}
-              onChange={e => setForm(f => ({ ...f, end_date: e.target.value }))}
-              className="rounded-lg"
-              placeholder="Date de fin"
-            />
-          </div>
-          <Input
-            type="number"
-            placeholder="Budget (facultatif)"
-            value={form.budget}
-            onChange={e => setForm(f => ({ ...f, budget: e.target.value }))}
-            className="rounded-lg"
-          />
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+        <DialogContent className="bg-white border border-gray-200 rounded-xl shadow-xl max-w-md">
+          <DialogHeader className="space-y-3">
+            <DialogTitle className="text-xl font-semibold text-gray-900">
+              {editing ? "Modifier le projet" : "Nouveau projet"}
+            </DialogTitle>
+            <DialogDescription className="text-gray-600">
+              {editing ? "Modifiez les informations du projet ci-dessous." : "Créez un nouveau projet en remplissant les informations ci-dessous."}
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label className="text-sm font-medium text-gray-700">Titre du projet</Label>
+              <Input
+                placeholder="Titre du projet"
+                value={form.title}
+                onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+                required
+                className="w-full border border-gray-300 rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-sm font-medium text-gray-700">Description</Label>
+              <Input
+                placeholder="Description (facultatif)"
+                value={form.description}
+                onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-sm font-medium text-gray-700">Statut</Label>
+              <Select value={form.status} onValueChange={value => setForm(f => ({ ...f, status: value }))}>
+                <SelectTrigger className="w-full border border-gray-300 rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                  <SelectValue placeholder="Sélectionner un statut" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">Actif</SelectItem>
+                  <SelectItem value="completed">Terminé</SelectItem>
+                  <SelectItem value="on_hold">En attente</SelectItem>
+                  <SelectItem value="cancelled">Annulé</SelectItem>
+                  <SelectItem value="archived">Archivé</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-sm font-medium text-gray-700">Client</Label>
+              <Select value={form.client_id || "none"} onValueChange={value => setForm(f => ({ ...f, client_id: value === "none" ? "" : value }))}>
+                <SelectTrigger className="w-full border border-gray-300 rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                  <SelectValue placeholder="Aucun client" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Aucun client</SelectItem>
+                  {clients.map((client: any) => (
+                    <SelectItem key={client.id} value={client.id}>{client.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-gray-700">Date de début</Label>
+                <Input
+                  type="date"
+                  value={form.start_date}
+                  onChange={e => setForm(f => ({ ...f, start_date: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-gray-700">Date de fin</Label>
+                <Input
+                  type="date"
+                  value={form.end_date}
+                  onChange={e => setForm(f => ({ ...f, end_date: e.target.value }))}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-sm font-medium text-gray-700">Budget (€)</Label>
+              <Input
+                type="number"
+                placeholder="Budget (facultatif)"
+                value={form.budget}
+                onChange={e => setForm(f => ({ ...f, budget: e.target.value }))}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
+              />
+            </div>
+            <div className="flex justify-end gap-3 pt-4">
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={() => setOpen(false)}
+                className="border-gray-300 hover:bg-gray-50 transition-all duration-200"
+              >
+                Annuler
+              </Button>
+              <Button 
+                type="submit"
+                className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 px-4 rounded-lg transition-all duration-200"
+              >
+                {editing ? "Enregistrer" : "Créer"}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteModal.open} onOpenChange={open => setDeleteModal(d => ({ ...d, open }))}>
+        <DialogContent className="bg-white border border-gray-200 rounded-xl shadow-xl max-w-md">
+          <DialogHeader className="space-y-3">
+            <DialogTitle className="text-xl font-semibold text-gray-900">Supprimer le projet</DialogTitle>
+            <DialogDescription className="text-gray-600">
+              Êtes-vous sûr de vouloir supprimer ce projet ? Cette action est irréversible.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-3 pt-4">
+            <Button 
+              variant="outline" 
+              onClick={() => setDeleteModal({ open: false, projectId: null })}
+              className="border-gray-300 hover:bg-gray-50 transition-all duration-200"
+            >
               Annuler
             </Button>
-            <Button type="submit">{editing ? "Enregistrer" : "Créer"}</Button>
+            <Button 
+              variant="destructive" 
+              onClick={async () => {
+                if (deleteModal.projectId) {
+                  await handleDelete(deleteModal.projectId);
+                }
+                setDeleteModal({ open: false, projectId: null });
+              }}
+              className="bg-red-600 hover:bg-red-700 text-white font-medium py-2.5 px-4 rounded-lg transition-all duration-200"
+            >
+              Supprimer
+            </Button>
           </div>
-        </form>
-      </DialogContent>
-      </Dialog>
-      {/* Modal de confirmation de suppression */}
-      <Dialog open={deleteModal.open} onOpenChange={open => setDeleteModal(d => ({ ...d, open }))}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Supprimer le projet</DialogTitle>
-          <DialogDescription>
-            Êtes-vous sûr de vouloir supprimer ce projet ? Cette action est irréversible.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="flex justify-end gap-2 mt-4">
-          <Button variant="outline" onClick={() => setDeleteModal({ open: false, projectId: null })}>Annuler</Button>
-          <Button variant="destructive" onClick={async () => {
-            if (deleteModal.projectId) {
-              await handleDelete(deleteModal.projectId);
-            }
-            setDeleteModal({ open: false, projectId: null });
-          }}>Supprimer</Button>
-        </div>
-      </DialogContent>
+        </DialogContent>
       </Dialog>
     </div>
   );

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import { toast } from "sonner";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -17,14 +18,60 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log("🔐 Login attempt started for:", email);
     setLoading(true);
     setError(null);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
-    setLoading(false);
-    if (error) {
-      setError(error.message);
-    } else {
-      router.push("/dashboard");
+    
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      console.log("📡 Sign in response:", { data, error });
+      
+      if (error) {
+        console.error("❌ Login error:", error);
+        setError(error.message);
+        toast.error(error.message);
+      } else if (data.user) {
+        console.log("✅ Login successful for user:", data.user.email);
+        toast.success("Login successful!");
+        
+        // Check if user profile exists
+        const { data: profile, error: profileError } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', data.user.id)
+          .single();
+        
+        console.log(" User profile check:", { profile, profileError });
+        
+        if (profileError && profileError.code === 'PGRST116') {
+          // User profile doesn't exist, create it
+          console.log("🆕 Creating user profile...");
+          const { error: createError } = await supabase
+            .from('users')
+            .insert({
+              id: data.user.id,
+              email: data.user.email,
+              full_name: data.user.user_metadata?.full_name || '',
+              role: 'user'
+            });
+          
+          if (createError) {
+            console.error("❌ Failed to create user profile:", createError);
+          } else {
+            console.log("✅ User profile created successfully");
+          }
+        }
+        
+        // Redirect to dashboard
+        console.log("🚀 Redirecting to dashboard...");
+        router.push("/dashboard");
+      }
+    } catch (err) {
+      console.error("💥 Unexpected error:", err);
+      setError("An unexpected error occurred");
+      toast.error("Login failed");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -103,7 +150,7 @@ export default function LoginPage() {
                 disabled={loading}
                 className="flex w-full justify-center rounded-md border border-transparent bg-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-sm hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
               >
-                Se connecter
+                {loading ? "Connexion..." : "Se connecter"}
               </Button>
             </div>
           </form>

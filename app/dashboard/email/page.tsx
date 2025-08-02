@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { toast } from 'sonner';
 import { EmailSidebar } from '@/components/email/EmailSidebar';
 import { EmailList } from '@/components/email/EmailList';
@@ -41,6 +41,11 @@ const EmailPage = () => {
     const [deletedEmail, setDeletedEmail] = useState<Email | null>(null);
     const [showUndo, setShowUndo] = useState(false);
     const [lastSync, setLastSync] = useState<Date | null>(null);
+
+    // Request tracking to prevent race conditions
+    const currentRequestId = useRef<number>(0);
+    const abortControllerRef = useRef<AbortController | null>(null);
+    const debounceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
     // New email composition state
     const [newEmail, setNewEmail] = useState({
@@ -86,22 +91,45 @@ const EmailPage = () => {
         return null;
     };
 
+    // Clear cache for debugging
+    const clearCacheForFolder = (userId: string, label: string) => {
+        try {
+            localStorage.removeItem(getStorageKey(userId, label));
+            console.log(`🗑️ Cache cleared for folder: ${label}`);
+        } catch (error) {
+            console.error('Error clearing cache:', error);
+        }
+    };
+
     // Fetch emails function (can be called manually or automatically)
     const fetchEmails = async (useCache: boolean = true, forceRefresh: boolean = false) => {
         if (!userProfile?.id) return;
+
+        // Cancel any ongoing request
+        if (abortControllerRef.current) {
+            abortControllerRef.current.abort();
+        }
+
+        // Create new abort controller for this request
+        abortControllerRef.current = new AbortController();
+        const requestId = ++currentRequestId.current;
 
         // Try to load from cache first if useCache is true
         if (useCache && !forceRefresh) {
             const cachedEmails = loadEmailsFromStorage(userProfile.id, selectedLabel);
             if (cachedEmails) {
-                setEmails(cachedEmails);
-                setLoadingEmails(false);
+                // Only update if this is still the latest request
+                if (requestId === currentRequestId.current) {
+                    setEmails(cachedEmails);
+                    setLoadingEmails(false);
+                }
                 return;
             }
         }
 
         setLoadingEmails(true);
         setEmailError(null);
+        
         try {
             // Fetch directly from IMAP
             // Map French folder names to IMAP folder names
@@ -113,6 +141,12 @@ const EmailPage = () => {
             };
 
             const imapFolder = folderMap[selectedLabel] || 'INBOX';
+            
+            console.log('📁 Folder mapping:', {
+                selectedLabel,
+                imapFolder,
+                allMappings: folderMap
+            });
 
             const response = await fetch('/api/email/fetch', {
                 method: 'POST',
@@ -121,8 +155,14 @@ const EmailPage = () => {
                     userId: userProfile.id,
                     mailbox: imapFolder,
                     limit: 10
-                })
+                }),
+                signal: abortControllerRef.current.signal
             });
+
+            // Check if this request was cancelled
+            if (requestId !== currentRequestId.current) {
+                return;
+            }
 
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
@@ -131,6 +171,11 @@ const EmailPage = () => {
 
             const data = await response.json();
             console.log('IMAP fetch response:', data);
+
+            // Check again if this request was cancelled
+            if (requestId !== currentRequestId.current) {
+                return;
+            }
 
             const emailsData = (data.emails || []).map((e: any, i: number) => {
                 console.log('Processing email:', { from: e.from, subject: e.subject, rawEmail: e });
@@ -168,24 +213,58 @@ const EmailPage = () => {
                 return dateB - dateA; // Newest first
             });
 
-            setEmails(emailsData);
-
-            // Save to localStorage
-            saveEmailsToStorage(emailsData, userProfile.id, selectedLabel);
-            setLastSync(new Date());
+            // Only update UI if this is still the latest request
+            if (requestId === currentRequestId.current) {
+                setEmails(emailsData);
+                // Save to localStorage
+                saveEmailsToStorage(emailsData, userProfile.id, selectedLabel);
+                setLastSync(new Date());
+            }
         } catch (error: any) {
-            setEmailError(error.message);
-            console.error('Email fetch error:', error);
-            toast.error(`Erreur lors du chargement des emails: ${error.message}`);
+            // Only handle errors for the latest request
+            if (requestId === currentRequestId.current) {
+                if (error.name === 'AbortError') {
+                    console.log('Request was cancelled');
+                    return;
+                }
+                setEmailError(error.message);
+                console.error('Email fetch error:', error);
+                toast.error(`Erreur lors du chargement des emails: ${error.message}`);
+            }
         } finally {
-            setLoadingEmails(false);
+            // Only update loading state if this is still the latest request
+            if (requestId === currentRequestId.current) {
+                setLoadingEmails(false);
+            }
         }
     };
 
+    // Debounced fetch function to prevent rapid API calls
+    const debouncedFetchEmails = (useCache: boolean = true, forceRefresh: boolean = false) => {
+        // Clear any existing timeout
+        if (debounceTimeoutRef.current) {
+            clearTimeout(debounceTimeoutRef.current);
+        }
+
+        // Set a new timeout
+        debounceTimeoutRef.current = setTimeout(() => {
+            fetchEmails(useCache, forceRefresh);
+        }, 300); // 300ms debounce
+    };
+
     // Fetch emails on component mount and when userProfile changes
-    
     useEffect(() => {
-        fetchEmails(true);
+        debouncedFetchEmails(true);
+        
+        // Cleanup function to cancel any ongoing request when component unmounts
+        return () => {
+            if (abortControllerRef.current) {
+                abortControllerRef.current.abort();
+            }
+            if (debounceTimeoutRef.current) {
+                clearTimeout(debounceTimeoutRef.current);
+            }
+        };
     }, [userProfile?.id, selectedLabel]);
 
     // Auto-sync every 5 minutes
@@ -202,6 +281,13 @@ const EmailPage = () => {
 
     // Manual sync function
     const handleManualSync = () => {
+        console.log('🔄 Manual sync triggered for folder:', selectedLabel);
+        
+        // Clear cache for current folder to force fresh fetch
+        if (userProfile?.id) {
+            clearCacheForFolder(userProfile.id, selectedLabel);
+        }
+        
         fetchEmails(false, true); // Force refresh from IMAP
         toast.success('Synchronisation en cours...');
     };
@@ -361,6 +447,7 @@ const EmailPage = () => {
                 error={emailError}
                 onSync={handleManualSync}
                 lastSync={lastSync}
+                currentFolder={selectedLabel}
             />
 
             {/* Email Details */}

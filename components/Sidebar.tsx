@@ -24,6 +24,7 @@ import {
   ChevronRight,
   ChevronLeft,
   UserCheck,
+  Calendar,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -99,6 +100,8 @@ export function Sidebar() {
         { href: "/dashboard/projects", label: "Projets", icon: Briefcase },
         { href: "/dashboard/prospects", label: "Prospects", icon: FolderKanban },
         { href: "/dashboard/clients", label: "Clients", icon: UserCheck },
+        { href: "/dashboard/clients/dashboard", label: "Dashboard Clients", icon: BarChart },
+        { href: "/dashboard/bookings", label: "Réservations", icon: Calendar },
         { href: "/dashboard/email", label: "Email", icon: Mail}, 
       ],
     },
@@ -135,11 +138,11 @@ export function Sidebar() {
   })).filter((group) => group.links.length > 0);
 
   return (
-    <aside className={`sticky top-0 h-screen ${collapsed ? 'w-16' : 'w-56'} bg-[#F9F9FB] border-r border-gray-200 flex flex-col px-2 ${collapsed ? 'py-4' : 'py-6'} gap-2 shadow-md z-20 transition-all duration-200`}>
+    <aside className={`sticky top-0 h-screen ${collapsed ? 'w-16' : 'w-64'} bg-white border-r border-gray-200 flex flex-col shadow-lg z-20 transition-all duration-200`}>
       {/* Collapse Toggle */}
       <button 
         onClick={toggleSidebar}
-        className="absolute -right-3 top-4 bg-white rounded-full p-1 border border-gray-200 shadow-sm hover:bg-gray-50 z-10"
+        className="absolute -right-3 top-6 bg-white rounded-full p-1.5 border border-gray-200 shadow-md hover:bg-gray-50 hover:shadow-lg z-10 transition-all duration-200"
         aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
       >
         {collapsed ? (
@@ -149,72 +152,79 @@ export function Sidebar() {
         )}
       </button>
 
-      {/* Logo */}
-      <div className="flex items-center gap-2 text-2xl font-bold mb-4 select-none">
-        <span className="inline-block">
-  {collapsed ? (
-    <img src="/iconlogo.svg" alt="Suzalink Icon Logo" className="h-9 w-auto" />
-  ) : (
-    <img src="/logopng.svg" alt="Suzalink Logo" className="h-9 w-auto" />
-  )}
-</span>
+      {/* Header Section */}
+      <div className={`${collapsed ? 'p-4' : 'p-6'} border-b border-gray-200`}>
+        {/* Logo */}
+        <div className="flex items-center gap-3 mb-6">
+          <span className="inline-block">
+            {collapsed ? (
+              <img src="/iconlogo.svg" alt="Suzalink Icon Logo" className="h-8 w-auto" />
+            ) : (
+              <img src="/logopng.svg" alt="Suzalink Logo" className="h-8 w-auto" />
+            )}
+          </span>
+        </div>
 
+        {/* User Role Display */}
+        {userProfile && !collapsed && (
+          <div className="p-3 bg-gray-50 rounded-lg border border-gray-100">
+            <div className="flex items-center gap-2 mb-2">
+              <ShieldCheck className="w-4 h-4 text-gray-600" />
+              <span className="text-sm font-medium text-gray-700">Rôle</span>
+            </div>
+            <div className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${getRoleBadgeColor(userProfile.role)}`}>
+              {userProfile.role.charAt(0).toUpperCase() + userProfile.role.slice(1)}
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* User Role Display */}
-      {userProfile && !collapsed && (
-        <div className="mb-3 p-2 bg-gray-50 rounded-lg">
-          <div className="flex items-center gap-2 mb-2">
-            <ShieldCheck className="w-4 h-4 text-gray-600" />
-            <span className="text-sm font-medium text-gray-700">Rôle</span>
-          </div>
-          <div className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getRoleBadgeColor(userProfile.role)}`}>
-            {userProfile.role.charAt(0).toUpperCase() + userProfile.role.slice(1)}
-          </div>
-        </div>
-      )}
-
       {/* Navigation Groups */}
-      <nav className="flex-1 flex flex-col gap-8 overflow-y-auto">
-        {filteredGroups.map((group) => (
-          <div key={group.label}>
-            {!collapsed && (
-              <div className="text-xs text-gray-400 uppercase tracking-wide mb-2 pl-1">
-                {group.label}
-              </div>
-            )}
-            <ul className="flex flex-col gap-1">
-              {group.links.map((link) => {
-                const isActive = pathname && pathname.startsWith(link.href);
-                return (
-                  <li key={link.href}>
-                    <Link
-                      href={link.href}
-                      target={link.target}
-                      className={`flex items-center ${collapsed ? 'justify-center' : ''} gap-3 rounded-lg px-3 py-2 font-medium transition-colors text-sm group
-                        ${isActive ? 'bg-purple-100 text-purple-900' : 'text-gray-700 hover:bg-purple-50 hover:text-purple-900'}
-                      `}
-                      title={collapsed ? link.label : ''}
-                    >
-                      <link.icon className={`w-5 h-5 ${isActive ? 'text-purple-700' : 'text-gray-400 group-hover:text-purple-700'}`} />
-                      {!collapsed && <span>{link.label}</span>}
-                      {!collapsed && link.href === "/dashboard/commandes" && unopenedCount > 0 && (
-                        <span className="ml-2 inline-block w-2 h-2 rounded-full bg-red-500 align-middle" title="Nouvelles demandes" />
-                      )}
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        ))}
+      <nav className="flex-1 flex flex-col overflow-y-auto p-4">
+        <div className="space-y-6">
+          {filteredGroups.map((group) => (
+            <div key={group.label}>
+              {!collapsed && (
+                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3 pl-1">
+                  {group.label}
+                </div>
+              )}
+              <ul className="space-y-1">
+                {group.links.map((link) => {
+                  const isActive = pathname && pathname.startsWith(link.href);
+                  return (
+                    <li key={link.href}>
+                      <Link
+                        href={link.href}
+                        target={link.target}
+                        className={`flex items-center ${collapsed ? 'justify-center' : ''} gap-3 rounded-lg px-3 py-2.5 font-medium transition-all duration-200 text-sm group relative
+                          ${isActive 
+                            ? 'bg-blue-50 text-blue-700 border border-blue-200 shadow-sm' 
+                            : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
+                          }
+                        `}
+                        title={collapsed ? link.label : ''}
+                      >
+                        <link.icon className={`w-5 h-5 ${isActive ? 'text-blue-600' : 'text-gray-400 group-hover:text-gray-600'}`} />
+                        {!collapsed && <span>{link.label}</span>}
+                        {!collapsed && link.href === "/dashboard/commandes" && unopenedCount > 0 && (
+                          <span className="ml-auto inline-flex items-center justify-center w-2 h-2 rounded-full bg-red-500" title="Nouvelles demandes" />
+                        )}
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))}
+        </div>
       </nav>
 
       {/* Logout Button */}
-      <div className="mt-8">
+      <div className="p-4 border-t border-gray-200">
         <Button
           variant="outline"
-          className={`w-full rounded-lg border-gray-200 hover:bg-purple-100 hover:text-purple-900 transition-colors flex items-center ${collapsed ? 'justify-center' : 'justify-between'} gap-2 text-base`}
+          className={`w-full rounded-lg border-gray-200 hover:bg-red-50 hover:text-red-700 hover:border-red-200 transition-all duration-200 flex items-center ${collapsed ? 'justify-center' : 'justify-between'} gap-2 text-sm font-medium py-2.5`}
           onClick={handleLogout}
         >
           <LogOut className="w-5 h-5" />

@@ -8,7 +8,8 @@ const routeFiles = [
   'app/api/prospects/items/[itemId]/route.ts',
   'app/api/prospects/lists/[listId]/route.ts',
   'app/api/chat/[id]/route.ts',
-  'app/api/lists/[listId]/import/route.ts'
+  'app/api/lists/[listId]/import/route.ts',
+  'app/api/bookings/[id]/route.ts'
 ];
 
 // Function to fix the route handler type
