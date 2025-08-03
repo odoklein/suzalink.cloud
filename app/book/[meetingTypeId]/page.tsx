@@ -202,10 +202,10 @@ export default function BookingPage() {
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Type de rendez-vous introuvable</h1>
-          <p className="text-gray-600 mb-4">Le lien de réservation n'est plus valide.</p>
+          <p className="text-gray-600 mb-4">Le lien de réservation n&apos;est plus valide.</p>
           <Link href="/">
             <Button className="px-3 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2">
-              Retour à l'accueil
+              Retour à l&apos;accueil
             </Button>
           </Link>
         </div>

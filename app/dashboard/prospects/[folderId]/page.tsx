@@ -14,7 +14,7 @@ import { Plus, Upload, FileText, Calendar, Users, Download, Trash2, Edit, Eye, U
 import { toast } from "sonner";
 import ClientAssignmentModal from "@/components/ClientAssignmentModal";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useAuth } from "@/lib/auth-context";
+import { useNextAuth } from "@/lib/nextauth-context";
 
 interface List {
   id: string;
@@ -36,7 +36,7 @@ export default function FolderListsPage() {
   const params = useParams();
   const router = useRouter();
   const supabase = createClient();
-  const { user } = useAuth();
+  const { user } = useNextAuth();
   const queryClient = useQueryClient();
   
   if (!params?.folderId) {

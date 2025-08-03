@@ -17,7 +17,7 @@ export const emailTemplates = {
   guestConfirmation: (data: EmailTemplateData) => ({
     subject: `Confirmation de votre rendez-vous - ${data.meetingType}`,
     html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+      <div style="font-family: 'Poppins', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
         <div style="background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
           <h2 style="color: #333; margin-bottom: 20px;">Confirmation de votre rendez-vous</h2>
           
@@ -70,7 +70,7 @@ ${data.hostName}
   hostNotification: (data: EmailTemplateData) => ({
     subject: `Nouveau rendez-vous - ${data.guestName}`,
     html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+      <div style="font-family: 'Poppins', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
         <div style="background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
           <h2 style="color: #333; margin-bottom: 20px;">Nouveau rendez-vous confirmé</h2>
           
@@ -122,7 +122,7 @@ Ce rendez-vous a été ajouté à votre calendrier automatiquement.
   guestReminder: (data: EmailTemplateData) => ({
     subject: `Rappel - Votre rendez-vous dans 1 heure - ${data.meetingType}`,
     html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+      <div style="font-family: 'Poppins', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
         <div style="background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
           <h2 style="color: #333; margin-bottom: 20px;">Rappel de votre rendez-vous</h2>
           
@@ -173,7 +173,7 @@ ${data.hostName}
   hostReminder: (data: EmailTemplateData) => ({
     subject: `Rappel - Rendez-vous dans 1 heure avec ${data.guestName}`,
     html: `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
+      <div style="font-family: 'Poppins', Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
         <div style="background-color: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
           <h2 style="color: #333; margin-bottom: 20px;">Rappel de votre rendez-vous</h2>
           

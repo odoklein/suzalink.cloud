@@ -1,21 +1,18 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Poppins, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
-import { AuthProvider } from "@/lib/auth-context";
-import { Sidebar } from "@/components/Sidebar";
 import { Toaster } from "@/components/ui/sonner";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { BellIcon } from "@heroicons/react/24/outline";
 import ReactQueryProvider from '@/components/ReactQueryProvider';
+import { SessionProvider } from "@/components/SessionProvider";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const poppins = Poppins({
+  variable: "--font-poppins",
   subsets: ["latin"],
+  weight: ["100", "200", "300", "400", "500", "600", "700", "800", "900"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const jetbrainsMono = JetBrains_Mono({
+  variable: "--font-jetbrains-mono",
   subsets: ["latin"],
 });
 
@@ -30,17 +27,17 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
+    <html lang="en" className={`${poppins.variable} ${jetbrainsMono.variable}`}>
       <head>
         <link href="https://fonts.googleapis.com/css2?family=Pacifico&display=swap" rel="stylesheet" />
       </head>
       <body className={`antialiased bg-[#FFFFFF]`}>
-        <AuthProvider>
+        <SessionProvider>
           <ReactQueryProvider>
             {children}
             <Toaster />
           </ReactQueryProvider>
-        </AuthProvider>
+        </SessionProvider>
       </body>
     </html>
   );

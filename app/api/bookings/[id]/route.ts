@@ -15,7 +15,7 @@ export async function GET(
     console.log('GET /api/bookings/[id] - Fetching booking with ID:', params.id);
     
     // First, try to get the booking without the prospects join to see if it exists
-    let { data, error } = await supabase
+    const { data, error } = await supabase
       .from('bookings')
       .select(`
         *,
@@ -124,7 +124,7 @@ export async function PATCH(
       }
     }
 
-    let { data, error } = await supabase
+    const { data, error } = await supabase
       .from('bookings')
       .update(updateData)
       .eq('id', params.id)

@@ -158,8 +158,7 @@ function generateAvailableSlots(
   endTime.setHours(endHour, endMinute, 0, 0);
 
   // Generate slots
-  let currentTime = new Date(startTime);
-  while (currentTime < endTime) {
+  for (let currentTime = new Date(startTime); currentTime < endTime; currentTime.setMinutes(currentTime.getMinutes() + slotDuration)) {
     const slotEnd = new Date(currentTime.getTime() + meetingDuration * 60000);
     
     if (slotEnd <= endTime) {
@@ -191,9 +190,6 @@ function generateAvailableSlots(
         slots.push(currentTime.toISOString());
       }
     }
-
-    // Move to next slot
-    currentTime.setMinutes(currentTime.getMinutes() + slotDuration);
   }
 
   return slots;

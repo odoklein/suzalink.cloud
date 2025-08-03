@@ -1,21 +1,18 @@
 "use client";
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
-import { useAuth } from "@/lib/auth-context";
+import { useNextAuth } from "@/lib/nextauth-context";
 import { Button } from "@/components/ui/button";
 import {
   LayoutDashboard,
-  Users,
   Briefcase,
   FileText,
   BarChart,
   MessageCircle,
   Mail,
   Settings,
-  UserCog,
   LogOut,
-  UserPlus,
   UserCircle,
   ShieldCheck,
   FolderKanban,
@@ -23,58 +20,51 @@ import {
   Bot,
   ChevronRight,
   ChevronLeft,
-  UserCheck,
   Calendar,
+  HelpCircle,
+  ChevronUp,
+  ChevronDown,
+  User,
+  PieChart,
 } from "lucide-react";
 import { toast } from "sonner";
 
-export function Sidebar() {
+interface SidebarProps {
+  onCollapseChange?: (collapsed: boolean) => void;
+}
+
+export function Sidebar({ onCollapseChange }: SidebarProps) {
   const pathname = usePathname();
-  const { userProfile } = useAuth();
+  const { userProfile, logout } = useNextAuth();
   const router = useRouter();
-  const [unopenedCount, setUnopenedCount] = useState(0);
   const [collapsed, setCollapsed] = useState(false);
+  const [userDropdownOpen, setUserDropdownOpen] = useState(false);
 
-  const toggleSidebar = () => setCollapsed(!collapsed);
-
-  useEffect(() => {
-    async function fetchUnopened() {
-      try {
-        const res = await fetch("/api/commandes?unopened=1");
-        if (res.ok) {
-          const { count } = await res.json();
-          setUnopenedCount(count || 0);
-        }
-      } catch {}
-    }
-    fetchUnopened();
-  }, []);
+  const toggleSidebar = () => {
+    const newCollapsed = !collapsed;
+    setCollapsed(newCollapsed);
+    onCollapseChange?.(newCollapsed);
+  };
 
   const handleLogout = async () => {
     try {
-      const { supabase } = await import("@/lib/supabase");
-      const { error } = await supabase.auth.signOut();
-      if (error) {
-        toast.error("Logout failed: " + error.message);
-        return;
-      }
-      toast.success("Logged out successfully");
-      router.push("/login");
+      await logout();
+      toast.success("Déconnecté avec succès");
     } catch (err: any) {
-      toast.error("Logout error: " + (err?.message || err));
+      toast.error("Erreur de déconnexion: " + (err?.message || err));
     }
   };
 
   const getRoleBadgeColor = (role: string) => {
     switch (role) {
       case "admin":
-        return "bg-red-100 text-red-800 border-red-200";
+        return "bg-emerald-100 text-emerald-700 border-emerald-200";
       case "manager":
-        return "bg-blue-100 text-blue-800 border-blue-200";
+        return "bg-blue-100 text-blue-700 border-blue-200";
       case "user":
-        return "bg-gray-100 text-gray-800 border-gray-200";
+        return "bg-gray-100 text-gray-700 border-gray-200";
       default:
-        return "bg-gray-100 text-gray-800 border-gray-200";
+        return "bg-gray-100 text-gray-700 border-gray-200";
     }
   };
 
@@ -85,6 +75,7 @@ export function Sidebar() {
     icon: React.ComponentType<{ className?: string }>;
     admin?: boolean;
     target?: string;
+    badge?: number;
   }
 
   interface NavGroup {
@@ -99,16 +90,16 @@ export function Sidebar() {
         { href: "/dashboard", label: "Tableau de bord", icon: LayoutDashboard },
         { href: "/dashboard/projects", label: "Projets", icon: Briefcase },
         { href: "/dashboard/prospects", label: "Prospects", icon: FolderKanban },
-        { href: "/dashboard/clients", label: "Clients", icon: UserCheck },
         { href: "/dashboard/clients/dashboard", label: "Dashboard Clients", icon: BarChart },
-        { href: "/dashboard/bookings", label: "Réservations", icon: Calendar },
+        { href: "/dashboard/bookings", label: "Calendrier", icon: Calendar },
         { href: "/dashboard/email", label: "Email", icon: Mail}, 
+        { href: "/dashboard/utilisateurs", label: "Utilisateurs", icon: User, admin: true }, 
       ],
     },
     {
       label: "Communication",
       links: [
-        { href: "/dashboard/ChatSystem", label: "Messagerie", icon: MessageCircle },
+        { href: "/dashboard/ChatSystem", label: "Messagerie", icon: MessageCircle, badge: 2 },
       ],
     },
     {
@@ -118,13 +109,7 @@ export function Sidebar() {
         { href: "/dashboard/finance/factures", label: "Factures", icon: FileText },
       ],
     },
-    {
-      label: "Administration",
-      links: [
-        { href: "/dashboard/users", label: "Utilisateurs", icon: UserCog, admin: true },
-        { href: "/dashboard/profile", label: "Profil", icon: UserCircle },
-      ],
-    },
+    
   ];
 
   // Filter links by role
@@ -138,7 +123,7 @@ export function Sidebar() {
   })).filter((group) => group.links.length > 0);
 
   return (
-    <aside className={`sticky top-0 h-screen ${collapsed ? 'w-16' : 'w-64'} bg-white border-r border-gray-200 flex flex-col shadow-lg z-20 transition-all duration-200`}>
+    <aside className={`fixed left-0 top-0 h-screen ${collapsed ? 'w-16' : 'w-64'} bg-gray-50 border-r border-gray-200 flex flex-col shadow-sm z-20 transition-all duration-300 ease-in-out`}>
       {/* Collapse Toggle */}
       <button 
         onClick={toggleSidebar}
@@ -153,7 +138,7 @@ export function Sidebar() {
       </button>
 
       {/* Header Section */}
-      <div className={`${collapsed ? 'p-4' : 'p-6'} border-b border-gray-200`}>
+      <div className={`${collapsed ? 'p-4' : 'p-6'} border-b border-gray-200 bg-white`}>
         {/* Logo */}
         <div className="flex items-center gap-3 mb-6">
           <span className="inline-block">
@@ -167,12 +152,10 @@ export function Sidebar() {
 
         {/* User Role Display */}
         {userProfile && !collapsed && (
-          <div className="p-3 bg-gray-50 rounded-lg border border-gray-100">
-            <div className="flex items-center gap-2 mb-2">
-              <ShieldCheck className="w-4 h-4 text-gray-600" />
-              <span className="text-sm font-medium text-gray-700">Rôle</span>
-            </div>
-            <div className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${getRoleBadgeColor(userProfile.role)}`}>
+          <div className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg border border-gray-100">
+            <ShieldCheck className="w-4 h-4 text-gray-600" />
+            <span className="text-sm font-medium text-gray-700">Rôle:</span>
+            <div className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${getRoleBadgeColor(userProfile.role)}`}>
               {userProfile.role.charAt(0).toUpperCase() + userProfile.role.slice(1)}
             </div>
           </div>
@@ -180,56 +163,100 @@ export function Sidebar() {
       </div>
 
       {/* Navigation Groups */}
-      <nav className="flex-1 flex flex-col overflow-y-auto p-4">
-        <div className="space-y-6">
-          {filteredGroups.map((group) => (
-            <div key={group.label}>
-              {!collapsed && (
-                <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3 pl-1">
-                  {group.label}
-                </div>
-              )}
-              <ul className="space-y-1">
-                {group.links.map((link) => {
-                  const isActive = pathname && pathname.startsWith(link.href);
-                  return (
-                    <li key={link.href}>
-                      <Link
-                        href={link.href}
-                        target={link.target}
-                        className={`flex items-center ${collapsed ? 'justify-center' : ''} gap-3 rounded-lg px-3 py-2.5 font-medium transition-all duration-200 text-sm group relative
-                          ${isActive 
-                            ? 'bg-blue-50 text-blue-700 border border-blue-200 shadow-sm' 
-                            : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
-                          }
-                        `}
-                        title={collapsed ? link.label : ''}
-                      >
-                        <link.icon className={`w-5 h-5 ${isActive ? 'text-blue-600' : 'text-gray-400 group-hover:text-gray-600'}`} />
-                        {!collapsed && <span>{link.label}</span>}
-                        {!collapsed && link.href === "/dashboard/commandes" && unopenedCount > 0 && (
-                          <span className="ml-auto inline-flex items-center justify-center w-2 h-2 rounded-full bg-red-500" title="Nouvelles demandes" />
-                        )}
-                      </Link>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          ))}
-        </div>
+      <nav className="flex-1 flex flex-col overflow-y-auto p-4 space-y-6">
+        {filteredGroups.map((group) => (
+          <div key={group.label}>
+            {!collapsed && (
+              <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3 pl-1">
+                {group.label}
+              </div>
+            )}
+            <ul className="space-y-1">
+              {group.links.map((link) => {
+                const isActive = pathname && pathname.startsWith(link.href);
+                return (
+                  <li key={link.href}>
+                    <Link
+                      href={link.href}
+                      target={link.target}
+                      className={`flex items-center ${collapsed ? 'justify-center' : ''} gap-3 rounded-lg px-3 py-2.5 font-medium transition-all duration-200 text-sm group relative
+                        ${isActive 
+                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-sm' 
+                          : 'text-gray-700 hover:bg-white hover:text-gray-900 hover:shadow-sm'
+                        }
+                      `}
+                      title={collapsed ? link.label : ''}
+                    >
+                      <link.icon className={`w-5 h-5 ${isActive ? 'text-emerald-600' : 'text-gray-400 group-hover:text-gray-600'}`} />
+                      {!collapsed && (
+                        <div className="flex items-center justify-between w-full">
+                          <span>{link.label}</span>
+                          {link.badge && (
+                            <span className="inline-flex items-center justify-center px-2 py-1 text-xs font-medium bg-emerald-100 text-emerald-700 rounded-full min-w-[20px]">
+                              {link.badge}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ))}
       </nav>
 
-      {/* Logout Button */}
-      <div className="p-4 border-t border-gray-200">
-        <Button
-          variant="outline"
-          className={`w-full rounded-lg border-gray-200 hover:bg-red-50 hover:text-red-700 hover:border-red-200 transition-all duration-200 flex items-center ${collapsed ? 'justify-center' : 'justify-between'} gap-2 text-sm font-medium py-2.5`}
-          onClick={handleLogout}
-        >
-          <LogOut className="w-5 h-5" />
-          {!collapsed && 'Déconnexion'}
-        </Button>
+      {/* User Profile Section */}
+      <div className="p-4 border-t border-gray-200 bg-white">
+        <div className="relative">
+          <button
+            onClick={() => setUserDropdownOpen(!userDropdownOpen)}
+            className={`w-full flex items-center ${collapsed ? 'justify-center' : 'justify-between'} gap-3 p-3 rounded-lg hover:bg-gray-50 transition-all duration-200`}
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-emerald-500 rounded-full flex items-center justify-center text-white text-sm font-medium">
+                {userProfile?.email?.charAt(0).toUpperCase() || 'U'}
+              </div>
+              {!collapsed && (
+                <div className="text-left">
+                  <div className="text-sm font-medium text-gray-900">
+                    {userProfile?.name || userProfile?.email?.split('@')[0] || 'Utilisateur'}
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    {userProfile?.email || 'user@example.com'}
+                  </div>
+                </div>
+              )}
+            </div>
+            {!collapsed && (
+              <ChevronUp className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${userDropdownOpen ? 'rotate-180' : ''}`} />
+            )}
+          </button>
+
+          {/* User Dropdown */}
+          {userDropdownOpen && !collapsed && (
+            <div className="absolute bottom-full left-0 right-0 mb-2 bg-white border border-gray-200 rounded-lg shadow-lg p-2 space-y-1">
+              <Link
+                href="/dashboard/profile"
+                className="flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-md transition-colors duration-200"
+              >
+                <User className="w-4 h-4" />
+                <span>Mon profil</span>
+              </Link>
+
+              <div className="border-t border-gray-100 pt-1">
+                <button
+                  onClick={handleLogout}
+                  className="flex items-center gap-3 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md transition-colors duration-200 w-full"
+                >
+                  <LogOut className="w-4 h-4" />
+                  <span>Se déconnecter</span>
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </aside>
   );

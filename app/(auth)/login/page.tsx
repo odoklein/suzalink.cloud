@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { supabase } from "@/lib/supabase";
+import { signIn } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,53 +23,49 @@ export default function LoginPage() {
     setError(null);
     
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-      console.log("📡 Sign in response:", { data, error });
+      const result = await signIn("credentials", {
+        email,
+        password,
+        redirect: false,
+      });
       
-      if (error) {
-        console.error("❌ Login error:", error);
-        setError(error.message);
-        toast.error(error.message);
-      } else if (data.user) {
-        console.log("✅ Login successful for user:", data.user.email);
-        toast.success("Login successful!");
+      console.log("📡 Sign in response:", result);
+      
+      if (result?.error) {
+        console.error("❌ Login error:", result.error);
         
-        // Check if user profile exists
-        const { data: profile, error: profileError } = await supabase
-          .from('users')
-          .select('*')
-          .eq('id', data.user.id)
-          .single();
-        
-        console.log(" User profile check:", { profile, profileError });
-        
-        if (profileError && profileError.code === 'PGRST116') {
-          // User profile doesn't exist, create it
-          console.log("🆕 Creating user profile...");
-          const { error: createError } = await supabase
-            .from('users')
-            .insert({
-              id: data.user.id,
-              email: data.user.email,
-              full_name: data.user.user_metadata?.full_name || '',
-              role: 'user'
-            });
-          
-          if (createError) {
-            console.error("❌ Failed to create user profile:", createError);
-          } else {
-            console.log("✅ User profile created successfully");
-          }
+        // Provide user-friendly error messages
+        let errorMessage = "Échec de la connexion";
+        if (result.error === "CredentialsSignin") {
+          errorMessage = "Email ou mot de passe incorrect";
+        } else if (result.error.includes("Invalid login credentials")) {
+          errorMessage = "Email ou mot de passe incorrect";
+        } else if (result.error.includes("Email not confirmed")) {
+          errorMessage = "Veuillez confirmer votre email avant de vous connecter";
+        } else if (result.error.includes("Too many requests")) {
+          errorMessage = "Trop de tentatives. Veuillez réessayer plus tard";
         }
         
-        // Redirect to dashboard
-        console.log("🚀 Redirecting to dashboard...");
-        router.push("/dashboard");
+        setError(errorMessage);
+        toast.error(errorMessage);
+      } else if (result?.ok) {
+        console.log("✅ Login successful for user:", email);
+        toast.success("Connexion réussie!");
+        
+        // Add a small delay to ensure session is properly set
+        setTimeout(() => {
+          console.log("🚀 Redirecting to dashboard...");
+          router.push("/dashboard");
+        }, 500);
+      } else {
+        console.error("❌ Unexpected login result:", result);
+        setError("Une erreur inattendue s'est produite");
+        toast.error("Échec de la connexion");
       }
     } catch (err) {
       console.error("💥 Unexpected error:", err);
-      setError("An unexpected error occurred");
-      toast.error("Login failed");
+      setError("Une erreur inattendue s'est produite");
+      toast.error("Échec de la connexion");
     } finally {
       setLoading(false);
     }

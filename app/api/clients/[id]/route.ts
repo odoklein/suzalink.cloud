@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { ActivityHelpers } from "@/lib/activity-logger";
+import { auth } from "@/auth";
 
 // GET: fetch single client by ID
 export async function GET(req: NextRequest, { params }: any) {
   try {
+    const supabase = await createServerSupabaseClient();
     const { data, error } = await supabase
       .from("clients")
       .select("*")
@@ -29,6 +32,12 @@ export async function GET(req: NextRequest, { params }: any) {
 // PUT: update client
 export async function PUT(req: NextRequest, { params }: any) {
   try {
+    const supabase = await createServerSupabaseClient();
+    const session = await auth();
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const { name, contact_email, company, status, region } = await req.json();
 
     // Validation
@@ -75,6 +84,13 @@ export async function PUT(req: NextRequest, { params }: any) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    // Log activity
+    try {
+      await ActivityHelpers.logClientCreated(session.user.id, name, params.id);
+    } catch (logError) {
+      console.error('Error logging client update:', logError);
+    }
+
     return NextResponse.json({ client: data });
 
   } catch (error) {
@@ -86,6 +102,12 @@ export async function PUT(req: NextRequest, { params }: any) {
 // DELETE: delete client
 export async function DELETE(req: NextRequest, { params }: any) {
   try {
+    const supabase = await createServerSupabaseClient();
+    const session = await auth();
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     // Check if client has associated projects
     const { data: projects } = await supabase
       .from("projects")
@@ -110,6 +132,13 @@ export async function DELETE(req: NextRequest, { params }: any) {
       }
       console.error("Error deleting client:", error);
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    // Log activity
+    try {
+      await ActivityHelpers.logClientCreated(session.user.id, 'Deleted client', params.id);
+    } catch (logError) {
+      console.error('Error logging client deletion:', logError);
     }
 
     return NextResponse.json({ message: "Client deleted successfully" });

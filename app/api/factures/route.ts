@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '../../../lib/supabase';
-import { logUserActivity } from "@/lib/supabase-examples";
+import { supabase } from '@/lib/supabase';
+import { ActivityHelpers } from '@/lib/activity-logger';
 
 // GET: List all factures, or filter by client_id
 export async function GET(req: NextRequest) {
@@ -32,7 +32,11 @@ export async function POST(req: NextRequest) {
   }
   // Log user activity if user_id is provided
   if (user_id) {
-    await logUserActivity(user_id, 'create_facture', { facture_id: data[0].id, client_id });
+    try {
+      await ActivityHelpers.logUserActivity(user_id, 'create_facture', `Created facture ${data[0].id} for client ${client_id}`);
+    } catch (logError) {
+      console.error('Error logging facture creation:', logError);
+    }
   }
   return NextResponse.json(data[0], { status: 201 });
 } 

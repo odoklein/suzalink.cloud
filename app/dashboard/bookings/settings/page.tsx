@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { useAuth } from "@/lib/auth-context";
+import { useNextAuth } from "@/lib/nextauth-context";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -68,7 +68,7 @@ const slotDurations = [
 ];
 
 export default function CalendarSettingsPage() {
-  const { user } = useAuth();
+  const { user } = useNextAuth();
   const queryClient = useQueryClient();
   
   const [settings, setSettings] = useState<CalendarSettings>({
@@ -305,7 +305,7 @@ export default function CalendarSettingsPage() {
             {/* Advance Booking Days */}
             <div className="space-y-2">
               <Label htmlFor="advance-booking" className="text-sm font-medium text-gray-700">
-                Réservation à l'avance (jours)
+                Réservation à l&apos;avance (jours)
               </Label>
               <Input
                 id="advance-booking"

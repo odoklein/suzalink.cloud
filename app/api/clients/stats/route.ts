@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { createServerSupabaseClient } from "@/lib/supabase-server";
 
 export async function GET(req: NextRequest) {
   try {
+    const supabase = await createServerSupabaseClient();
+    
     // Get all clients with their status and creation date
     const { data: clients, error } = await supabase
       .from("clients")

@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { createServerSupabaseClient } from "@/lib/supabase-server";
 
 // POST: Assign folder or list to a client
 export async function POST(req: NextRequest) {
   try {
+    const supabase = await createServerSupabaseClient();
     const { type, id, client_id } = await req.json();
 
     if (!type || !id) {
@@ -53,6 +54,7 @@ export async function POST(req: NextRequest) {
 // GET: Get folders and lists assigned to a specific client
 export async function GET(req: NextRequest) {
   try {
+    const supabase = await createServerSupabaseClient();
     const { searchParams } = new URL(req.url);
     const client_id = searchParams.get("client_id");
 

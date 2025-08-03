@@ -1,16 +1,19 @@
 "use client";
 
-import { useAuth } from '@/lib/auth-context';
+import { useNextAuth } from '@/lib/nextauth-context';
 import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Sidebar } from '@/components/Sidebar';
 import { BellIcon } from "@heroicons/react/24/outline";
 import Link from "next/link";
 import { useRouteRefetch } from '@/lib/use-route-refetch';
+import { SuzaiProvider } from '@/lib/suzai/SuzaiContext';
+import SuzaiWidget from '@/components/suzai/SuzaiWidget';
 
 export default function DashboardLayoutClient({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
+  const { user, loading } = useNextAuth();
   const router = useRouter();
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   // Handle route changes and refetch data
   useRouteRefetch();
@@ -22,17 +25,28 @@ export default function DashboardLayoutClient({ children }: { children: React.Re
   }, [user, loading, router]);
 
   if (loading || !user) {
-    return null;
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500 mx-auto mb-4"></div>
+          <p className="text-gray-600">Chargement...</p>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="flex min-h-screen">
-      <Sidebar />
-      <div className="flex-1 flex flex-col min-h-screen">
-        <main className="flex-1 px-12 md:px-6 sm:px-4 pt-8">
-          {children}
-        </main>
+    <SuzaiProvider>
+      <div className="flex min-h-screen overflow-hidden">
+        <Sidebar onCollapseChange={setSidebarCollapsed} />
+        <div className={`flex-1 flex flex-col min-h-screen overflow-hidden transition-all duration-300 ease-in-out ${sidebarCollapsed ? 'ml-16' : 'ml-64'}`}>
+          <main className="flex-1 px-12 md:px-6 sm:px-4 pt-8 overflow-auto">
+            {children}
+          </main>
+        </div>
+        {/* SUZai Widget - Always accessible */}
+        <SuzaiWidget />
       </div>
-    </div>
+    </SuzaiProvider>
   );
 }

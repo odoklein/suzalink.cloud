@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { NotificationService } from '@/lib/notification-service';
+import { ActivityHelpers } from '@/lib/activity-logger';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -170,6 +171,15 @@ export async function POST(req: NextRequest) {
     } catch (notificationError) {
       console.error('Error sending booking notifications:', notificationError);
       // Don't fail the booking creation if notifications fail
+    }
+
+    // Log booking creation activity
+    try {
+      const meetingTypeName = booking.meeting_types?.name || 'Unknown meeting type';
+      const bookingDate = new Date(booking.start_time).toLocaleDateString('fr-FR');
+      await ActivityHelpers.logBookingCreated(host_user_id, meetingTypeName, bookingDate);
+    } catch (logError) {
+      console.error('Error logging booking creation:', logError);
     }
 
     return NextResponse.json({ booking });

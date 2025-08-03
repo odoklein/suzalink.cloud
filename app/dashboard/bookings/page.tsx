@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
-import { useAuth } from "@/lib/auth-context";
+import { useNextAuth } from "@/lib/nextauth-context";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -81,7 +81,7 @@ const StatusBadge = ({ status }: { status: string }) => (
 );
 
 export default function BookingsPage() {
-  const { user } = useAuth();
+  const { user } = useNextAuth();
   const router = useRouter();
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [view, setView] = useState<'calendar' | 'list'>('calendar');
@@ -276,7 +276,7 @@ export default function BookingsPage() {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Aujourd'hui</p>
+                <p className="text-sm font-medium text-gray-600">Aujourd&apos;hui</p>
                 <p className="text-2xl font-bold text-gray-900">{todayBookings.length}</p>
               </div>
               <Calendar className="w-8 h-8 text-blue-600" />
@@ -443,7 +443,7 @@ export default function BookingsPage() {
       {todayBookings.length > 0 && (
         <Card className="border border-gray-200 rounded-lg shadow-sm">
           <CardHeader>
-            <CardTitle className="text-lg font-semibold text-gray-900">Rendez-vous d'aujourd'hui</CardTitle>
+            <CardTitle className="text-lg font-semibold text-gray-900">Rendez-vous d&apos;aujourd&apos;hui</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">

@@ -5,7 +5,7 @@ import { EmailSidebar } from '@/components/email/EmailSidebar';
 import { EmailList } from '@/components/email/EmailList';
 import { EmailDetails } from '@/components/email/EmailDetails';
 import { EmailCompose } from '@/components/email/EmailCompose';
-import { useAuth } from '@/lib/auth-context';
+import { useNextAuth } from '@/lib/nextauth-context';
 
 interface Attachment {
     id: string;
@@ -28,7 +28,7 @@ interface Email {
 }
 
 const EmailPage = () => {
-    const { userProfile } = useAuth();
+    const { userProfile } = useNextAuth();
     const [emails, setEmails] = useState<Email[]>([]);
     const [selectedEmail, setSelectedEmail] = useState<Email | null>(null);
     const [selectedLabel, setSelectedLabel] = useState<string>('Boîte de réception');
@@ -41,6 +41,7 @@ const EmailPage = () => {
     const [deletedEmail, setDeletedEmail] = useState<Email | null>(null);
     const [showUndo, setShowUndo] = useState(false);
     const [lastSync, setLastSync] = useState<Date | null>(null);
+    const [isSyncing, setIsSyncing] = useState(false);
 
     // Request tracking to prevent race conditions
     const currentRequestId = useRef<number>(0);
@@ -101,9 +102,14 @@ const EmailPage = () => {
         }
     };
 
-    // Fetch emails function (can be called manually or automatically)
+    // Fetch emails from database
     const fetchEmails = async (useCache: boolean = true, forceRefresh: boolean = false) => {
-        if (!userProfile?.id) return;
+        if (!userProfile?.id) {
+            console.log('❌ No userProfile.id available');
+            return;
+        }
+
+        console.log('🔄 Fetching emails for user:', userProfile.id, 'folder:', selectedLabel);
 
         // Cancel any ongoing request
         if (abortControllerRef.current) {
@@ -114,25 +120,28 @@ const EmailPage = () => {
         abortControllerRef.current = new AbortController();
         const requestId = ++currentRequestId.current;
 
-        // Try to load from cache first if useCache is true
+        // Try to load from cache first if useCache is true and not forcing refresh
         if (useCache && !forceRefresh) {
             const cachedEmails = loadEmailsFromStorage(userProfile.id, selectedLabel);
-            if (cachedEmails) {
+            if (cachedEmails && cachedEmails.length > 0) {
+                console.log('📦 Using cached emails:', cachedEmails.length);
                 // Only update if this is still the latest request
                 if (requestId === currentRequestId.current) {
                     setEmails(cachedEmails);
                     setLoadingEmails(false);
                 }
                 return;
+            } else {
+                console.log('📦 No cached emails found, fetching from API');
             }
         }
 
+        // Show loading state
         setLoadingEmails(true);
         setEmailError(null);
         
         try {
-            // Fetch directly from IMAP
-            // Map French folder names to IMAP folder names
+            // Map French folder names to database folder names
             const folderMap: Record<string, string> = {
                 'Boîte de réception': 'INBOX',
                 'Envoyés': 'Sent',
@@ -140,22 +149,14 @@ const EmailPage = () => {
                 'Corbeille': 'Trash'
             };
 
-            const imapFolder = folderMap[selectedLabel] || 'INBOX';
+            const dbFolder = folderMap[selectedLabel] || 'INBOX';
+            console.log('🗂️ Using database folder:', dbFolder);
             
-            console.log('📁 Folder mapping:', {
-                selectedLabel,
-                imapFolder,
-                allMappings: folderMap
-            });
-
-            const response = await fetch('/api/email/fetch', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    userId: userProfile.id,
-                    mailbox: imapFolder,
-                    limit: 10
-                }),
+            // Fetch emails from database
+            const apiUrl = `/api/emails?userId=${userProfile.id}&folder=${dbFolder}&limit=50&search=${encodeURIComponent(searchTerm)}`;
+            console.log('🌐 Fetching from API:', apiUrl);
+            
+            const response = await fetch(apiUrl, {
                 signal: abortControllerRef.current.signal
             });
 
@@ -170,55 +171,25 @@ const EmailPage = () => {
             }
 
             const data = await response.json();
-            console.log('IMAP fetch response:', data);
+            console.log('📨 Database fetch response:', data);
+            console.log('📧 Number of emails returned:', data.emails?.length || 0);
 
             // Check again if this request was cancelled
             if (requestId !== currentRequestId.current) {
                 return;
             }
 
-            const emailsData = (data.emails || []).map((e: any, i: number) => {
-                console.log('Processing email:', { from: e.from, subject: e.subject, rawEmail: e });
-                
-                // Ensure we have valid strings for from and subject
-                let fromValue = 'Expéditeur inconnu';
-                let subjectValue = '(Sans objet)';
-                
-                if (e.from && typeof e.from === 'string' && e.from.trim() !== '') {
-                    fromValue = e.from.replace(/^"|"$/g, '').trim();
-                }
-                
-                if (e.subject && typeof e.subject === 'string' && e.subject.trim() !== '') {
-                    subjectValue = e.subject.trim();
-                }
-                
-                return {
-                    id: i + 1,
-                    from: fromValue,
-                    subject: subjectValue,
-                    date: e.date || new Date().toISOString(),
-                    text: e.text || e.subject || '(Aucun contenu textuel)',
-                    html: e.html || `<p>${e.text || e.subject || '(Aucun contenu)'}</p>`,
-                    labels: [selectedLabel === 'Boîte de réception' ? 'Inbox' : selectedLabel],
-                    attachments: e.attachments || [],
-                    read: e.read || false,
-                    starred: e.starred || false,
-                };
-            });
-
-            // Sort emails by date (newest first) based on local system time
-            emailsData.sort((a: Email, b: Email) => {
-                const dateA = new Date(a.date).getTime();
-                const dateB = new Date(b.date).getTime();
-                return dateB - dateA; // Newest first
-            });
+            const emailsData = data.emails || [];
+            console.log('✅ Processed emails data:', emailsData);
 
             // Only update UI if this is still the latest request
             if (requestId === currentRequestId.current) {
                 setEmails(emailsData);
+                console.log('🎯 Updated emails state with:', emailsData.length, 'emails');
                 // Save to localStorage
                 saveEmailsToStorage(emailsData, userProfile.id, selectedLabel);
                 setLastSync(new Date());
+                setIsSyncing(false);
             }
         } catch (error: any) {
             // Only handle errors for the latest request
@@ -228,13 +199,15 @@ const EmailPage = () => {
                     return;
                 }
                 setEmailError(error.message);
-                console.error('Email fetch error:', error);
+                console.error('❌ Email fetch error:', error);
                 toast.error(`Erreur lors du chargement des emails: ${error.message}`);
+                setIsSyncing(false);
             }
         } finally {
             // Only update loading state if this is still the latest request
             if (requestId === currentRequestId.current) {
                 setLoadingEmails(false);
+                setIsSyncing(false);
             }
         }
     };
@@ -254,7 +227,8 @@ const EmailPage = () => {
 
     // Fetch emails on component mount and when userProfile changes
     useEffect(() => {
-        debouncedFetchEmails(true);
+        // Force refresh on mount to ensure we get fresh data
+        debouncedFetchEmails(false, true);
         
         // Cleanup function to cancel any ongoing request when component unmounts
         return () => {
@@ -267,54 +241,153 @@ const EmailPage = () => {
         };
     }, [userProfile?.id, selectedLabel]);
 
-    // Auto-sync every 5 minutes
+    // Auto-sync every 1 minute
     useEffect(() => {
         if (!userProfile?.id) return;
 
-        const interval = setInterval(() => {
-            console.log('Auto-syncing emails...');
-            fetchEmails(false, true); // Don't use cache, force refresh for auto-sync
-        }, 5 * 60 * 1000); // 5 minutes
+        const interval = setInterval(async () => {
+            console.log('🔄 Auto-syncing emails from IMAP...');
+            
+            try {
+                // Map French folder names to IMAP folder names
+                const folderMap: Record<string, string> = {
+                    'Boîte de réception': 'INBOX',
+                    'Envoyés': 'Sent',
+                    'Brouillons': 'Drafts',
+                    'Corbeille': 'Trash'
+                };
+
+                const imapFolder = folderMap[selectedLabel] || 'INBOX';
+                
+                // Sync from IMAP to database
+                const syncResponse = await fetch('/api/emails/sync', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        userId: userProfile.id,
+                        folderName: imapFolder
+                    })
+                });
+
+                if (syncResponse.ok) {
+                    const syncResult = await syncResponse.json();
+                    console.log('✅ Auto-sync result:', syncResult);
+                    
+                    // Refresh emails from database after sync
+                    await fetchEmails(false, true);
+                } else {
+                    console.error('❌ Auto-sync failed:', syncResponse.status);
+                }
+            } catch (error: any) {
+                console.error('❌ Auto-sync error:', error);
+            }
+        }, 1 * 60 * 1000); // 1 minute
 
         return () => clearInterval(interval);
     }, [userProfile?.id, selectedLabel]);
 
-    // Manual sync function
-    const handleManualSync = () => {
+    // Manual sync function - sync from IMAP to database
+    const handleManualSync = async () => {
         console.log('🔄 Manual sync triggered for folder:', selectedLabel);
         
-        // Clear cache for current folder to force fresh fetch
-        if (userProfile?.id) {
-            clearCacheForFolder(userProfile.id, selectedLabel);
-        }
+        if (!userProfile?.id) return;
         
-        fetchEmails(false, true); // Force refresh from IMAP
-        toast.success('Synchronisation en cours...');
+        // Set syncing state immediately for manual sync
+        setIsSyncing(true);
+        
+        try {
+            // Map French folder names to IMAP folder names
+            const folderMap: Record<string, string> = {
+                'Boîte de réception': 'INBOX',
+                'Envoyés': 'Sent',
+                'Brouillons': 'Drafts',
+                'Corbeille': 'Trash'
+            };
+
+            const imapFolder = folderMap[selectedLabel] || 'INBOX';
+            
+            // Sync from IMAP to database
+            const syncResponse = await fetch('/api/emails/sync', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    userId: userProfile.id,
+                    folderName: imapFolder
+                })
+            });
+
+            if (!syncResponse.ok) {
+                throw new Error(`Sync failed: ${syncResponse.status}`);
+            }
+
+            const syncResult = await syncResponse.json();
+            console.log('Sync result:', syncResult);
+            
+            // Refresh emails from database after sync
+            await fetchEmails(false, true);
+            
+            toast.success(syncResult.message || 'Synchronisation terminée');
+        } catch (error: any) {
+            console.error('Sync error:', error);
+            toast.error(`Erreur de synchronisation: ${error.message}`);
+        } finally {
+            setIsSyncing(false);
+        }
     };
 
     // Filter emails based on search and selected label
     const filteredEmails = emails.filter((email: Email) => {
+        // Temporarily disable filtering to see all emails
+        console.log('📧 Processing email:', {
+            emailId: email.id,
+            subject: email.subject,
+            from: email.from,
+            labels: email.labels
+        });
+        
+        // For now, just filter by search term and show all emails
         const matchesSearch = email.subject.toLowerCase().includes(searchTerm.toLowerCase()) ||
             email.from.toLowerCase().includes(searchTerm.toLowerCase()) ||
             email.text.toLowerCase().includes(searchTerm.toLowerCase());
 
-        const labelMap: Record<string, string> = {
-            'Boîte de réception': 'Inbox',
-            'Envoyés': 'Sent',
-            'Brouillons': 'Draft',
-            'Corbeille': 'Trash',
-        };
+        return matchesSearch; // Show all emails that match search
+    });
 
-        const effectiveLabel = labelMap[selectedLabel] || selectedLabel;
-        const matchesLabel = effectiveLabel === 'All' || email.labels.includes(effectiveLabel);
-
-        return matchesSearch && matchesLabel;
+    console.log('🔍 Filtered emails:', {
+        totalEmails: emails.length,
+        filteredCount: filteredEmails.length,
+        selectedLabel,
+        searchTerm,
+        emails: emails.slice(0, 3) // Show first 3 emails for debugging
     });
 
     // Handle email selection
-    const handleEmailSelect = (email: Email) => {
+    const handleEmailSelect = async (email: Email) => {
         setSelectedEmail(email);
-        // Note: Read status is handled by IMAP flags, no local updates needed
+        
+        // Mark email as read if it's not already read
+        if (!email.read && userProfile?.id) {
+            try {
+                const response = await fetch(`/api/emails/${email.id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        userId: userProfile.id,
+                        isRead: true
+                    })
+                });
+
+                if (response.ok) {
+                    // Update local state
+                    const updatedEmails = emails.map(e =>
+                        e.id === email.id ? { ...e, read: true } : e
+                    );
+                    setEmails(updatedEmails);
+                }
+            } catch (error) {
+                console.error('Error marking email as read:', error);
+            }
+        }
     };
 
     // Handle compose
@@ -348,14 +421,28 @@ const EmailPage = () => {
     };
 
     // Handle delete
-    const handleDelete = () => {
-        if (!selectedEmail) return;
-        setDeletedEmail(selectedEmail);
-        setEmails(emails.filter(e => e.id !== selectedEmail.id));
-        setSelectedEmail(null);
-        setShowUndo(true);
-        setTimeout(() => setShowUndo(false), 5000);
-        toast.success('Email supprimé');
+    const handleDelete = async () => {
+        if (!selectedEmail || !userProfile?.id) return;
+
+        try {
+            const response = await fetch(`/api/emails/${selectedEmail.id}?userId=${userProfile.id}`, {
+                method: 'DELETE'
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to delete email');
+            }
+
+            setDeletedEmail(selectedEmail);
+            setEmails(emails.filter(e => e.id !== selectedEmail.id));
+            setSelectedEmail(null);
+            setShowUndo(true);
+            setTimeout(() => setShowUndo(false), 5000);
+            toast.success('Email supprimé');
+        } catch (error) {
+            console.error('Error deleting email:', error);
+            toast.error('Erreur lors de la suppression de l\'email');
+        }
     };
 
     // Handle undo delete
@@ -407,17 +494,31 @@ const EmailPage = () => {
     };
 
     // Handle star toggle
-    const handleStar = () => {
-        if (!selectedEmail) return;
-        const updatedEmails = emails.map(e =>
-            e.id === selectedEmail.id ? { ...e, starred: !e.starred } : e
-        );
-        setEmails(updatedEmails);
-        setSelectedEmail(prev => prev ? { ...prev, starred: !prev.starred } : null);
-        
-        // Update cache with star status
-        if (userProfile?.id) {
-            saveEmailsToStorage(updatedEmails, userProfile.id, selectedLabel);
+    const handleStar = async () => {
+        if (!selectedEmail || !userProfile?.id) return;
+
+        try {
+            const response = await fetch(`/api/emails/${selectedEmail.id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    userId: userProfile.id,
+                    isStarred: !selectedEmail.starred
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to update email');
+            }
+
+            const updatedEmails = emails.map(e =>
+                e.id === selectedEmail.id ? { ...e, starred: !e.starred } : e
+            );
+            setEmails(updatedEmails);
+            setSelectedEmail(prev => prev ? { ...prev, starred: !prev.starred } : null);
+        } catch (error) {
+            console.error('Error updating email:', error);
+            toast.error('Erreur lors de la mise à jour de l\'email');
         }
     };
 
@@ -426,40 +527,80 @@ const EmailPage = () => {
         setSelectedEmail(null);
     };
 
+    // Debug function to check database
+    const handleDebug = async () => {
+        if (!userProfile?.id) return;
+        
+        try {
+            console.log('🔍 Debug: Checking database for user:', userProfile.id);
+            const response = await fetch(`/api/emails?userId=${userProfile.id}&debug=true`);
+            const data = await response.json();
+            console.log('🔍 Debug response:', data);
+            
+            if (data.debug) {
+                toast.success(`Found ${data.totalEmails} emails in database`);
+            }
+        } catch (error) {
+            console.error('Debug error:', error);
+            toast.error('Debug failed');
+        }
+    };
+
     return (
         <div className="h-screen flex bg-gray-50 overflow-hidden">
             {/* Left Sidebar */}
-            <EmailSidebar
-                selectedLabel={selectedLabel}
-                onLabelSelect={setSelectedLabel}
-                onCompose={handleCompose}
-                unopenedCount={unopenedCount}
-            />
+            <div className="w-64 bg-gray-50 border-r border-gray-200 flex flex-col shadow-sm">
+                <EmailSidebar
+                    selectedLabel={selectedLabel}
+                    onLabelSelect={setSelectedLabel}
+                    onCompose={handleCompose}
+                    unopenedCount={unopenedCount}
+                />
+            </div>
 
-            {/* Email List */}
-            <EmailList
-                emails={filteredEmails}
-                selectedEmail={selectedEmail}
-                onEmailSelect={handleEmailSelect}
-                searchTerm={searchTerm}
-                onSearchChange={setSearchTerm}
-                loading={loadingEmails}
-                error={emailError}
-                onSync={handleManualSync}
-                lastSync={lastSync}
-                currentFolder={selectedLabel}
-            />
+            {/* Main Content Area */}
+            <div className="flex-1 flex flex-col bg-gray-50">
+                {/* Email List */}
+                <div className="flex-1 flex">
+                    <div className="w-1/2 bg-white border-r border-gray-200 shadow-sm">
+                        <EmailList
+                            emails={filteredEmails}
+                            selectedEmail={selectedEmail}
+                            onEmailSelect={handleEmailSelect}
+                            searchTerm={searchTerm}
+                            onSearchChange={setSearchTerm}
+                            loading={loadingEmails}
+                            error={emailError}
+                            onSync={handleManualSync}
+                            lastSync={lastSync}
+                            currentFolder={selectedLabel}
+                            isSyncing={isSyncing}
+                        />
+                        {/* Debug button */}
+                        <div className="p-4 border-t border-gray-200">
+                            <button
+                                onClick={handleDebug}
+                                className="px-3 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm"
+                            >
+                                Debug Database
+                            </button>
+                        </div>
+                    </div>
 
-            {/* Email Details */}
-            <EmailDetails
-                email={selectedEmail}
-                onReply={handleReply}
-                onForward={handleForward}
-                onDelete={handleDelete}
-                onStar={handleStar}
-                onClose={handleCloseEmail}
-                userId={userProfile?.id}
-            />
+                    {/* Email Details */}
+                    <div className="w-1/2 bg-white shadow-sm">
+                        <EmailDetails
+                            email={selectedEmail}
+                            onReply={handleReply}
+                            onForward={handleForward}
+                            onDelete={handleDelete}
+                            onStar={handleStar}
+                            onClose={handleCloseEmail}
+                            userId={userProfile?.id}
+                        />
+                    </div>
+                </div>
+            </div>
 
             {/* Compose Modal */}
             <EmailCompose

@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
   // Insert participants (include creator if not present)
-  let allParticipants = Array.isArray(participants) ? participants : [];
+  const allParticipants = Array.isArray(participants) ? [...participants] : [];
   if (!allParticipants.includes(created_by)) {
     allParticipants.push(created_by);
   }

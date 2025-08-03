@@ -57,7 +57,7 @@ export function EmailCompose({
       id: 1,
       name: "Professional",
       content: `
-      <div style="background-color: #0d6efd; padding: 20px; border-radius: 8px; max-width: 400px; font-family: Arial, sans-serif; color: white;">
+      <div style="background-color: #0d6efd; padding: 20px; border-radius: 8px; max-width: 400px; font-family: 'Poppins', Arial, sans-serif; color: white;">
         <div style="font-family: 'Pacifico', cursive; font-size: 24px;">
           Hichem Hammouche
         </div>

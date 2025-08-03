@@ -13,7 +13,8 @@ import { Plus, Folder, Calendar, List, Users, UserCheck } from "lucide-react";
 import { toast } from "sonner";
 import ClientAssignmentModal from "@/components/ClientAssignmentModal";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useAuth } from "@/lib/auth-context";
+import { useNextAuth } from "@/lib/nextauth-context";
+import { ActivityHelpers } from "@/lib/activity-logger";
 
 interface Folder {
   id: string;
@@ -33,7 +34,7 @@ interface Folder {
 export default function ProspectsPage() {
   const router = useRouter();
   const supabase = createClient();
-  const { user } = useAuth();
+  const { user } = useNextAuth();
   const queryClient = useQueryClient();
   
   const [open, setOpen] = useState(false);
@@ -109,11 +110,18 @@ export default function ProspectsPage() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => {
+    onSuccess: async (data) => {
       queryClient.invalidateQueries({ queryKey: ["prospects", "folders"] });
       setOpen(false);
       setNewFolderName("");
       toast.success("Dossier créé avec succès");
+      
+      // Log prospect folder creation activity
+      try {
+        await ActivityHelpers.logProspectCreated(user?.id || '', `Created prospect folder: ${data.name}`);
+      } catch (logError) {
+        console.error('Error logging prospect folder creation:', logError);
+      }
     },
     onError: (error: Error) => {
       setCreateError(error.message || "Échec de la création du dossier");

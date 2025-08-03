@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { useAuth } from "@/lib/auth-context";
+import { useNextAuth } from "@/lib/nextauth-context";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,7 +35,7 @@ interface MeetingType {
 }
 
 export default function MeetingTypesPage() {
-  const { user } = useAuth();
+  const { user } = useNextAuth();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<MeetingType | null>(null);
@@ -211,7 +211,7 @@ export default function MeetingTypesPage() {
 
   if (loadingMeetingTypes) {
     return (
-      <div className="container mx-auto p-6 space-y-6">
+      <div className="space-y-8">
         <div className="flex items-center justify-between">
           <Skeleton className="h-8 w-64" />
           <Skeleton className="h-10 w-32" />
@@ -226,55 +226,67 @@ export default function MeetingTypesPage() {
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Types de rendez-vous</h1>
-          <p className="text-gray-600">Créez et gérez vos différents types de rendez-vous</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <Link href="/dashboard/bookings">
+    <div className="space-y-8">
+      {/* Header Section */}
+      <section className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-6">
+            <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-200">
+              <Clock className="h-10 w-10 text-emerald-600" />
+            </div>
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">Types de rendez-vous</h1>
+              <p className="text-gray-600 mt-2 text-lg">
+                Créez et gérez vos différents types de rendez-vous
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <Link href="/dashboard/bookings">
+              <Button 
+                variant="outline"
+                className="border-gray-300 hover:bg-gray-50 px-4 py-2 transition-all duration-200 flex items-center gap-2"
+              >
+                <Settings className="w-4 h-4" />
+                Retour aux RDV
+              </Button>
+            </Link>
             <Button 
-              variant="outline"
-              className="px-3 py-2.5 border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2"
+              onClick={openCreate}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 font-medium rounded-lg shadow-sm transition-all duration-200 flex items-center gap-2"
             >
-              <Settings className="w-4 h-4" />
-              Retour aux RDV
+              <Plus className="w-4 h-4" />
+              Nouveau type
             </Button>
-          </Link>
-          <Button 
-            onClick={openCreate}
-            className="px-3 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
-          >
-            <Plus className="w-4 h-4" />
-            Nouveau type
-          </Button>
+          </div>
         </div>
-      </div>
+      </section>
 
       {/* Meeting Types Grid */}
       {meetingTypes.length === 0 ? (
-        <Card className="border border-gray-200 rounded-lg shadow-sm p-8">
+        <section className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
           <div className="text-center">
             <Clock className="w-12 h-12 text-gray-400 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-gray-900 mb-2">Aucun type de rendez-vous</h3>
-            <p className="text-gray-600 mb-4">
+            <p className="text-gray-600 mb-6">
               Créez votre premier type de rendez-vous pour commencer à recevoir des réservations.
             </p>
-            <Button onClick={openCreate} className="px-3 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+            <Button 
+              onClick={openCreate} 
+              className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 font-medium rounded-lg shadow-sm transition-all duration-200"
+            >
               Créer un type de RDV
             </Button>
           </div>
-        </Card>
+        </section>
       ) : (
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <section className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {meetingTypes.map((meetingType) => (
-            <Card key={meetingType.id} className="border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow">
+            <Card key={meetingType.id} className="bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-all duration-200">
               <CardHeader className="pb-4">
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
+                    <div className="flex items-center gap-2 mb-3">
                       <div 
                         className="w-4 h-4 rounded-full"
                         style={{ backgroundColor: meetingType.color }}
@@ -282,7 +294,7 @@ export default function MeetingTypesPage() {
                       <CardTitle className="text-lg font-semibold text-gray-900">{meetingType.name}</CardTitle>
                     </div>
                     <div className="flex items-center gap-4">
-                      <Badge variant={meetingType.is_active ? "default" : "draft"}>
+                      <Badge variant={meetingType.is_active ? "default" : "draft"} className="bg-emerald-100 text-emerald-700 border-emerald-200">
                         {meetingType.is_active ? "Actif" : "Inactif"}
                       </Badge>
                       <div className="flex items-center gap-1 text-sm text-gray-600">
@@ -302,7 +314,7 @@ export default function MeetingTypesPage() {
                       variant="ghost"
                       size="sm"
                       onClick={() => copyBookingLink(meetingType.id)}
-                      className="p-1.5 bg-white rounded-full border border-gray-200 shadow-md hover:bg-gray-50 hover:shadow-lg transition-all duration-200"
+                      className="p-1.5 bg-white rounded-full border border-gray-200 shadow-sm hover:bg-gray-50 hover:shadow-md transition-all duration-200"
                     >
                       <Copy className="w-4 h-4 text-blue-600" />
                     </Button>
@@ -310,7 +322,7 @@ export default function MeetingTypesPage() {
                       variant="ghost"
                       size="sm"
                       onClick={() => openEdit(meetingType)}
-                      className="p-1.5 bg-white rounded-full border border-gray-200 shadow-md hover:bg-gray-50 hover:shadow-lg transition-all duration-200"
+                      className="p-1.5 bg-white rounded-full border border-gray-200 shadow-sm hover:bg-gray-50 hover:shadow-md transition-all duration-200"
                     >
                       <Edit className="w-4 h-4 text-gray-600" />
                     </Button>
@@ -318,7 +330,7 @@ export default function MeetingTypesPage() {
                       variant="ghost"
                       size="sm"
                       onClick={() => setDeleteModal({ open: true, meetingTypeId: meetingType.id })}
-                      className="p-1.5 bg-white rounded-full border border-gray-200 shadow-md hover:bg-gray-50 hover:shadow-lg transition-all duration-200"
+                      className="p-1.5 bg-white rounded-full border border-gray-200 shadow-sm hover:bg-gray-50 hover:shadow-md transition-all duration-200"
                     >
                       <Trash2 className="w-4 h-4 text-red-600" />
                     </Button>
@@ -329,7 +341,7 @@ export default function MeetingTypesPage() {
                 {meetingType.description && (
                   <p className="text-sm text-gray-600">{meetingType.description}</p>
                 )}
-                <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+                <div className="flex items-center justify-between pt-3 border-t border-gray-100">
                   <span className="text-xs text-gray-500">
                     Créé le {new Date(meetingType.created_at).toLocaleDateString('fr-FR')}
                   </span>
@@ -337,7 +349,7 @@ export default function MeetingTypesPage() {
                     variant="outline"
                     size="sm"
                     onClick={() => window.open(`/book/${meetingType.id}`, '_blank')}
-                    className="text-xs px-2 py-1"
+                    className="text-xs px-3 py-1.5 border-gray-300 hover:bg-gray-50 transition-all duration-200"
                   >
                     <ExternalLink className="w-3 h-3 mr-1" />
                     Voir
@@ -346,44 +358,46 @@ export default function MeetingTypesPage() {
               </CardContent>
             </Card>
           ))}
-        </div>
+        </section>
       )}
 
       {/* Create/Edit Modal */}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>{editing ? "Modifier le type de rendez-vous" : "Nouveau type de rendez-vous"}</DialogTitle>
-            <DialogDescription>
+        <DialogContent className="sm:max-w-md bg-white rounded-xl shadow-2xl border border-gray-200">
+          <DialogHeader className="border-b border-gray-200 pb-4">
+            <DialogTitle className="text-xl font-bold text-gray-900">
+              {editing ? "Modifier le type de rendez-vous" : "Nouveau type de rendez-vous"}
+            </DialogTitle>
+            <DialogDescription className="text-gray-600 mt-2">
               {editing ? "Modifiez les informations du type de rendez-vous." : "Créez un nouveau type de rendez-vous pour vos clients."}
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4 pt-4">
             <div>
-              <Label htmlFor="name">Nom *</Label>
+              <Label htmlFor="name" className="text-sm font-medium text-gray-700 mb-2 block">Nom *</Label>
               <Input
                 id="name"
                 value={form.name}
                 onChange={(e) => setForm(prev => ({ ...prev, name: e.target.value }))}
                 placeholder="Consultation, Démo, Suivi..."
-                className="w-full border border-gray-300 rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all duration-200"
                 required
               />
             </div>
             <div>
-              <Label htmlFor="description">Description</Label>
+              <Label htmlFor="description" className="text-sm font-medium text-gray-700 mb-2 block">Description</Label>
               <Textarea
                 id="description"
                 value={form.description}
                 onChange={(e) => setForm(prev => ({ ...prev, description: e.target.value }))}
                 placeholder="Description du rendez-vous..."
-                className="w-full border border-gray-300 rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all duration-200"
                 rows={3}
               />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="duration">Durée (minutes) *</Label>
+                <Label htmlFor="duration" className="text-sm font-medium text-gray-700 mb-2 block">Durée (minutes) *</Label>
                 <Input
                   id="duration"
                   type="number"
@@ -392,12 +406,12 @@ export default function MeetingTypesPage() {
                   min="15"
                   max="480"
                   step="15"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all duration-200"
                   required
                 />
               </div>
               <div>
-                <Label htmlFor="price">Prix (€)</Label>
+                <Label htmlFor="price" className="text-sm font-medium text-gray-700 mb-2 block">Prix (€)</Label>
                 <Input
                   id="price"
                   type="number"
@@ -406,12 +420,12 @@ export default function MeetingTypesPage() {
                   placeholder="0.00"
                   min="0"
                   step="0.01"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 transition-all duration-200"
                 />
               </div>
             </div>
             <div>
-              <Label htmlFor="color">Couleur</Label>
+              <Label htmlFor="color" className="text-sm font-medium text-gray-700 mb-2 block">Couleur</Label>
               <div className="flex items-center gap-3">
                 <Input
                   id="color"
@@ -429,25 +443,25 @@ export default function MeetingTypesPage() {
                 type="checkbox"
                 checked={form.is_active}
                 onChange={(e) => setForm(prev => ({ ...prev, is_active: e.target.checked }))}
-                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500"
               />
               <Label htmlFor="is_active" className="text-sm font-medium text-gray-700">
                 Actif (visible pour les réservations)
               </Label>
             </div>
-            <div className="flex gap-3 pt-4">
+            <div className="flex gap-3 pt-4 border-t border-gray-200">
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => setOpen(false)}
-                className="flex-1 rounded-lg border-gray-200 hover:bg-gray-50"
+                className="flex-1 border-gray-300 hover:bg-gray-50 px-4 py-2 transition-all duration-200"
               >
                 Annuler
               </Button>
               <Button
                 type="submit"
                 disabled={createMeetingTypeMutation.isPending || updateMeetingTypeMutation.isPending}
-                className="flex-1 px-3 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 font-medium rounded-lg shadow-sm transition-all duration-200"
               >
                 {createMeetingTypeMutation.isPending || updateMeetingTypeMutation.isPending ? "Enregistrement..." : (editing ? "Mettre à jour" : "Créer")}
               </Button>
@@ -458,10 +472,10 @@ export default function MeetingTypesPage() {
 
       {/* Delete Confirmation Modal */}
       <Dialog open={deleteModal.open} onOpenChange={(open) => setDeleteModal({ open, meetingTypeId: null })}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Confirmer la suppression</DialogTitle>
-            <DialogDescription>
+        <DialogContent className="sm:max-w-md bg-white rounded-xl shadow-2xl border border-gray-200">
+          <DialogHeader className="border-b border-gray-200 pb-4">
+            <DialogTitle className="text-xl font-bold text-gray-900">Confirmer la suppression</DialogTitle>
+            <DialogDescription className="text-gray-600 mt-2">
               Êtes-vous sûr de vouloir supprimer ce type de rendez-vous ? Cette action est irréversible et supprimera également tous les rendez-vous associés.
             </DialogDescription>
           </DialogHeader>
@@ -469,14 +483,14 @@ export default function MeetingTypesPage() {
             <Button
               variant="outline"
               onClick={() => setDeleteModal({ open: false, meetingTypeId: null })}
-              className="flex-1 rounded-lg border-gray-200 hover:bg-gray-50"
+              className="flex-1 border-gray-300 hover:bg-gray-50 px-4 py-2 transition-all duration-200"
             >
               Annuler
             </Button>
             <Button
               onClick={() => deleteModal.meetingTypeId && handleDelete(deleteModal.meetingTypeId)}
               disabled={deleteMeetingTypeMutation.isPending}
-              className="flex-1 px-3 py-2.5 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+              className="flex-1 bg-red-600 hover:bg-red-700 text-white px-4 py-2 font-medium rounded-lg shadow-sm transition-all duration-200"
             >
               {deleteMeetingTypeMutation.isPending ? "Suppression..." : "Supprimer"}
             </Button>

@@ -35,6 +35,7 @@ interface EmailListProps {
   onSync?: () => void;
   lastSync?: Date | null;
   currentFolder?: string; // Add current folder prop
+  isSyncing?: boolean; // Add syncing state prop
 }
 
 export function EmailList({ 
@@ -47,7 +48,8 @@ export function EmailList({
   error = null,
   onSync,
   lastSync,
-  currentFolder = 'Boîte de réception'
+  currentFolder = 'Boîte de réception',
+  isSyncing = false
 }: EmailListProps) {
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -70,10 +72,10 @@ export function EmailList({
   };
 
   return (
-    <div className="flex-1 flex flex-col bg-white border-r border-gray-200 max-h-screen">
+    <div className="flex-1 flex flex-col bg-white max-h-screen">
       {/* Search Header */}
-      <div className="p-4 border-b border-gray-200 bg-gray-50">
-        <div className="flex gap-3 mb-3">
+      <div className="p-6 border-b border-gray-200 bg-white">
+        <div className="flex gap-3 mb-4">
           <div className="relative flex-1">
             <MagnifyingGlassIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
             <input
@@ -81,22 +83,29 @@ export function EmailList({
               placeholder="Rechercher dans les emails..."
               value={searchTerm}
               onChange={(e) => onSearchChange(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
+              className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none text-sm transition-all duration-200"
             />
           </div>
           {onSync && (
             <button
               onClick={onSync}
-              className="px-3 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
-              title="Synchroniser"
+              disabled={isSyncing}
+              className={`px-3 py-2.5 rounded-lg transition-all duration-200 flex items-center gap-2 shadow-sm ${
+                isSyncing 
+                  ? 'bg-gray-400 text-white cursor-not-allowed' 
+                  : 'bg-emerald-600 text-white hover:bg-emerald-700'
+              }`}
+              title={isSyncing ? "Synchronisation en cours..." : "Synchroniser"}
             >
-              <ArrowPathIcon className="w-4 h-4" />
-              <span className="hidden sm:inline">Sync</span>
+              <ArrowPathIcon className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">
+                {isSyncing ? 'Sync...' : 'Sync'}
+              </span>
             </button>
           )}
         </div>
         {lastSync && (
-          <div className="text-xs text-gray-500">
+          <div className="text-xs text-gray-500 font-medium">
             Dernière synchronisation: {lastSync.toLocaleTimeString('fr-FR', { 
               hour: '2-digit', 
               minute: '2-digit',
@@ -106,21 +115,23 @@ export function EmailList({
         )}
       </div>
 
-      {/* Email List Content */}
-      <div className="flex-1 overflow-y-auto min-h-0">
-        {loading ? (
-          <div className="flex items-center justify-center h-full">
-            <div className="flex flex-col items-center gap-3">
-              <div className="flex items-center gap-3">
-                <svg className="animate-spin h-6 w-6 text-blue-500" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-                </svg>
-                <span className="text-gray-600 text-sm">Chargement des emails...</span>
-              </div>
-              <span className="text-xs text-gray-500">Dossier: {currentFolder}</span>
-            </div>
-          </div>
+             {/* Email List Content */}
+       <div className="flex-1 overflow-y-auto min-h-0">
+         {loading && emails.length === 0 ? (
+           <div className="flex items-center justify-center h-full">
+             <div className="flex flex-col items-center gap-3">
+               <div className="flex items-center gap-3">
+                 <svg className="animate-spin h-6 w-6 text-blue-500" viewBox="0 0 24 24">
+                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                 </svg>
+                 <span className="text-gray-600 text-sm">
+                   {isSyncing ? 'Synchronisation en cours...' : 'Chargement des emails...'}
+                 </span>
+               </div>
+               <span className="text-xs text-gray-500">Dossier: {currentFolder}</span>
+             </div>
+           </div>
         ) : error ? (
           <div className="flex flex-col items-center justify-center h-full p-6">
             <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 mb-4 max-w-md">
@@ -144,8 +155,21 @@ export function EmailList({
               <p className="text-sm">Essayez de modifier vos critères de recherche</p>
             </div>
           </div>
-        ) : (
-          <div className="divide-y divide-gray-100">
+                 ) : (
+           <>
+             {/* Syncing indicator */}
+             {isSyncing && emails.length > 0 && (
+               <div className="p-3 bg-blue-50 border-b border-blue-200">
+                 <div className="flex items-center gap-2 text-blue-700 text-sm">
+                   <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                   </svg>
+                   <span>Synchronisation en cours...</span>
+                 </div>
+               </div>
+             )}
+             <div className="divide-y divide-gray-100">
             {emails.map((email) => {
               const isSelected = selectedEmail?.id === email.id;
               const hasAttachments = email.attachments && email.attachments.length > 0;
@@ -154,12 +178,12 @@ export function EmailList({
                 <div
                   key={`${email.id}-${email.from}-${email.subject}`}
                   onClick={() => onEmailSelect(email)}
-                  className={`relative p-4 hover:bg-gray-50 cursor-pointer transition-colors border-l-4 ${
+                  className={`relative p-4 hover:bg-gray-50 cursor-pointer transition-all duration-200 border-l-4 ${
                     isSelected 
-                      ? 'bg-blue-50 border-l-blue-500' 
+                      ? 'bg-emerald-50 border-l-emerald-500 shadow-sm' 
                       : email.read 
                         ? 'border-l-transparent' 
-                        : 'border-l-blue-300 bg-blue-25'
+                        : 'border-l-emerald-300 bg-emerald-25'
                   }`}
                 >
                   <div className="flex items-start justify-between gap-3">
@@ -229,12 +253,13 @@ export function EmailList({
 
                   {/* Unread indicator */}
                   {!email.read && (
-                    <div className="absolute left-1 top-1/2 transform -translate-y-1/2 w-2 h-2 bg-blue-500 rounded-full"></div>
+                    <div className="absolute left-1 top-1/2 transform -translate-y-1/2 w-2 h-2 bg-emerald-500 rounded-full"></div>
                   )}
                 </div>
               );
             })}
           </div>
+          </>
         )}
       </div>
 

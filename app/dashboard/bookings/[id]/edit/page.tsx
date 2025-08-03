@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { useAuth } from "@/lib/auth-context";
+import { useNextAuth } from "@/lib/nextauth-context";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -65,7 +65,7 @@ interface MeetingType {
 export default function BookingEditPage() {
   const params = useParams();
   const router = useRouter();
-  const { user } = useAuth();
+  const { user } = useNextAuth();
   const bookingId = params.id as string;
   
   // Validate booking ID format
@@ -325,7 +325,7 @@ export default function BookingEditPage() {
           <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Réservation introuvable</h1>
           <p className="text-gray-600 mb-4">
-            La réservation que vous recherchez n'existe pas ou vous n'avez pas les permissions pour y accéder.
+            La réservation que vous recherchez n&apos;existe pas ou vous n&apos;avez pas les permissions pour y accéder.
           </p>
           <div className="bg-gray-100 p-4 rounded-lg mb-4 text-left max-w-md mx-auto">
             <p className="text-sm text-gray-700 mb-2">

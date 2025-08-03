@@ -7,7 +7,7 @@ import UsersList from "./users-list";
 import { useRef as useReactRef } from "react";
 import { useRef as useReactRef2 } from "react";
 import { supabase } from "@/lib/supabase";
-import { useAuth } from "@/lib/auth-context";
+import { useNextAuth } from "@/lib/nextauth-context";
 import { toast } from "sonner";
 
 export default function ChatPage() {
@@ -65,7 +65,7 @@ export default function ChatPage() {
     setSelectedChat(newConversation);
   };
 
-  const { user } = useAuth();
+  const { user } = useNextAuth();
   const [chats, setChats] = useState<any[]>([]);
   const [chatDetails, setChatDetails] = useState<Record<string, any>>({}); // infos participants et last message
   const [selectedChat, setSelectedChat] = useState<any>(null);

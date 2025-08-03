@@ -61,24 +61,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (user && !sessionStartTime) {
       const now = new Date().toISOString();
       setSessionStartTime(now);
-      
-      // Log session start (guarded for SSR)
-      if (typeof window !== "undefined") {
-        const logSessionStart = async () => {
-          try {
-            await supabase.from("user_activity").insert([
-              {
-                user_id: user.id,
-                action: 'session_start',
-                details: { startTime: now, page: window.location.pathname }
-              }
-            ]);
-          } catch (error) {
-            console.error('Session start log error:', error);
-          }
-        };
-        logSessionStart();
-      }
     }
   }, [user, sessionStartTime]);
 
@@ -96,43 +78,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => clearInterval(interval);
   }, [sessionStartTime]);
 
-  // Log page visits
-  useEffect(() => {
-    if (user && typeof window !== "undefined") {
-      const logPageVisit = async () => {
-        try {
-          await supabase.from("user_activity").insert([
-            {
-              user_id: user.id,
-              action: 'page_visit',
-              details: { 
-                page: window.location.pathname, 
-                timestamp: new Date().toISOString(),
-                sessionDuration: sessionDuration
-              }
-            }
-          ]);
-        } catch (error) {
-          console.error('Page visit log error:', error);
-        }
-      };
 
-      // Log initial page visit
-      logPageVisit();
 
-      // Log page visits when user navigates
-      const handleRouteChange = () => {
-        logPageVisit();
-      };
 
-      // Listen for route changes (Next.js)
-      window.addEventListener('popstate', handleRouteChange);
-      
-      return () => {
-        window.removeEventListener('popstate', handleRouteChange);
-      };
-    }
-  }, [user, sessionDuration]);
 
   useEffect(() => {
     const getSession = async () => {
@@ -153,6 +101,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       if (session?.user) {
         await fetchUserProfile(session.user.id);
+        
+
       } else {
         setUserProfile(null);
         setSessionStartTime(null); // Reset session timing on logout

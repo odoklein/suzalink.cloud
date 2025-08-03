@@ -4,7 +4,7 @@ import React from "react";
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { useAuth } from "@/lib/auth-context";
+import { useNextAuth } from "@/lib/nextauth-context";
 import { supabase } from "@/lib/supabase";
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -30,7 +30,7 @@ interface FinanceRecord {
 }
 
 export default function FinancePage() {
-  const { user } = useAuth();
+  const { user } = useNextAuth();
   const queryClient = useQueryClient();
   
   if (!user) return null;

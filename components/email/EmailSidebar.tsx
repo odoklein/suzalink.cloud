@@ -48,12 +48,12 @@ export function EmailSidebar({ selectedLabel, onLabelSelect, onCompose, unopened
   ];
 
   return (
-    <div className="w-64 bg-white border-r border-gray-200 flex flex-col h-full">
+    <div className="flex flex-col h-full">
       {/* Compose Button */}
-      <div className="p-4 border-b border-gray-200">
+      <div className="p-6 border-b border-gray-200 bg-white">
         <Button 
           onClick={onCompose}
-          className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 rounded-lg flex items-center justify-center gap-2 shadow-sm"
+          className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-3 rounded-lg flex items-center justify-center gap-2 shadow-sm transition-all duration-200"
         >
           <PlusIcon className="w-5 h-5" />
           Nouveau message
@@ -62,62 +62,64 @@ export function EmailSidebar({ selectedLabel, onLabelSelect, onCompose, unopened
 
       {/* Folders */}
       <div className="flex-1 overflow-y-auto">
-        <div className="p-4">
-          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
-            Dossiers
-          </h3>
-          <nav className="space-y-1">
-            {folders.map((folder) => {
-              const isSelected = selectedLabel === folder.id;
-              const IconComponent = folder.icon;
-              
-              return (
-                <button
-                  key={folder.id}
-                  onClick={() => onLabelSelect(folder.id)}
-                  className={`w-full flex items-center justify-between px-3 py-2.5 text-sm rounded-lg transition-all duration-200 group ${
-                    isSelected 
-                      ? 'bg-blue-50 text-blue-700 border border-blue-200 shadow-sm' 
-                      : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <IconComponent className={`w-5 h-5 ${isSelected ? folder.color : 'text-gray-400 group-hover:text-gray-600'}`} />
-                    <span className="font-medium">{folder.label}</span>
-                  </div>
-                  
-                  {(folder.count ?? 0) > 0 && (
-                    <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-0.5 rounded-full">
-                      {folder.count}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </nav>
-        </div>
+        <div className="p-4 space-y-6">
+          <div>
+            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3 pl-1">
+              Dossiers
+            </h3>
+            <nav className="space-y-1">
+              {folders.map((folder) => {
+                const isSelected = selectedLabel === folder.id;
+                const IconComponent = folder.icon;
+                
+                return (
+                  <button
+                    key={folder.id}
+                    onClick={() => onLabelSelect(folder.id)}
+                    className={`w-full flex items-center justify-between px-3 py-2.5 text-sm rounded-lg transition-all duration-200 group font-medium ${
+                      isSelected 
+                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-sm' 
+                        : 'text-gray-700 hover:bg-white hover:text-gray-900 hover:shadow-sm'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <IconComponent className={`w-5 h-5 ${isSelected ? 'text-emerald-600' : 'text-gray-400 group-hover:text-gray-600'}`} />
+                      <span>{folder.label}</span>
+                    </div>
+                    
+                    {(folder.count ?? 0) > 0 && (
+                      <span className="bg-emerald-100 text-emerald-700 text-xs font-medium px-2 py-0.5 rounded-full">
+                        {folder.count}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </nav>
+          </div>
 
-        {/* Categories */}
-        <div className="p-4 border-t border-gray-100">
-          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
-            Catégories
-          </h3>
-          <nav className="space-y-1">
-            <button className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors">
-              <FolderIcon className="w-5 h-5 text-gray-400" />
-              <span>Personnel</span>
-            </button>
-            <button className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors">
-              <FolderIcon className="w-5 h-5 text-gray-400" />
-              <span>Professionnel</span>
-            </button>
-          </nav>
+          {/* Categories */}
+          <div>
+            <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3 pl-1">
+              Catégories
+            </h3>
+            <nav className="space-y-1">
+              <button className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-gray-700 hover:bg-white hover:text-gray-900 rounded-lg transition-all duration-200 font-medium">
+                <FolderIcon className="w-5 h-5 text-gray-400" />
+                <span>Personnel</span>
+              </button>
+              <button className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-gray-700 hover:bg-white hover:text-gray-900 rounded-lg transition-all duration-200 font-medium">
+                <FolderIcon className="w-5 h-5 text-gray-400" />
+                <span>Professionnel</span>
+              </button>
+            </nav>
+          </div>
         </div>
       </div>
 
       {/* Settings */}
-      <div className="p-4 border-t border-gray-200">
-        <button className="w-full flex items-center gap-3 px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 rounded-lg transition-colors">
+      <div className="p-4 border-t border-gray-200 bg-white">
+        <button className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-gray-700 hover:bg-gray-50 hover:text-gray-900 rounded-lg transition-all duration-200 font-medium">
           <Cog6ToothIcon className="w-5 h-5 text-gray-400" />
           <span>Paramètres email</span>
         </button>

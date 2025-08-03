@@ -59,7 +59,7 @@ export function EmailDetails({
 }: EmailDetailsProps) {
   if (!email) {
     return (
-      <div className="w-[60%] bg-white flex items-center justify-center border-l border-gray-200 h-full">
+      <div className="flex-1 bg-white flex items-center justify-center h-full">
         <div className="text-center p-8">
           <svg className="w-16 h-16 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 8l7.89 3.26a2 2 0 001.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
@@ -146,9 +146,9 @@ export function EmailDetails({
   };
 
   return (
-    <div className="w-[60%] bg-white flex flex-col border-l border-gray-200 h-full max-h-screen">
+    <div className="flex-1 bg-white flex flex-col h-full max-h-screen">
       {/* Header */}
-      <div className="border-b border-gray-200 p-4">
+      <div className="border-b border-gray-200 p-6">
         <div className="flex items-start justify-between mb-3">
           <h1 className="text-xl font-semibold text-gray-900 leading-tight pr-4">
             {email.subject || '(Sans objet)'}
@@ -156,14 +156,14 @@ export function EmailDetails({
           <div className="flex items-center gap-1">
             <button
               onClick={() => onClose()}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors text-gray-600"
+              className="p-2 hover:bg-gray-100 rounded-lg transition-all duration-200 text-gray-600"
               title="Fermer"
             >
               <XMarkIcon className="w-5 h-5" />
             </button>
             <button
               onClick={onStar}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              className="p-2 hover:bg-gray-100 rounded-lg transition-all duration-200"
               title={email.starred ? "Retirer des favoris" : "Ajouter aux favoris"}
             >
               {email.starred ? (
@@ -172,7 +172,7 @@ export function EmailDetails({
                 <StarIcon className="w-5 h-5 text-gray-400" />
               )}
             </button>
-            <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors" title="Plus d'options">
+            <button className="p-2 hover:bg-gray-100 rounded-lg transition-all duration-200" title="Plus d'options">
               <EllipsisVerticalIcon className="w-5 h-5 text-gray-400" />
             </button>
           </div>
@@ -183,7 +183,7 @@ export function EmailDetails({
           <Button
             onClick={onReply}
             size="sm"
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white"
+            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white transition-all duration-200"
           >
             <ArrowUturnLeftIcon className="w-4 h-4" />
             Répondre
@@ -201,21 +201,21 @@ export function EmailDetails({
             {onArchive && (
               <button
                 onClick={onArchive}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors text-gray-600"
+                className="p-2 hover:bg-gray-100 rounded-lg transition-all duration-200 text-gray-600"
                 title="Archiver"
               >
                 <ArchiveBoxIcon className="w-5 h-5" />
               </button>
             )}
             <button
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors text-gray-600"
+              className="p-2 hover:bg-gray-100 rounded-lg transition-all duration-200 text-gray-600"
               title="Imprimer"
             >
               <PrinterIcon className="w-5 h-5" />
             </button>
             <button
               onClick={onDelete}
-              className="p-2 hover:bg-gray-100 rounded-lg transition-colors text-red-600"
+              className="p-2 hover:bg-gray-100 rounded-lg transition-all duration-200 text-red-600"
               title="Supprimer"
             >
               <TrashIcon className="w-5 h-5" />
@@ -225,7 +225,7 @@ export function EmailDetails({
       </div>
 
       {/* Email Meta Info */}
-      <div className="border-b border-gray-200 p-4 bg-gray-50">
+      <div className="border-b border-gray-200 p-6 bg-gray-50">
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <div>
@@ -242,7 +242,7 @@ export function EmailDetails({
                 {email.labels.map((label) => (
                   <span 
                     key={label}
-                    className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800"
+                    className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700"
                   >
                     {label === 'Inbox' ? 'Boîte de réception' : 
                      label === 'Sent' ? 'Envoyés' : 
@@ -272,7 +272,7 @@ export function EmailDetails({
               {email.attachments.map((attachment, index) => (
                 <div 
                   key={attachment.id || index}
-                  className="flex items-center p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                  className="flex items-center p-3 border border-gray-200 rounded-lg hover:bg-gray-50 transition-all duration-200"
                 >
                   <div className="flex items-center justify-center w-10 h-10 bg-gray-100 rounded-lg mr-3">
                     <span className="text-lg">{getFileIcon(attachment.contentType)}</span>
@@ -287,7 +287,7 @@ export function EmailDetails({
                   </div>
                   <button 
                     onClick={() => downloadAttachment(attachment)}
-                    className="text-sm text-blue-600 hover:text-blue-800 font-medium px-3 py-1 rounded-md hover:bg-blue-50 transition-colors"
+                    className="text-sm text-emerald-600 hover:text-emerald-800 font-medium px-3 py-1 rounded-md hover:bg-emerald-50 transition-all duration-200"
                   >
                     Télécharger
                   </button>

@@ -293,7 +293,7 @@ const [audioModalOpen, setAudioModalOpen] = useState(false);
   const handleSelectUser = async (targetUserId: string) => {
     if (!user || !targetUserId) return;
     // Check if chat exists
-    let chat = chats.find(c => c.participants.length === 2 && c.participants.includes(targetUserId));
+    const chat = chats.find(c => c.participants.length === 2 && c.participants.includes(targetUserId));
     if (!chat) {
       // Create new chat
       const { data: newChat, error } = await supabase

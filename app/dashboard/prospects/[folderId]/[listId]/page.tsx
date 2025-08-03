@@ -168,7 +168,7 @@ export default function ListSpreadsheetPage() {
           return;
         }
         // Set columns from CSV if not present
-        let csvColumns = Object.keys(rows[0]);
+        const csvColumns = Object.keys(rows[0]);
         let updatedColumns = columns;
         if (columns.length === 0 && list) {
           updatedColumns = csvColumns;

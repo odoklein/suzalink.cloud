@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { useAuth } from "@/lib/auth-context";
+import { useNextAuth } from "@/lib/nextauth-context";
 import { supabase } from "@/lib/supabase";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -73,7 +73,7 @@ const StatusBadge = ({ status }: { status: string }) => (
 );
 
 export default function ClientDashboardPage() {
-  const { user } = useAuth();
+  const { user } = useNextAuth();
 
   // Fetch client statistics
   const { data: dashboardData, isLoading: loadingStats } = useQuery({

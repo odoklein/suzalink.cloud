@@ -1,109 +1,114 @@
-import { NextRequest, NextResponse } from "next/server";
-import { supabase } from "@/lib/supabase";
+import { NextRequest, NextResponse } from 'next/server';
+import { createServerSupabaseClient } from '@/lib/supabase-server';
+import { ActivityHelpers } from '@/lib/activity-logger';
 
-// GET: fetch all clients with optional filtering
 export async function GET(req: NextRequest) {
   try {
+    const supabase = await createServerSupabaseClient();
     const { searchParams } = new URL(req.url);
-    const status = searchParams.get("status");
-    const search = searchParams.get("search");
-    const sortBy = searchParams.get("sortBy") || "created_at";
-    const sortDir = searchParams.get("sortDir") || "desc";
-    const page = parseInt(searchParams.get("page") || "1");
-    const pageSize = parseInt(searchParams.get("pageSize") || "10");
+    const search = searchParams.get('search');
+    const fuzzy = searchParams.get('fuzzy');
+    const status = searchParams.get('status');
+    const page = parseInt(searchParams.get('page') || '1');
+    const pageSize = parseInt(searchParams.get('pageSize') || '10');
+    const sortBy = searchParams.get('sortBy') || 'created_at';
+    const sortDir = searchParams.get('sortDir') || 'desc';
 
-    let query = supabase
-      .from("clients")
-      .select("*", { count: "exact" });
-
-    // Apply filters
-    if (status && status !== "all") {
-      query = query.eq("status", status);
-    }
-
-    if (search) {
-      query = query.or(`name.ilike.%${search}%,contact_email.ilike.%${search}%,company.ilike.%${search}%`);
-    }
-
-    // Apply sorting
-    query = query.order(sortBy, { ascending: sortDir === "asc" });
-
-    // Apply pagination
+    // Calculate pagination
     const from = (page - 1) * pageSize;
     const to = from + pageSize - 1;
-    query = query.range(from, to);
 
-    const { data, error, count } = await query;
+    let query = supabase
+      .from('clients')
+      .select('*', { count: 'exact' });
 
-    if (error) {
-      console.error("Error fetching clients:", error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+    // Apply filters
+    if (search) {
+      // Exact search by name or email
+      query = query.or(`name.ilike.%${search}%,contact_email.ilike.%${search}%`);
+    } else if (fuzzy) {
+      // Fuzzy search for partial matches
+      query = query.or(`name.ilike.%${fuzzy}%,contact_email.ilike.%${fuzzy}%`);
     }
 
+    if (status && status !== 'all') {
+      query = query.eq('status', status);
+    }
+
+    // Apply sorting and pagination
+    query = query.order(sortBy, { ascending: sortDir === 'asc' });
+    query = query.range(from, to);
+
+    const { data: clients, error, count } = await query;
+
+    if (error) {
+      console.error('Error fetching clients:', error);
+      return NextResponse.json({ error: 'Failed to fetch clients' }, { status: 500 });
+    }
+
+    const totalPages = Math.ceil((count || 0) / pageSize);
+
     return NextResponse.json({
-      clients: data || [],
+      clients: clients || [],
       pagination: {
         page,
         pageSize,
         total: count || 0,
-        totalPages: Math.ceil((count || 0) / pageSize)
+        totalPages
       }
     });
 
   } catch (error) {
-    console.error("Unexpected error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    console.error('Error in clients API:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
-// POST: create new client
 export async function POST(req: NextRequest) {
   try {
-    const { name, contact_email, company, status, region } = await req.json();
+    const supabase = await createServerSupabaseClient();
+    const body = await req.json();
+    const { userId, name, contact_email, company, phone, status, region } = body;
 
-    // Validation
     if (!name || !contact_email) {
-      return NextResponse.json(
-        { error: "Name and contact email are required" },
-        { status: 400 }
-      );
+      return NextResponse.json({ 
+        error: 'name and contact_email are required' 
+      }, { status: 400 });
     }
 
-    // Check if email already exists
-    const { data: existingClient } = await supabase
-      .from("clients")
-      .select("id")
-      .eq("contact_email", contact_email)
-      .single();
-
-    if (existingClient) {
-      return NextResponse.json(
-        { error: "A client with this email already exists" },
-        { status: 400 }
-      );
-    }
-
-    const { data, error } = await supabase
-      .from("clients")
+    const { data: client, error } = await supabase
+      .from('clients')
       .insert({
+        user_id: userId || null,
         name,
         contact_email,
-        company,
-        status: status || "active",
-        region
+        company: company || null,
+        phone: phone || null,
+        status: status || 'active',
+        region: region || null,
+        created_at: new Date().toISOString()
       })
       .select()
       .single();
 
     if (error) {
-      console.error("Error creating client:", error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      console.error('Error creating client:', error);
+      return NextResponse.json({ error: 'Failed to create client' }, { status: 500 });
     }
 
-    return NextResponse.json({ client: data }, { status: 201 });
+    // Log activity
+    try {
+      if (userId) {
+        await ActivityHelpers.logClientCreated(userId, name, client.id);
+      }
+    } catch (logError) {
+      console.error('Error logging client creation:', logError);
+    }
+
+    return NextResponse.json({ client });
 
   } catch (error) {
-    console.error("Unexpected error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    console.error('Error in clients API:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 } 

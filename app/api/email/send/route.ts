@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getUserEmailCredentials } from '@/lib/user-email-credentials';
 import { getEmailConfig } from '@/lib/email-config';
+import { ActivityHelpers } from '@/lib/activity-logger';
 import nodemailer from 'nodemailer';
 
 export async function POST(req: NextRequest) {
@@ -31,6 +32,14 @@ export async function POST(req: NextRequest) {
       text,
       html,
     });
+
+    // Log email sent activity
+    try {
+      await ActivityHelpers.logEmailSent(userId, to, subject);
+    } catch (logError) {
+      console.error('Error logging email sent activity:', logError);
+    }
+
     return NextResponse.json({ success: true, info }, { status: 200 });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });

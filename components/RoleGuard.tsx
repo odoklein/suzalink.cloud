@@ -1,5 +1,5 @@
 "use client";
-import { useAuth } from "@/lib/auth-context";
+import { useNextAuth } from "@/lib/nextauth-context";
 import { ReactNode } from "react";
 
 interface RoleGuardProps {
@@ -9,7 +9,7 @@ interface RoleGuardProps {
 }
 
 export function RoleGuard({ children, requiredRole, fallback }: RoleGuardProps) {
-  const { hasRole, loading } = useAuth();
+  const { hasRole, loading } = useNextAuth();
 
   if (loading) {
     return (

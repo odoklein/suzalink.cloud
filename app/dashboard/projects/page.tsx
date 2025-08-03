@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
-import { useAuth } from "@/lib/auth-context";
+import { useNextAuth } from "@/lib/nextauth-context";
 import { supabase } from "@/lib/supabase";
+import { ActivityHelpers } from "@/lib/activity-logger";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -39,7 +40,7 @@ const StatusBadge = ({ status }: { status: string }) => (
 );
 
 export default function ProjectsPage() {
-  const { user } = useAuth();
+  const { user } = useNextAuth();
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({
     title: "",
@@ -92,12 +93,14 @@ export default function ProjectsPage() {
     ],
     queryFn: async () => {
       if (!user) return [];
+      
       let query = supabase
         .from("projects")
         .select(`
-          id, title, description, status, start_date, end_date, budget, created_at,
-          client:clients(name), client_id
+          id, title, description, status, start_date, end_date, budget, progress, created_at,
+          client:clients(id, name, company, contact_email, industry, status), client_id
         `, { count: "exact" });
+      
       if (filterStatus && filterStatus !== "all") query = query.eq("status", filterStatus);
       if (filterClient && filterClient !== "all") query = query.eq("client_id", filterClient);
       query = query.order(sortBy, { ascending: sortDir === "asc" });
@@ -105,8 +108,11 @@ export default function ProjectsPage() {
       const from = (page - 1) * pageSize;
       const to = from + pageSize - 1;
       query = query.range(from, to);
+      
       const { data, error, count } = await query;
+      
       if (error) throw new Error(error.message);
+      
       if (typeof count === 'number') setTotalCount(count);
       return data || [];
     },
@@ -124,7 +130,8 @@ export default function ProjectsPage() {
       if (!user) return [];
       const { data, error } = await supabase
         .from("clients")
-        .select("id, name")
+        .select("id, name, company, contact_email, industry, status")
+        .eq("status", "active")
         .order("name");
       if (error) throw new Error(error.message);
       return data || [];
@@ -198,13 +205,25 @@ export default function ProjectsPage() {
         toast.error("Failed to update project", { description: error.message });
       } else {
         toast.success("Project updated successfully");
+        // Log project update activity
+        try {
+          await ActivityHelpers.logProjectUpdated(user?.id || '', form.title, editing.id);
+        } catch (logError) {
+          console.error('Error logging project update:', logError);
+        }
       }
     } else {
-      ({ error } = await supabase.from("projects").insert(payload));
-      if (error) {
-        toast.error("Failed to create project", { description: error.message });
+      const { data: newProject, error: insertError } = await supabase.from("projects").insert(payload).select().single();
+      if (insertError) {
+        toast.error("Failed to create project", { description: insertError.message });
       } else {
         toast.success("Project created successfully");
+        // Log project creation activity
+        try {
+          await ActivityHelpers.logProjectCreated(user?.id || '', form.title, newProject?.id || '');
+        } catch (logError) {
+          console.error('Error logging project creation:', logError);
+        }
       }
     }
     setOpen(false);
@@ -212,11 +231,24 @@ export default function ProjectsPage() {
   }
 
   async function handleDelete(id: string) {
+    // Get project details before deletion for logging
+    const { data: projectToDelete } = await supabase
+      .from("projects")
+      .select("title")
+      .eq("id", id)
+      .single();
+
     const { error } = await supabase.from("projects").delete().eq("id", id);
     if (error) {
       toast.error("Failed to delete project", { description: error.message });
     } else {
       toast.success("Project deleted successfully");
+      // Log project deletion activity
+      try {
+        await ActivityHelpers.logProjectUpdated(user?.id || '', `Deleted project: ${projectToDelete?.title || 'Unknown'}`, id);
+      } catch (logError) {
+        console.error('Error logging project deletion:', logError);
+      }
     }
     refetchProjects();
   }
@@ -256,7 +288,12 @@ export default function ProjectsPage() {
                 <SelectContent>
                   <SelectItem value="all">Tous les clients</SelectItem>
                   {clients.map((c: any) => (
-                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                    <SelectItem key={c.id} value={c.id}>
+                      <div className="flex flex-col">
+                        <span className="font-medium">{c.name}</span>
+                        {c.company && <span className="text-xs text-gray-500">{c.company}</span>}
+                      </div>
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -491,7 +528,12 @@ export default function ProjectsPage() {
                 <SelectContent>
                   <SelectItem value="none">Aucun client</SelectItem>
                   {clients.map((client: any) => (
-                    <SelectItem key={client.id} value={client.id}>{client.name}</SelectItem>
+                    <SelectItem key={client.id} value={client.id}>
+                      <div className="flex flex-col">
+                        <span className="font-medium">{client.name}</span>
+                        {client.company && <span className="text-xs text-gray-500">{client.company}</span>}
+                      </div>
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
