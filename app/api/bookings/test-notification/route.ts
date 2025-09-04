@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { NotificationService } from '@/lib/notification-service';
 import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
@@ -37,28 +36,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Booking not found' }, { status: 404 });
     }
 
-    // Test sending confirmation emails
-    try {
-      await NotificationService.sendBookingConfirmation(booking);
-      return NextResponse.json({ 
-        success: true, 
-        message: 'Test notifications sent successfully',
-        booking: {
-          id: booking.id,
-          guest_name: booking.guest_name,
-          guest_email: booking.guest_email,
-          host_name: booking.users.full_name,
-          host_email: booking.users.email,
-          meeting_type: booking.meeting_types.name,
-          start_time: booking.start_time
-        }
-      });
-    } catch (notificationError) {
-      return NextResponse.json({ 
-        error: 'Failed to send test notifications',
-        details: notificationError instanceof Error ? notificationError.message : 'Unknown error'
-      }, { status: 500 });
-    }
+    // TODO: Implement notification service when needed
+    return NextResponse.json({ 
+      success: true, 
+      message: 'Notification service not implemented yet',
+      booking: {
+        id: booking.id,
+        guest_name: booking.guest_name,
+        guest_email: booking.guest_email,
+        host_name: booking.users.full_name,
+        host_email: booking.users.email,
+        meeting_type: booking.meeting_types.name,
+        start_time: booking.start_time
+      }
+    });
   } catch (error) {
     return NextResponse.json({ 
       error: 'Internal server error',

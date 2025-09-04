@@ -16,6 +16,9 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
+import { validateProject, validateClientExists } from "@/lib/validation";
+import { showErrorToast, showSuccessToast, withRetry, handleAsyncError } from "@/lib/error-handling";
+import { useFormState } from "@/hooks/use-form-state";
 import { useRouter } from "next/navigation";
 import { ChevronDown, Plus, Filter, Search } from "lucide-react";
 import { useQuery } from '@tanstack/react-query';
@@ -42,14 +45,31 @@ const StatusBadge = ({ status }: { status: string }) => (
 export default function ProjectsPage() {
   const { user } = useNextAuth();
   const [open, setOpen] = useState(false);
-  const [form, setForm] = useState({
-    title: "",
-    description: "",
-    status: "active",
-    client_id: "",
-    start_date: "",
-    end_date: "",
-    budget: ""
+  // Project form state with validation
+  const projectForm = useFormState({
+    initialValues: {
+      title: "",
+      description: "",
+      status: "active",
+      client_id: "",
+      start_date: "",
+      end_date: "",
+      budget: ""
+    },
+    validate: (values) => {
+      const projectData = {
+        ...values,
+        budget: values.budget ? Number(values.budget) : null
+      };
+      const result = validateProject(projectData);
+      if (result.success) {
+        return { success: true, data: values };
+      }
+      return result;
+    },
+    onSubmit: async (values) => {
+      await handleProjectSubmit(values);
+    }
   });
   const [editing, setEditing] = useState<any>(null);
   const router = useRouter();
@@ -160,7 +180,7 @@ export default function ProjectsPage() {
 
   function openCreate() {
     setEditing(null);
-    setForm({
+    projectForm.reset({
       title: "",
       description: "",
       status: "active",
@@ -174,7 +194,7 @@ export default function ProjectsPage() {
 
   function openEdit(project: any) {
     setEditing(project);
-    setForm({
+    projectForm.reset({
       title: project.title,
       description: project.description || "",
       status: project.status || "active",
@@ -186,71 +206,111 @@ export default function ProjectsPage() {
     setOpen(true);
   }
 
-  async function handleSubmit(e: any) {
-    e.preventDefault();
-    if (!form.title.trim()) return;
-    const payload: any = {
-      title: form.title,
-      description: form.description,
-      status: form.status,
-      client_id: form.client_id === "" || form.client_id === "none" ? null : form.client_id,
-      start_date: form.start_date || null,
-      end_date: form.end_date || null,
-      budget: form.budget ? Number(form.budget) : null
-    };
-    let error;
-    if (editing) {
-      ({ error } = await supabase.from("projects").update(payload).eq("id", editing.id));
-      if (error) {
-        toast.error("Failed to update project", { description: error.message });
-      } else {
-        toast.success("Project updated successfully");
+  // Handle project submission with comprehensive validation
+  async function handleProjectSubmit(formValues: any) {
+    try {
+      if (!user?.id) {
+        throw new Error('User not authenticated');
+      }
+
+      // Validate client exists if provided
+      if (formValues.client_id && formValues.client_id !== "none") {
+        const clientExists = await validateClientExists(formValues.client_id, supabase);
+        if (!clientExists) {
+          throw new Error('Selected client no longer exists');
+        }
+      }
+
+      const payload = {
+        title: formValues.title.trim(),
+        description: formValues.description?.trim() || null,
+        status: formValues.status,
+        client_id: formValues.client_id === "" || formValues.client_id === "none" ? null : formValues.client_id,
+        start_date: formValues.start_date || null,
+        end_date: formValues.end_date || null,
+        budget: formValues.budget ? Number(formValues.budget) : null,
+        user_id: user.id
+      };
+
+      if (editing) {
+        // Update existing project
+        await withRetry(async () => {
+          const { error } = await supabase
+            .from("projects")
+            .update(payload)
+            .eq("id", editing.id);
+          if (error) throw error;
+        }, 3, 1000, 'project update');
+
+        showSuccessToast("Project updated successfully");
+        
         // Log project update activity
         try {
-          await ActivityHelpers.logProjectUpdated(user?.id || '', form.title, editing.id);
+          await ActivityHelpers.logProjectUpdated(user.id, formValues.title, editing.id);
         } catch (logError) {
           console.error('Error logging project update:', logError);
         }
-      }
-    } else {
-      const { data: newProject, error: insertError } = await supabase.from("projects").insert(payload).select().single();
-      if (insertError) {
-        toast.error("Failed to create project", { description: insertError.message });
       } else {
-        toast.success("Project created successfully");
+        // Create new project
+        const newProject = await withRetry(async () => {
+          const { data, error } = await supabase
+            .from("projects")
+            .insert(payload)
+            .select()
+            .single();
+          if (error) throw error;
+          return data;
+        }, 3, 1000, 'project creation');
+
+        showSuccessToast("Project created successfully");
+        
         // Log project creation activity
         try {
-          await ActivityHelpers.logProjectCreated(user?.id || '', form.title, newProject?.id || '');
+          await ActivityHelpers.logProjectCreated(user.id, formValues.title, newProject?.id || '');
         } catch (logError) {
           console.error('Error logging project creation:', logError);
         }
       }
+
+      setOpen(false);
+      refetchProjects();
+    } catch (error) {
+      handleAsyncError(error, editing ? 'Project update' : 'Project creation');
+      throw error; // Re-throw to let form handle it
     }
-    setOpen(false);
-    refetchProjects();
   }
 
   async function handleDelete(id: string) {
-    // Get project details before deletion for logging
-    const { data: projectToDelete } = await supabase
-      .from("projects")
-      .select("title")
-      .eq("id", id)
-      .single();
+    try {
+      // Get project details before deletion for logging
+      const { data: projectToDelete } = await supabase
+        .from("projects")
+        .select("title")
+        .eq("id", id)
+        .single();
 
-    const { error } = await supabase.from("projects").delete().eq("id", id);
-    if (error) {
-      toast.error("Failed to delete project", { description: error.message });
-    } else {
-      toast.success("Project deleted successfully");
+      await withRetry(async () => {
+        const { error } = await supabase.from("projects").delete().eq("id", id);
+        if (error) throw error;
+      }, 3, 1000, 'project deletion');
+
+      showSuccessToast("Project deleted successfully");
+      
       // Log project deletion activity
       try {
-        await ActivityHelpers.logProjectUpdated(user?.id || '', `Deleted project: ${projectToDelete?.title || 'Unknown'}`, id);
+        await ActivityHelpers.logProjectUpdated(
+          user?.id || '', 
+          `Deleted project: ${projectToDelete?.title || 'Unknown'}`, 
+          id
+        );
       } catch (logError) {
         console.error('Error logging project deletion:', logError);
       }
+
+      refetchProjects();
+    } catch (error) {
+      handleAsyncError(error, 'Project deletion');
     }
-    refetchProjects();
   }
 
   if (!user) return null;
@@ -484,30 +544,40 @@ export default function ProjectsPage() {
               {editing ? "Modifiez les informations du projet ci-dessous." : "Créez un nouveau projet en remplissant les informations ci-dessous."}
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={projectForm.handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label className="text-sm font-medium text-gray-700">Titre du projet</Label>
               <Input
                 placeholder="Titre du projet"
-                value={form.title}
-                onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
+                {...projectForm.getFieldProps('title')}
                 required
-                className="w-full border border-gray-300 rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
+                className={`w-full border rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm ${
+                  projectForm.hasError('title') ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                }`}
               />
+              {projectForm.hasError('title') && (
+                <p className="text-sm text-red-600 mt-1">{projectForm.getError('title')}</p>
+              )}
             </div>
             <div className="space-y-2">
               <Label className="text-sm font-medium text-gray-700">Description</Label>
               <Input
                 placeholder="Description (facultatif)"
-                value={form.description}
-                onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
+                {...projectForm.getFieldProps('description')}
+                className={`w-full border rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm ${
+                  projectForm.hasError('description') ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                }`}
               />
+              {projectForm.hasError('description') && (
+                <p className="text-sm text-red-600 mt-1">{projectForm.getError('description')}</p>
+              )}
             </div>
             <div className="space-y-2">
               <Label className="text-sm font-medium text-gray-700">Statut</Label>
-              <Select value={form.status} onValueChange={value => setForm(f => ({ ...f, status: value }))}>
-                <SelectTrigger className="w-full border border-gray-300 rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+              <Select {...projectForm.getSelectProps('status')}>
+                <SelectTrigger className={`w-full border rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                  projectForm.hasError('status') ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                }`}>
                   <SelectValue placeholder="Sélectionner un statut" />
                 </SelectTrigger>
                 <SelectContent>
@@ -518,11 +588,20 @@ export default function ProjectsPage() {
                   <SelectItem value="archived">Archivé</SelectItem>
                 </SelectContent>
               </Select>
+              {projectForm.hasError('status') && (
+                <p className="text-sm text-red-600 mt-1">{projectForm.getError('status')}</p>
+              )}
             </div>
             <div className="space-y-2">
               <Label className="text-sm font-medium text-gray-700">Client</Label>
-              <Select value={form.client_id || "none"} onValueChange={value => setForm(f => ({ ...f, client_id: value === "none" ? "" : value }))}>
-                <SelectTrigger className="w-full border border-gray-300 rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+              <Select 
+                value={projectForm.values.client_id || "none"} 
+                onValueChange={value => projectForm.setValue('client_id', value === "none" ? "" : value)}
+                disabled={projectForm.formState.isSubmitting}
+              >
+                <SelectTrigger className={`w-full border rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                  projectForm.hasError('client_id') ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                }`}>
                   <SelectValue placeholder="Aucun client" />
                 </SelectTrigger>
                 <SelectContent>
@@ -537,25 +616,36 @@ export default function ProjectsPage() {
                   ))}
                 </SelectContent>
               </Select>
+              {projectForm.hasError('client_id') && (
+                <p className="text-sm text-red-600 mt-1">{projectForm.getError('client_id')}</p>
+              )}
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label className="text-sm font-medium text-gray-700">Date de début</Label>
                 <Input
                   type="date"
-                  value={form.start_date}
-                  onChange={e => setForm(f => ({ ...f, start_date: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
+                  {...projectForm.getFieldProps('start_date')}
+                  className={`w-full border rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm ${
+                    projectForm.hasError('start_date') ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                  }`}
                 />
+                {projectForm.hasError('start_date') && (
+                  <p className="text-sm text-red-600 mt-1">{projectForm.getError('start_date')}</p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label className="text-sm font-medium text-gray-700">Date de fin</Label>
                 <Input
                   type="date"
-                  value={form.end_date}
-                  onChange={e => setForm(f => ({ ...f, end_date: e.target.value }))}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
+                  {...projectForm.getFieldProps('end_date')}
+                  className={`w-full border rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm ${
+                    projectForm.hasError('end_date') ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                  }`}
                 />
+                {projectForm.hasError('end_date') && (
+                  <p className="text-sm text-red-600 mt-1">{projectForm.getError('end_date')}</p>
+                )}
               </div>
             </div>
             <div className="space-y-2">
@@ -563,24 +653,36 @@ export default function ProjectsPage() {
               <Input
                 type="number"
                 placeholder="Budget (facultatif)"
-                value={form.budget}
-                onChange={e => setForm(f => ({ ...f, budget: e.target.value }))}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
+                {...projectForm.getFieldProps('budget')}
+                className={`w-full border rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm ${
+                  projectForm.hasError('budget') ? 'border-red-300 bg-red-50' : 'border-gray-300'
+                }`}
               />
+              {projectForm.hasError('budget') && (
+                <p className="text-sm text-red-600 mt-1">{projectForm.getError('budget')}</p>
+              )}
             </div>
             <div className="flex justify-end gap-3 pt-4">
               <Button 
                 type="button" 
                 variant="outline" 
-                onClick={() => setOpen(false)}
-                className="border-gray-300 hover:bg-gray-50 transition-all duration-200"
+                onClick={() => {
+                  setOpen(false);
+                  projectForm.reset();
+                }}
+                disabled={projectForm.formState.isSubmitting}
+                className="border-gray-300 hover:bg-gray-50 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Annuler
               </Button>
               <Button 
                 type="submit"
-                className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 px-4 rounded-lg transition-all duration-200"
+                disabled={projectForm.formState.isSubmitting || projectForm.hasAnyError}
+                className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 px-4 rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
+                {projectForm.formState.isSubmitting && (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                )}
                 {editing ? "Enregistrer" : "Créer"}
               </Button>
             </div>

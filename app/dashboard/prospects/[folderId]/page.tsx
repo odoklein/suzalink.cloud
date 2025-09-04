@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { format } from "date-fns";
-import { Plus, Upload, FileText, Calendar, Users, Download, Trash2, Edit, Eye, UserCheck } from "lucide-react";
+import { Plus, Upload, FileText, Calendar, Users, Download, Trash2, Edit, Eye, UserCheck, CheckSquare, Square } from "lucide-react";
 import { toast } from "sonner";
 import ClientAssignmentModal from "@/components/ClientAssignmentModal";
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -78,43 +78,19 @@ export default function FolderListsPage() {
     queryKey: ["prospects", "folder", folderId, user?.id],
     queryFn: async () => {
       if (!user) throw new Error("User not authenticated");
-      
-      // Fetch folder name
-      const { data: folder, error: folderError } = await supabase
-        .from("folders")
-        .select("name")
-        .eq("id", folderId)
-        .single();
-      
-      if (folderError) throw folderError;
-      
-      // Fetch lists with client information
-      const { data: listsData, error: listsError } = await supabase
-        .from("lists")
-        .select(`
-          id, 
-          name, 
-          folder_id, 
-          created_at, 
-          csv_url, 
-          columns,
-          client_id,
-          client:clients(id, name, company, status)
-        `)
-        .eq("folder_id", folderId)
-        .order("created_at", { ascending: false });
-      
-      if (listsError) throw listsError;
-      
-      return {
-        folderName: folder.name,
-        lists: listsData || []
-      };
+
+      const res = await fetch(`/api/prospects/folders/${folderId}`);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to load folder');
+      }
+      const { folder, lists } = await res.json();
+      return { folderName: folder?.name ?? 'Folder', lists: lists ?? [] };
     },
     enabled: !!user && !!folderId
   });
 
-  // Create list mutation
+  // Create list mutation (uses server APIs to bypass RLS)
   const createListMutation = useMutation({
     mutationFn: async ({ listName, file, selectedColumns }: {
       listName: string;
@@ -122,60 +98,55 @@ export default function FolderListsPage() {
       selectedColumns: string[];
     }) => {
       if (!user) throw new Error("User not authenticated");
-      
-      // 1. Upload CSV to Supabase Storage
-      const fileExt = file.name.split(".").pop();
-      const filePath = `${folderId}/${Date.now()}_${file.name}`;
-      const { data: storageData, error: storageError } = await supabase.storage
-        .from("lists")
-        .upload(filePath, file, { contentType: "text/csv" });
-      
+
+      // 1) Upload CSV to storage (client-side is fine)
+      const sanitize = (name: string) => name.replace(/[^a-zA-Z0-9._-]+/g, '_');
+      const filePath = `${folderId}/${Date.now()}_${sanitize(file.name)}`;
+      const { error: storageError } = await supabase.storage
+        .from("attachements")
+        .upload(filePath, file, { contentType: "text/csv", upsert: true });
       if (storageError) throw storageError;
-      
-      // 2. Get public URL
-      const { data: urlData } = supabase.storage.from("lists").getPublicUrl(filePath);
-      
-      // 3. Insert list metadata
-      const { data: listData, error: listError } = await supabase
-        .from("lists")
-        .insert({
+
+      // 2) Get public URL
+      const { data: urlData } = supabase.storage.from("attachements").getPublicUrl(filePath);
+
+      // 3) Create list via API (service role)
+      const createRes = await fetch('/api/prospects/lists', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           name: listName.trim(),
           folder_id: folderId,
+          user_id: user.id,
           csv_url: urlData.publicUrl,
           columns: selectedColumns,
         })
-        .select()
-        .single();
-      
-      if (listError) throw listError;
-      
-      // 4. Parse the CSV file and insert rows into list_items
+      });
+      if (!createRes.ok) {
+        const err = await createRes.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to create list');
+      }
+      const { list: listData } = await createRes.json();
+
+      // 4) Parse CSV locally
       const text = await file.text();
       const parsed = Papa.parse(text, { header: true, skipEmptyLines: true });
-      
       if (parsed.errors && parsed.errors.length > 0) {
         throw new Error('CSV parsing failed. Check your file format.');
       }
-      
-      const rows = parsed.data;
-      const items = rows.map((row: any) => {
-        const filtered: Record<string, any> = {};
-        selectedColumns.forEach(col => {
-          filtered[col] = row[col];
-        });
-        return {
-          list_id: listData.id,
-          data: filtered
-        };
+      const rows = parsed.data as Record<string, any>[];
+
+      // 5) Import rows via API (service role)
+      const importRes = await fetch(`/api/lists/${listData.id}/import`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ columns: selectedColumns, prospects: rows })
       });
-      
-      if (items.length > 0) {
-        const { error: insertError } = await supabase.from('list_items').insert(items);
-        if (insertError) {
-          throw new Error('Failed to import rows into the database.');
-        }
+      if (!importRes.ok) {
+        const err = await importRes.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to import prospects');
       }
-      
+
       return listData;
     },
     onSuccess: () => {
@@ -228,6 +199,16 @@ export default function FolderListsPage() {
       }
       return newCols;
     });
+  };
+
+  const handleSelectAll = () => {
+    setColumnError("");
+    setSelectedColumns(csvColumns);
+  };
+
+  const handleDeselectAll = () => {
+    setSelectedColumns([]);
+    setColumnError("You must select at least one column to import.");
   };
 
   const handleUpload = async () => {
@@ -366,11 +347,37 @@ export default function FolderListsPage() {
           />
           {csvColumns.length > 0 && (
             <div className="mb-4">
-              <div className="font-medium mb-2">Select columns to import:</div>
+              <div className="flex items-center justify-between mb-3">
+                <div className="font-medium">Select columns to import:</div>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleSelectAll}
+                    disabled={uploading}
+                    className="flex items-center gap-1 text-xs px-2 py-1 h-7"
+                  >
+                    <CheckSquare className="w-3 h-3" />
+                    Select All
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleDeselectAll}
+                    disabled={uploading}
+                    className="flex items-center gap-1 text-xs px-2 py-1 h-7"
+                  >
+                    <Square className="w-3 h-3" />
+                    Deselect All
+                  </Button>
+                </div>
+              </div>
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 max-h-32 overflow-y-auto">
-                {csvColumns.map((col) => (
+                {csvColumns.map((col, index) => (
                   <label
-                    key={col}
+                    key={`${col}-${index}`}
                     className={`flex items-center gap-2 px-2 py-1 rounded cursor-pointer border transition-colors ${selectedColumns.includes(col) ? 'bg-blue-50 border-blue-400' : 'bg-gray-50 border-gray-200 hover:bg-blue-100'}`}
                   >
                     <Checkbox

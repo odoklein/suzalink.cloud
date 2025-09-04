@@ -160,7 +160,6 @@ export default function SuzaiWidget({ className }: SuzaiWidgetProps) {
   const handleNavigation = (pageName: string) => {
     const pageRoutes: Record<string, string> = {
       'dashboard': '/dashboard',
-      'email': '/dashboard/email',
       'bookings': '/dashboard/bookings',
       'clients': '/dashboard/clients',
       'prospects': '/dashboard/prospects',

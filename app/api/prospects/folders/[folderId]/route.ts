@@ -1,10 +1,9 @@
 // Handles GET (get folder details and its lists)
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/utils/supabase/client';
+import { supabase } from '@/lib/supabase';
 
-export async function GET(req: NextRequest, { params }: any) {
-  const supabase = createClient();
-  const { folderId } = params;
+export async function GET(req: NextRequest, { params }: { params: Promise<{ folderId: string }> }) {
+  const { folderId } = await params;
   try {
     // Get folder details
     const { data: folder, error: folderError } = await supabase.from('folders').select('*').eq('id', folderId).single();

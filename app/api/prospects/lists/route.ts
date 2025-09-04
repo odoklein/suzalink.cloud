@@ -1,9 +1,8 @@
 // Handles POST (create list)
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/utils/supabase/client';
+import { supabase } from '@/lib/supabase';
 
 export async function POST(req: NextRequest) {
-  const supabase = createClient();
   try {
     const { name, folder_id, user_id, csv_url, columns } = await req.json();
     if (!name || !folder_id || !user_id || !csv_url || !columns) {

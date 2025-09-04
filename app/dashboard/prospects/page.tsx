@@ -259,7 +259,11 @@ export default function ProspectsPage() {
                     >
                       <UserCheck className="w-4 h-4 text-gray-600" />
                     </Button>
-                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 group-hover:bg-blue-200 transition-colors">
+                    <div
+                      className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 group-hover:bg-blue-200 transition-colors cursor-pointer"
+                      onClick={() => router.push(`/dashboard/prospects/${folder.id}`)}
+                      title="Ouvrir le dossier"
+                    >
                       <Folder className="w-4 h-4" />
                     </div>
                   </div>

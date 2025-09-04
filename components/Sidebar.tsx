@@ -10,8 +10,6 @@ import {
   FileText,
   BarChart,
   MessageCircle,
-  Mail,
-  Settings,
   LogOut,
   UserCircle,
   ShieldCheck,
@@ -92,7 +90,6 @@ export function Sidebar({ onCollapseChange }: SidebarProps) {
         { href: "/dashboard/prospects", label: "Prospects", icon: FolderKanban },
         { href: "/dashboard/clients/dashboard", label: "Dashboard Clients", icon: BarChart },
         { href: "/dashboard/bookings", label: "Calendrier", icon: Calendar },
-        { href: "/dashboard/email", label: "Email", icon: Mail}, 
         { href: "/dashboard/utilisateurs", label: "Utilisateurs", icon: User, admin: true }, 
       ],
     },
@@ -109,7 +106,10 @@ export function Sidebar({ onCollapseChange }: SidebarProps) {
         { href: "/dashboard/finance/factures", label: "Factures", icon: FileText },
       ],
     },
-    
+    {
+      label: "Paramètres",
+      links: [],
+    },
   ];
 
   // Filter links by role

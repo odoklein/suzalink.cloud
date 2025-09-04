@@ -9,9 +9,9 @@ async function fetchCsv(url: string): Promise<string> {
   return await res.text();
 }
 
-export async function GET(req: NextRequest, { params }: any) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ listId: string }> }) {
   const supabase = createClient();
-  const { listId } = params;
+  const { listId } = await params;
   try {
     // Get list metadata
     const { data: list, error: listError } = await supabase.from('lists').select('*').eq('id', listId).single();

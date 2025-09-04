@@ -6,7 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
 import { useParams, useRouter } from "next/navigation";
-import { createClient } from "@/utils/supabase/client";
+import { createClient, createAuthenticatedClient } from "@/utils/supabase/client";
+import { useNextAuth } from "@/lib/nextauth-context";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -45,6 +46,29 @@ interface List {
 import Papa from 'papaparse';
 
 export default function ListSpreadsheetPage() {
+  const params = useParams();
+  const listId = params?.listId as string;
+  const folderId = params?.folderId as string;
+
+  console.log("🌐 DEBUG: URL Params:");
+  console.log("  - params:", params);
+  console.log("  - listId:", listId);
+  console.log("  - folderId:", folderId);
+
+  // Validate required parameters
+  if (!listId || !folderId) {
+    console.error("❌ DEBUG: Missing required parameters");
+    console.log("  - listId exists:", !!listId);
+    console.log("  - folderId exists:", !!folderId);
+    
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4">
+        <div className="text-red-500 text-lg font-medium">Paramètres manquants</div>
+        <p className="text-gray-500">ID de liste ou de dossier manquant dans l'URL</p>
+      </div>
+    );
+  }
+
   const [past, setPast] = React.useState<ProspectAction[]>([]);
   const undo = useProspectHistoryStore((s: ProspectHistoryState) => s.undo);
   const redo = useProspectHistoryStore((s: ProspectHistoryState) => s.redo);
@@ -152,67 +176,118 @@ export default function ListSpreadsheetPage() {
 
   async function handleCsvFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
-    if (!file) return;
+    
+    console.log("📄 CSV DEBUG: File selected:", file?.name, file?.size, "bytes");
+    
+    if (!file) {
+      console.log("❌ CSV DEBUG: No file selected");
+      return;
+    }
+    
+    if (!list) {
+      console.log("❌ CSV DEBUG: No list available");
+      setImportCsvError('List not loaded. Please refresh the page.');
+      return;
+    }
+    
+    console.log("🚀 CSV DEBUG: Starting CSV import for list:", list.id);
     setImportingCsv(true);
     setImportCsvError(null);
+    
     Papa.parse(file, {
       header: true,
       skipEmptyLines: true,
       complete: async (results) => {
+        console.log("📊 CSV DEBUG: Parse complete");
+        console.log("  - Total rows:", results.data.length);
+        console.log("  - Errors:", results.errors);
+        console.log("  - Meta:", results.meta);
+        
         const rows = results.data as Record<string, any>[];
-        console.log('CSV Parsed Rows:', rows);
         if (!rows.length) {
-          console.error('PapaParse results:', results);
+          console.log("❌ CSV DEBUG: No data rows found");
           setImportCsvError('CSV file is empty or invalid.');
           setImportingCsv(false);
           return;
         }
-        // Set columns from CSV if not present
-        const csvColumns = Object.keys(rows[0]);
-        let updatedColumns = columns;
-        if (columns.length === 0 && list) {
-          updatedColumns = csvColumns;
-          // 1. Set columns in DB and update local state
-          const { error: colError } = await supabase.from('list_items').update({ columns: updatedColumns }).eq('id', list.id);
-          if (colError) {
-            setImportCsvError('Failed to set columns from CSV.');
-            setImportingCsv(false);
-            return;
+        
+        const csvColumns = Object.keys(rows[0]).filter(col => !automaticColumns.includes(col));
+        console.log("📋 CSV DEBUG: Detected columns:", csvColumns);
+        console.log("📋 CSV DEBUG: Existing list columns:", baseColumns);
+        
+        // For CSV import, we only send the non-automatic columns
+        const selectedCols = baseColumns.length > 0 ? baseColumns : csvColumns;
+        console.log("📋 CSV DEBUG: Using columns for import:", selectedCols);
+        console.log("📊 CSV DEBUG: Sample data:", rows[0]);
+
+        try {
+          console.log("📡 CSV DEBUG: Sending import request...");
+          
+          const resp = await fetch(`/api/lists/${list.id}/import`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ columns: selectedCols, prospects: rows })
+          });
+          
+          console.log("📡 CSV DEBUG: Import response status:", resp.status);
+          
+          if (!resp.ok) {
+            const err = await resp.json().catch(() => ({}));
+            console.error("❌ CSV DEBUG: Import API error:", err);
+            throw new Error(err.error || 'Failed to import prospects');
           }
-          setList(prev => prev ? { ...prev, columns: updatedColumns } : prev);
-        }
-        // 2. Insert rows (always, after columns are set if needed)
-        const toInsert = rows.map(row => ({ list_id: listId, data: row }));
-        console.log('Rows to insert:', toInsert);
-        const { data: insertedRows, error: insertError } = await supabase.from('list_items').insert(toInsert).select();
-        console.log('Insert response:', insertedRows, insertError);
-        if (insertError) {
-          setImportCsvError('Failed to import prospects.');
+          
+          const importResult = await resp.json();
+          console.log("✅ CSV DEBUG: Import successful:", importResult);
+
+          // Refresh prospects using API route for consistency
+          console.log("🔄 CSV DEBUG: Refreshing prospect data...");
+          try {
+            const refreshResponse = await fetch(`/api/prospects/folders/${folderId}/lists/${listId}`);
+            if (refreshResponse.ok) {
+              const refreshData = await refreshResponse.json();
+              console.log("✅ CSV DEBUG: Data refreshed via API:", refreshData.prospects?.length, "prospects");
+              setProspects(refreshData.prospects || []);
+              
+              // Also update list columns if they changed
+              if (refreshData.list?.columns) {
+                setList(refreshData.list);
+                console.log("✅ CSV DEBUG: List columns updated:", refreshData.list.columns);
+              }
+            } else {
+              console.log("⚠️ CSV DEBUG: API refresh failed, using fallback");
+              // Fallback to direct Supabase query
+              if (supabase) {
+                const { data: prospectRows, error: prospectsError } = await supabase
+                  .from('list_items')
+                  .select('id, data')
+                  .eq('list_id', listId);
+                if (prospectsError) {
+                  console.error("❌ CSV DEBUG: Fallback refresh failed:", prospectsError);
+                  setImportCsvError('Imported, but failed to reload prospects.');
+                } else {
+                  console.log("✅ CSV DEBUG: Fallback refresh successful:", prospectRows?.length, "prospects");
+                  setProspects(prospectRows || []);
+                }
+              }
+            }
+          } catch (refreshError) {
+            console.error("❌ CSV DEBUG: Refresh error:", refreshError);
+            setImportCsvError('Imported successfully, but failed to refresh the view. Please reload the page.');
+          }
+          
+          toast.success(`${importResult.importedCount || rows.length} prospects importés avec succès`);
+        } catch (err: any) {
+          console.error("❌ CSV DEBUG: Import failed:", err);
+          setImportCsvError(err.message || 'Import failed');
+        } finally {
           setImportingCsv(false);
-          return;
+          if (csvInputRef.current) csvInputRef.current.value = '';
         }
-        if (!insertedRows || insertedRows.length === 0) {
-          setImportCsvError('No rows were imported. Check for DB constraints or RLS.');
-          setImportingCsv(false);
-          return;
-        }
-        // Reload prospects
-        const { data: prospectRows, error: prospectsError } = await supabase
-          .from('list_items')
-          .select('id, data')
-          .eq('list_id', listId);
-        if (prospectsError) {
-          setImportCsvError('Imported, but failed to reload prospects.');
-        } else {
-          setProspects(prospectRows || []);
-        }
-        setImportingCsv(false);
-        if (csvInputRef.current) csvInputRef.current.value = '';
-        toast.success(`${insertedRows.length} prospects importés avec succès`);
       },
       error: (err) => {
-        console.error('PapaParse error:', err);
-        setImportCsvError('Failed to parse CSV file.');
+        console.error('❌ CSV DEBUG: PapaParse error:', err);
+        setImportCsvError('Failed to parse CSV file. Please check the file format.');
         setImportingCsv(false);
       }
     });
@@ -225,7 +300,7 @@ export default function ListSpreadsheetPage() {
 
   // Add column handler
   async function handleAddColumn() {
-    if (!newColumnName.trim() || !list) return;
+    if (!supabase || !newColumnName.trim() || !list) return; // Check if supabase is initialized
     setAddingColumn(true);
     setAddColumnError(null);
     const colName = newColumnName.trim();
@@ -249,11 +324,51 @@ export default function ListSpreadsheetPage() {
   }
   
   // All state declarations at the top to avoid ReferenceError
-  const params = useParams();
   const router = useRouter();
-  const listId = params?.listId as string;
-  const supabase = createClient();
+  const { session } = useNextAuth();
+
+  // Create authenticated Supabase client - we'll initialize it properly in useEffect
+  const [supabase, setSupabase] = useState<any>(null);
   const [list, setList] = useState<List | null>(null);
+
+  // Initialize Supabase client with authentication
+  useEffect(() => {
+    const initializeSupabase = async () => {
+      console.log("🔧 DEBUG: Initializing Supabase client...");
+      console.log("🔧 DEBUG: NextAuth session:", !!session);
+      
+      const client = createClient();
+
+      // Try to get the current Supabase session
+      const { data: { session: supabaseSession }, error: sessionError } = await client.auth.getSession();
+      
+      console.log("🔧 DEBUG: Supabase session check:");
+      console.log("  - session:", !!supabaseSession);
+      console.log("  - access_token:", !!supabaseSession?.access_token);
+      console.log("  - error:", sessionError);
+
+      if (supabaseSession?.access_token) {
+        console.log("✅ DEBUG: Using authenticated Supabase client");
+        setSupabase(createAuthenticatedClient(supabaseSession.access_token));
+      } else {
+        console.log("⚠️ DEBUG: No Supabase session, checking NextAuth session...");
+        
+        if (session?.user?.id) {
+          console.log("✅ DEBUG: NextAuth session found, using basic client");
+          // For NextAuth + Supabase setup, we can use the basic client
+          // since the server-side adapter handles the authentication
+          setSupabase(client);
+        } else {
+          console.log("❌ DEBUG: No authentication found");
+          setSupabase(client);
+        }
+      }
+      
+      console.log("🔧 DEBUG: Supabase client initialized");
+    };
+
+    initializeSupabase();
+  }, [session]);
   const [prospects, setProspects] = useState<{ id: string; data: Record<string, any> }[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -277,10 +392,30 @@ export default function ListSpreadsheetPage() {
   const [undoStack, setUndoStack] = useState<Prospect[][]>([]);
   const [redoStack, setRedoStack] = useState<Prospect[][]>([]);
 
-  // Columns: derive from list.columns or first prospect's data keys
-  const columns: string[] = list?.columns && list.columns.length > 0
+  // Define automatic columns that are always present
+  const automaticColumns = ['status', 'comment', 'rappel'];
+  
+  // Status options
+  const statusOptions = [
+    { value: 'NONE', label: 'Sélectionner...' },
+    { value: 'NRP', label: 'NRP (Ne Répond Pas)' },
+    { value: 'RDV', label: 'RDV (Rendez-vous)' },
+    { value: 'HORS_CIBLE', label: 'Hors Cible' },
+    { value: 'INTERESSE', label: 'Intéressé' },
+    { value: 'PAS_INTERESSE', label: 'Pas Intéressé' },
+    { value: 'RAPPELER', label: 'À Rappeler' },
+    { value: 'CLIENT', label: 'Client' },
+    { value: 'PROSPECT_CHAUD', label: 'Prospect Chaud' },
+    { value: 'PROSPECT_FROID', label: 'Prospect Froid' }
+  ];
+  
+  // Columns: derive from list.columns or first prospect's data keys, plus automatic columns
+  const baseColumns: string[] = list?.columns && list.columns.length > 0
     ? list.columns
-    : (prospects[0] ? Object.keys(prospects[0].data) : []);
+    : (prospects[0] ? Object.keys(prospects[0].data).filter(key => !automaticColumns.includes(key)) : []);
+    
+  // Always include automatic columns at the end
+  const columns: string[] = [...baseColumns, ...automaticColumns];
 
   // filteredProspects: apply filter and sort
   const filteredProspects = prospects
@@ -311,7 +446,7 @@ export default function ListSpreadsheetPage() {
     setEditValue("");
   }
   async function handleSaveEdit(row: number, col: number) {
-    if (!columns[col]) return;
+    if (!supabase || !columns[col]) return; // Check if supabase is initialized
     const colKey = columns[col];
     const globalIdx = (page - 1) * pageSize + row;
     const prospect = filteredProspects[globalIdx];
@@ -349,6 +484,7 @@ export default function ListSpreadsheetPage() {
     alert("Edit row " + ((page - 1) * pageSize + row + 1));
   }
   async function handleDuplicateRow(row: number) {
+    if (!supabase) return; // Check if supabase is initialized
     setUndoStack(stack => [...stack, JSON.parse(JSON.stringify(prospects))]);
     setRedoStack([]);
     const globalIdx = (page - 1) * pageSize + row;
@@ -360,6 +496,7 @@ export default function ListSpreadsheetPage() {
   }
 
   async function handleDeleteRow(row: number) {
+    if (!supabase) return; // Check if supabase is initialized
     setUndoStack(stack => [...stack, JSON.parse(JSON.stringify(prospects))]);
     setRedoStack([]);
     const globalIdx = (page - 1) * pageSize + row;
@@ -371,6 +508,7 @@ export default function ListSpreadsheetPage() {
 
   // Bulk actions
   async function handleDeleteSelected() {
+    if (!supabase) return; // Check if supabase is initialized
     const idsToDelete = selectedRows.map(rowIdx => pagedProspects[rowIdx]?.id).filter(Boolean);
     setProspects(prev => prev.filter(p => !idsToDelete.includes(p.id)));
     await supabase.from('list_items').delete().in('id', idsToDelete);
@@ -426,41 +564,152 @@ export default function ListSpreadsheetPage() {
 
   useEffect(() => {
     const fetchListAndProspects = async () => {
+      console.log("🔍 DEBUG: Starting fetchListAndProspects");
+      console.log("🔍 DEBUG: listId:", listId);
+      console.log("🔍 DEBUG: folderId:", folderId);
+      console.log("🔍 DEBUG: supabase client:", !!supabase);
+      
+      if (!supabase) {
+        console.log("❌ DEBUG: No supabase client, returning early");
+        return;
+      }
+
       setLoading(true);
-      // Fetch list metadata
-      const { data: listData, error: listError } = await supabase
-        .from("lists")
-        .select("*")
-        .eq("id", listId)
-        .single();
-      if (listError || !listData) {
-        setError("List not found");
+      try {
+        console.log("📡 DEBUG: Fetching data via API route...");
+        
+        // Use API route instead of direct Supabase client
+        try {
+          const response = await fetch(`/api/prospects/folders/${folderId}/lists/${listId}`, {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          });
+          
+          console.log("📡 DEBUG: API response status:", response.status);
+          
+          if (!response.ok) {
+            throw new Error(`API request failed: ${response.status}`);
+          }
+          
+          const apiData = await response.json();
+          console.log("📡 DEBUG: API response data:", apiData);
+          
+          if (apiData.error) {
+            throw new Error(apiData.error);
+          }
+          
+          if (!apiData.list) {
+            console.error("❌ DEBUG: No list data from API");
+            setError("List not found or doesn't belong to this folder");
+            setLoading(false);
+            return;
+          }
+          
+          console.log("✅ DEBUG: List found via API:", apiData.list);
+          setList(apiData.list);
+          
+          console.log("✅ DEBUG: Setting prospects from API:", apiData.prospects?.length || 0, "items");
+          setProspects(apiData.prospects || []);
+          setLoading(false);
+          console.log("✅ DEBUG: fetchListAndProspects completed successfully via API");
+          
+        } catch (apiError: any) {
+          console.error("❌ DEBUG: API request failed, falling back to direct Supabase:", apiError);
+          
+          // Fallback to direct Supabase query
+          console.log("📡 DEBUG: Fetching list metadata via Supabase...");
+          
+          const { data: listData, error: listError } = await supabase
+            .from("lists")
+            .select("*")
+            .eq("id", listId)
+            .eq("folder_id", folderId);
+
+          console.log("📡 DEBUG: List query result:");
+          console.log("  - data:", listData);
+          console.log("  - error:", listError);
+          console.log("  - data length:", listData?.length);
+
+          if (listError) {
+            console.error("❌ DEBUG: List error:", listError);
+            setError("Failed to fetch list: " + listError.message);
+            setLoading(false);
+            return;
+          }
+          
+          if (!listData || listData.length === 0) {
+            console.error("❌ DEBUG: No list data found");
+            console.log("  - listData exists:", !!listData);
+            console.log("  - listData length:", listData?.length);
+            setError("List not found or doesn't belong to this folder");
+            setLoading(false);
+            return;
+          }
+          
+          console.log("✅ DEBUG: List found:", listData[0]);
+          setList(listData[0]);
+
+          console.log("📡 DEBUG: Fetching prospects...");
+          
+          const { data: prospectRows, error: prospectsError } = await supabase
+            .from("list_items")
+            .select("id, data")
+            .eq("list_id", listId);
+
+          console.log("📡 DEBUG: Prospects query result:");
+          console.log("  - data:", prospectRows);
+          console.log("  - error:", prospectsError);
+          console.log("  - data length:", prospectRows?.length);
+
+          if (prospectsError) {
+            console.error("❌ DEBUG: Prospects error:", prospectsError);
+            setError("Failed to load prospects");
+            setLoading(false);
+            return;
+          }
+
+          console.log("✅ DEBUG: Setting prospects:", prospectRows?.length || 0, "items");
+          setProspects(prospectRows || []);
+          setLoading(false);
+          console.log("✅ DEBUG: fetchListAndProspects completed successfully");
+        }
+      } catch (err) {
+        console.error("💥 DEBUG: Unexpected error:", err);
+        setError("An unexpected error occurred");
         setLoading(false);
-        return;
       }
-      setList(listData);
-      // Fetch prospects for this list
-      const { data: prospectRows, error: prospectsError } = await supabase
-        .from("list_items")
-        .select("id, data")
-        .eq("list_id", listId);
-      if (prospectsError) {
-        setError("Failed to load prospects");
-        setLoading(false);
-        return;
-      }
-      setProspects(prospectRows || []);
-      setLoading(false);
     };
-    if (listId) fetchListAndProspects();
-  }, [listId]);
+
+    if (listId && folderId && supabase) {
+      console.log("🚀 DEBUG: Conditions met, calling fetchListAndProspects");
+      fetchListAndProspects();
+    } else {
+      console.log("⏳ DEBUG: Waiting for conditions:");
+      console.log("  - listId:", !!listId);
+      console.log("  - folderId:", !!folderId);
+      console.log("  - supabase:", !!supabase);
+    }
+  }, [listId, folderId, supabase]);
 
   async function handleAddRow() {
+    if (!supabase) return; // Wait for supabase client to be initialized
+
     setUndoStack(stack => [...stack, JSON.parse(JSON.stringify(prospects))]);
     setRedoStack([]);
     if (!columns.length) return;
+    
     const emptyRow: Record<string, any> = {};
-    columns.forEach(col => (emptyRow[col] = ""));
+    columns.forEach(col => {
+      if (automaticColumns.includes(col)) {
+        // Set default values for automatic columns
+        emptyRow[col] = col === 'status' ? 'NONE' : col === 'comment' ? '' : col === 'rappel' ? '' : '';
+      } else {
+        emptyRow[col] = "";
+      }
+    });
+    
     const { data: inserted } = await supabase.from('list_items').insert([{ list_id: listId, data: emptyRow }]).select().single();
     if (inserted) setProspects(prev => [...prev, inserted]);
   }
@@ -595,11 +844,19 @@ export default function ListSpreadsheetPage() {
           <Button
             variant="outline"
             onClick={() => csvInputRef.current?.click()}
-            disabled={importingCsv}
-            className="border-gray-300 hover:bg-gray-50 transition-all duration-200"
+            disabled={importingCsv || !list}
+            className="border-gray-300 hover:bg-gray-50 transition-all duration-200 relative"
+            title={!list ? "Veuillez attendre que la liste soit chargée" : "Importer un fichier CSV"}
           >
             <Upload className="w-4 h-4 mr-2" />
-            {importingCsv ? "Import..." : "Importer CSV"}
+            {importingCsv ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
+                Importation...
+              </>
+            ) : (
+              "Importer CSV"
+            )}
           </Button>
 
           {/* Export Selected */}
@@ -626,8 +883,41 @@ export default function ListSpreadsheetPage() {
 
         {/* Error Messages */}
         {importCsvError && (
-          <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-sm">
-            {importCsvError}
+          <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+            <div className="flex items-start">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <h3 className="text-sm font-medium text-red-800">Erreur d'importation CSV</h3>
+                <p className="mt-1 text-sm text-red-700">{importCsvError}</p>
+                <div className="mt-2">
+                  <button
+                    onClick={() => setImportCsvError(null)}
+                    className="text-sm text-red-600 hover:text-red-500 underline"
+                  >
+                    Fermer
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* CSV Import Success/Progress Info */}
+        {importingCsv && (
+          <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <div className="flex items-center">
+              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600 mr-3"></div>
+              <div>
+                <h3 className="text-sm font-medium text-blue-800">Importation en cours...</h3>
+                <p className="mt-1 text-sm text-blue-700">
+                  Traitement du fichier CSV et insertion des données dans la base de données.
+                </p>
+              </div>
+            </div>
           </div>
         )}
       </Card>
@@ -659,7 +949,12 @@ export default function ListSpreadsheetPage() {
                         });
                       }}
                     />
-                    <span className="truncate" title={col}>{col}</span>
+                    <span className="truncate" title={col}>
+                      {col === 'status' ? 'Statut' : 
+                       col === 'comment' ? 'Commentaire' : 
+                       col === 'rappel' ? 'Rappel' : 
+                       col.charAt(0).toUpperCase() + col.slice(1)}
+                    </span>
                   </label>
                 ))}
               </div>
@@ -754,7 +1049,10 @@ export default function ListSpreadsheetPage() {
                       }}
                     >
                       <div className="flex items-center gap-2">
-                        {col}
+                        {col === 'status' ? 'Statut' : 
+                         col === 'comment' ? 'Commentaire' : 
+                         col === 'rappel' ? 'Rappel' : 
+                         col.charAt(0).toUpperCase() + col.slice(1)}
                         {sortCol === idx && (
                           <span className="text-blue-600">
                             {sortDir === 'asc' ? '▲' : '▼'}
@@ -794,28 +1092,130 @@ export default function ListSpreadsheetPage() {
                       </TableCell>
                       {columns.map((col, colIdx) => (
                         <TableCell key={col} className="py-3">
-                          {editingCell && editingCell.row === rowIdx && editingCell.col === colIdx ? (
-                            <Input
-                              autoFocus
-                              value={editValue}
-                              onChange={e => setEditValue(e.target.value)}
-                              onBlur={() => handleSaveEdit(rowIdx, colIdx)}
-                              onKeyDown={e => {
-                                if (e.key === 'Enter') handleSaveEdit(rowIdx, colIdx);
-                                if (e.key === 'Escape') cancelEdit();
-                              }}
-                              className="h-8 text-sm border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                            />
-                          ) : (
-                            <span
-                              className="block cursor-pointer min-w-[60px] px-2 py-1 rounded hover:bg-blue-50 transition-colors"
-                              onDoubleClick={() => startEdit(rowIdx, colIdx, row.data[col])}
-                              tabIndex={0}
-                              onKeyDown={e => {
-                                if (e.key === 'Enter') startEdit(rowIdx, colIdx, row.data[col]);
+                          {col === 'status' ? (
+                            // Status column - always show select dropdown
+                            <Select
+                              value={row.data[col] || 'NONE'}
+                              onValueChange={value => {
+                                const actualValue = value === 'NONE' ? '' : value;
+                                const globalIdx = (page - 1) * pageSize + rowIdx;
+                                const prospect = filteredProspects[globalIdx];
+                                if (!prospect || !supabase) return;
+                                
+                                const prevData = { ...prospect.data };
+                                const updated = { ...prospect.data, [col]: actualValue };
+                                
+                                // Optimistic UI update
+                                setProspects(prev => prev.map(p => p.id === prospect.id ? { ...p, data: updated } : p));
+                                
+                                // Save to database
+                                supabase.from('list_items').update({ data: updated }).eq('id', prospect.id);
+                                
+                                // Add to undo stack
+                                addAction({
+                                  type: "edit",
+                                  targetId: prospect.id,
+                                  prevData,
+                                  nextData: updated,
+                                  actionId: undefined,
+                                });
                               }}
                             >
-                              {row.data[col] || ''}
+                              <SelectTrigger className={`h-8 text-sm border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                                row.data[col] && row.data[col] !== 'NONE'
+                                  ? row.data[col] === 'RDV' || row.data[col] === 'CLIENT' 
+                                    ? 'bg-green-100 text-green-800 border-green-300' 
+                                    : row.data[col] === 'NRP' || row.data[col] === 'HORS_CIBLE'
+                                    ? 'bg-red-100 text-red-800 border-red-300'
+                                    : row.data[col] === 'INTERESSE' || row.data[col] === 'PROSPECT_CHAUD'
+                                    ? 'bg-blue-100 text-blue-800 border-blue-300'
+                                    : 'bg-gray-100 text-gray-800 border-gray-300'
+                                  : ''
+                              }`}>
+                                <SelectValue placeholder="Choisir un statut">
+                                  {row.data[col] && row.data[col] !== 'NONE'
+                                    ? statusOptions.find(opt => opt.value === row.data[col])?.label || row.data[col]
+                                    : 'Cliquer pour définir'
+                                  }
+                                </SelectValue>
+                              </SelectTrigger>
+                              <SelectContent>
+                                {statusOptions.map(option => (
+                                  <SelectItem key={option.value} value={option.value}>
+                                    {option.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          ) : editingCell && editingCell.row === rowIdx && editingCell.col === colIdx ? (
+                            // Editing mode for other columns
+                            col === 'rappel' ? (
+                              <Input
+                                type="datetime-local"
+                                autoFocus
+                                value={editValue}
+                                onChange={e => setEditValue(e.target.value)}
+                                onBlur={() => handleSaveEdit(rowIdx, colIdx)}
+                                onKeyDown={e => {
+                                  if (e.key === 'Enter') handleSaveEdit(rowIdx, colIdx);
+                                  if (e.key === 'Escape') cancelEdit();
+                                }}
+                                className="h-8 text-sm border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                              />
+                            ) : col === 'comment' ? (
+                              <textarea
+                                autoFocus
+                                value={editValue}
+                                onChange={e => setEditValue(e.target.value)}
+                                onBlur={() => handleSaveEdit(rowIdx, colIdx)}
+                                onKeyDown={e => {
+                                  if (e.key === 'Enter' && !e.shiftKey) {
+                                    e.preventDefault();
+                                    handleSaveEdit(rowIdx, colIdx);
+                                  }
+                                  if (e.key === 'Escape') cancelEdit();
+                                }}
+                                className="h-16 w-full text-sm border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
+                                placeholder="Ajouter un commentaire..."
+                              />
+                            ) : (
+                              // Default input for other columns
+                              <Input
+                                autoFocus
+                                value={editValue}
+                                onChange={e => setEditValue(e.target.value)}
+                                onBlur={() => handleSaveEdit(rowIdx, colIdx)}
+                                onKeyDown={e => {
+                                  if (e.key === 'Enter') handleSaveEdit(rowIdx, colIdx);
+                                  if (e.key === 'Escape') cancelEdit();
+                                }}
+                                className="h-8 text-sm border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                              />
+                            )
+                          ) : (
+                            // Display mode for non-status columns
+                            <span
+                              className="block cursor-pointer min-w-[60px] px-2 py-1 rounded hover:bg-blue-50 transition-colors"
+                              onDoubleClick={() => startEdit(rowIdx, colIdx, row.data[col] || '')}
+                              tabIndex={0}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter') startEdit(rowIdx, colIdx, row.data[col] || '');
+                              }}
+                            >
+                              {col === 'rappel' && row.data[col]
+                                ? new Date(row.data[col]).toLocaleString('fr-FR', {
+                                    day: '2-digit',
+                                    month: '2-digit',
+                                    year: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                  })
+                                : col === 'comment' && row.data[col]
+                                ? (row.data[col].length > 50 ? row.data[col].substring(0, 50) + '...' : row.data[col])
+                                : row.data[col] || (automaticColumns.includes(col) ? 
+                                    (col === 'comment' ? 'Ajouter un commentaire' : 
+                                     'Définir un rappel') : '')
+                              }
                             </span>
                           )}
                         </TableCell>

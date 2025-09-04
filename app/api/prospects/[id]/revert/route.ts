@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/client';
 
 // POST /api/prospects/[id]/revert
-export async function POST(req: NextRequest, { params }: any) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const supabase = createClient();
-  const { id } = params;
+  const { id } = await params;
   try {
     const { actionId, user_id } = await req.json();
     // Fetch the log entry

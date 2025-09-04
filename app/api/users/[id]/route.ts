@@ -7,12 +7,13 @@ const supabase = createClient(
 );
 
 // GET /api/users/[id] - Get user information
-export async function GET(req: NextRequest, { params }: any) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params;
     const { data, error } = await supabase
       .from('users')
       .select('id, full_name, email')
-      .eq('id', params.id)
+      .eq('id', id)
       .single();
 
     if (error) {

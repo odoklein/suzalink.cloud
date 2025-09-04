@@ -7,12 +7,13 @@ const supabase = createClient(
 );
 
 // GET /api/meeting-types/[id] - Get a specific meeting type
-export async function GET(req: NextRequest, { params }: any) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params;
     const { data, error } = await supabase
       .from('meeting_types')
       .select('*')
-      .eq('id', params.id)
+      .eq('id', id)
       .single();
 
     if (error) {
@@ -30,14 +31,15 @@ export async function GET(req: NextRequest, { params }: any) {
 }
 
 // PUT /api/meeting-types/[id] - Update a meeting type
-export async function PUT(req: NextRequest, { params }: any) {
+export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const updateData = await req.json();
+    const { id } = await params;
 
     const { data, error } = await supabase
       .from('meeting_types')
       .update(updateData)
-      .eq('id', params.id)
+      .eq('id', id)
       .select()
       .single();
 
@@ -52,12 +54,13 @@ export async function PUT(req: NextRequest, { params }: any) {
 }
 
 // DELETE /api/meeting-types/[id] - Delete a meeting type
-export async function DELETE(req: NextRequest, { params }: any) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params;
     const { error } = await supabase
       .from('meeting_types')
       .delete()
-      .eq('id', params.id);
+      .eq('id', id);
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });

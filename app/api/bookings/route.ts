@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { NotificationService } from '@/lib/notification-service';
 import { ActivityHelpers } from '@/lib/activity-logger';
 
 const supabase = createClient(
@@ -165,13 +164,8 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Send email notifications
-    try {
-      await NotificationService.sendBookingConfirmation(booking);
-    } catch (notificationError) {
-      console.error('Error sending booking notifications:', notificationError);
-      // Don't fail the booking creation if notifications fail
-    }
+    // TODO: Send email notifications when notification service is implemented
+    console.log('Booking created successfully:', booking.id);
 
     // Log booking creation activity
     try {

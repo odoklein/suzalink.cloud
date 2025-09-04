@@ -3,11 +3,10 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { 
+import {
   ArrowTrendingUpIcon,
   CalendarIcon,
   FolderIcon,
-  EnvelopeIcon,
   UsersIcon,
   HomeIcon
 } from "@heroicons/react/24/outline";
@@ -85,21 +84,6 @@ export default function DashboardPage() {
         </div>
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {/* Email Quick Access */}
-          <Link href="/dashboard/email">
-            <Card className="group relative overflow-hidden border-0 bg-gradient-to-r from-blue-500 to-indigo-600 text-white hover:shadow-2xl transition-all duration-300 hover:scale-[1.02] cursor-pointer select-none active:scale-[0.98] focus:outline-none focus:ring-4 focus:ring-blue-300/50">
-              <div className="absolute inset-0 bg-gradient-to-r from-blue-600/20 to-indigo-700/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-              <div className="absolute inset-0 bg-gradient-to-r from-blue-400/30 to-indigo-500/30 opacity-0 group-active:opacity-100 transition-opacity duration-150"></div>
-              <CardContent className="relative z-10 p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <EnvelopeIcon className="h-8 w-8 text-white/90 group-hover:scale-110 transition-transform duration-300" />
-                  <ArrowTrendingUpIcon className="h-5 w-5 text-white/70 group-hover:translate-x-1 transition-transform duration-300" />
-                </div>
-                <h3 className="text-xl font-bold mb-2 group-hover:translate-y-[-2px] transition-transform duration-300">Emails</h3>
-                <p className="text-blue-100 text-sm group-hover:translate-y-[-1px] transition-transform duration-300">Gérez vos communications</p>
-              </CardContent>
-            </Card>
-          </Link>
 
           {/* Projects Quick Access */}
           <Link href="/dashboard/projects">

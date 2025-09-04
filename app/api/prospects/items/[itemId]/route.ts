@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/client';
 
 // PATCH /api/prospects/items/[itemId]
-export async function PATCH(req: NextRequest, { params }: any) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ itemId: string }> }) {
   const supabase = createClient();
-  const { itemId } = params;
+  const { itemId } = await params;
   try {
     const { user_id, list_id, action_type, old_data, new_data } = await req.json();
     // Fetch current prospect (for old_data if not provided)
