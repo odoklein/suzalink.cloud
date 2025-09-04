@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/auth';
 import { createClient } from '@supabase/supabase-js';
 
 // Create server-side Supabase client with service role key
@@ -13,18 +12,11 @@ export async function GET(
   { params }: { params: Promise<{ folderId: string; listId: string }> }
 ) {
   try {
-    // Check authentication
-    const session = await auth();
-    if (!session?.user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     const { folderId, listId } = await params;
     
     console.log('🔍 API DEBUG: Fetching list data');
     console.log('  - folderId:', folderId);
     console.log('  - listId:', listId);
-    console.log('  - userId:', session.user.id);
 
     // Fetch list metadata - validate it belongs to the correct folder
     const { data: listData, error: listError } = await supabase

@@ -73,11 +73,14 @@ export const config = {
     /*
      * Match all request paths except for the ones starting with:
      * - api/auth (NextAuth.js routes)
+     * - api/lists (list operations - no auth required)
+     * - api/prospects/lists (list operations - no auth required)
+     * - api/prospects/folders (folder/list operations - no auth required)
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
      * - public folder
      */
-    "/((?!api/auth|_next/static|_next/image|favicon.ico|public|login|register).*)",
+    "/((?!api/auth|api/lists|api/prospects/lists|api/prospects/folders|_next/static|_next/image|favicon.ico|public|login|register).*)",
   ],
 }; 

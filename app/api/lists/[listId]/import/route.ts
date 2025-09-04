@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/auth';
 import { createClient } from '@supabase/supabase-js';
 
 // Create server-side Supabase client with service role key
@@ -13,19 +12,11 @@ export async function POST(
   { params }: { params: Promise<{ listId: string }> }
 ) {
   try {
-    // Check authentication
-    const session = await auth();
-    if (!session?.user) {
-      console.log('❌ CSV API DEBUG: Unauthorized request');
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
     const { listId } = await params;
     const { columns: incomingColumns, prospects: incomingProspects } = await req.json();
 
     console.log('🚀 CSV API DEBUG: Import request received');
     console.log('  - listId:', listId);
-    console.log('  - userId:', session.user.id);
     console.log('  - columns:', incomingColumns?.length);
     console.log('  - prospects:', incomingProspects?.length);
 

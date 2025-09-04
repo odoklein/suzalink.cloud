@@ -1,7 +1,13 @@
 // Handles GET (get list metadata and parse CSV)
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/utils/supabase/client';
+import { createClient } from '@supabase/supabase-js';
 import Papa from 'papaparse';
+
+// Create server-side Supabase client with service role key to bypass RLS
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 async function fetchCsv(url: string): Promise<string> {
   const res = await fetch(url);
@@ -10,11 +16,10 @@ async function fetchCsv(url: string): Promise<string> {
 }
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ listId: string }> }) {
-  const supabase = createClient();
   const { listId } = await params;
   try {
     // Get list metadata
-    const { data: list, error: listError } = await supabase.from('lists').select('*').eq('id', listId).single();
+    const { data: list, error: listError } = await supabaseAdmin.from('lists').select('*').eq('id', listId).single();
     if (listError) throw listError;
     // Fetch and parse CSV
     const csvText = await fetchCsv(list.csv_url);
