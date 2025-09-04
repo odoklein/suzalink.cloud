@@ -4,9 +4,10 @@ import { createClient } from '@supabase/supabase-js';
 import Papa from 'papaparse';
 
 // Create server-side Supabase client with service role key to bypass RLS
+// Fallback to anon key if service role key is not available (for production compatibility)
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
 async function fetchCsv(url: string): Promise<string> {
