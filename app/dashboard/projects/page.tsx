@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useNextAuth } from "@/lib/nextauth-context";
 import { supabase } from "@/lib/supabase";
 import { ActivityHelpers } from "@/lib/activity-logger";
@@ -7,6 +7,7 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectTrigger,
@@ -14,37 +15,113 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { validateProject, validateClientExists } from "@/lib/validation";
 import { showErrorToast, showSuccessToast, withRetry, handleAsyncError } from "@/lib/error-handling";
 import { useFormState } from "@/hooks/use-form-state";
 import { useRouter } from "next/navigation";
-import { ChevronDown, Plus, Filter, Search } from "lucide-react";
+import { 
+  ChevronDown, 
+  ChevronRight,
+  Plus, 
+  Search,
+  MoreVertical,
+  FileText,
+  Clock,
+  CheckCircle,
+  XCircle,
+  Pause,
+  Play
+} from "lucide-react";
 import { useQuery } from '@tanstack/react-query';
 import { Skeleton } from "@/components/ui/skeleton";
 
-const statusColors = {
-  active: 'bg-green-100 text-green-800 border-green-200',
-  completed: 'bg-blue-100 text-blue-800 border-blue-200',
-  on_hold: 'bg-yellow-100 text-yellow-800 border-yellow-200',
-  cancelled: 'bg-red-100 text-red-800 border-red-200',
-  archived: 'bg-gray-100 text-gray-800 border-gray-200'
+// Status configuration for the new design
+const STATUS_CONFIG = {
+  not_started: {
+    label: 'Pas Commencé',
+    icon: FileText,
+    bgColor: 'bg-gray-50',
+    borderColor: 'border-gray-200',
+    textColor: 'text-gray-700',
+    calendarColor: 'bg-gray-400'
+  },
+  in_progress: {
+    label: 'En Cours', 
+    icon: Play,
+    bgColor: 'bg-green-50',
+    borderColor: 'border-green-200',
+    textColor: 'text-green-700',
+    calendarColor: 'bg-green-500'
+  },
+  on_hold: {
+    label: 'En Attente',
+    icon: Pause,
+    bgColor: 'bg-yellow-50',
+    borderColor: 'border-yellow-200', 
+    textColor: 'text-yellow-700',
+    calendarColor: 'bg-yellow-500'
+  },
+  cancelled: {
+    label: 'Annulé',
+    icon: XCircle,
+    bgColor: 'bg-red-50',
+    borderColor: 'border-red-200',
+    textColor: 'text-red-700',
+    calendarColor: 'bg-red-500'
+  },
+  finished: {
+    label: 'Terminé',
+    icon: CheckCircle,
+    bgColor: 'bg-purple-50',
+    borderColor: 'border-purple-200',
+    textColor: 'text-purple-700',
+    calendarColor: 'bg-purple-500'
+  }
 };
 
-const StatusBadge = ({ status }: { status: string }) => (
-  <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${statusColors[status as keyof typeof statusColors] || 'bg-gray-100 text-gray-800 border-gray-200'}`}>
-    {status === 'active' ? 'Actif' : 
-     status === 'completed' ? 'Terminé' : 
-     status === 'on_hold' ? 'En attente' : 
-     status === 'cancelled' ? 'Annulé' : 
-     status === 'archived' ? 'Archivé' : status}
-  </span>
-);
+// Helper function to get member initials
+const getInitials = (name: string) => {
+  return name
+    .split(' ')
+    .map(n => n[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2);
+};
+
+// Helper function to format date
+const formatDate = (dateString: string) => {
+  return new Date(dateString).toLocaleDateString('en-GB', {
+    day: '2-digit',
+    month: '2-digit', 
+    year: 'numeric'
+  });
+};
 
 export default function ProjectsPage() {
   const { user } = useNextAuth();
+  const router = useRouter();
+  
+  // UI State
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<any>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  
+  // Modals
+  const [deleteModal, setDeleteModal] = useState<{ open: boolean, projectIds: string[] }>({ 
+    open: false, 
+    projectIds: [] 
+  });
+
   // Project form state with validation
   const projectForm = useFormState({
     initialValues: {
@@ -71,75 +148,72 @@ export default function ProjectsPage() {
       await handleProjectSubmit(values);
     }
   });
-  const [editing, setEditing] = useState<any>(null);
-  const router = useRouter();
-  const [filterStatus, setFilterStatus] = useState<string>("all");
-  const [filterClient, setFilterClient] = useState<string>("all");
-  const [sortBy, setSortBy] = useState<string>("created_at");
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
-  const [deleteModal, setDeleteModal] = useState<{ open: boolean, projectId: string | null }>({ open: false, projectId: null });
-  // Pagination state
-  const [page, setPage] = useState(1);
-  const pageSize = 8;
-  const [totalCount, setTotalCount] = useState<number>(0);
-  // Debounced filters
-  const [debouncedFilterStatus, setDebouncedFilterStatus] = useState(filterStatus);
-  const [debouncedFilterClient, setDebouncedFilterClient] = useState(filterClient);
-  useEffect(() => {
-    const t = setTimeout(() => setDebouncedFilterStatus(filterStatus), 300);
-    return () => clearTimeout(t);
-  }, [filterStatus]);
-  useEffect(() => {
-    const t = setTimeout(() => setDebouncedFilterClient(filterClient), 300);
-    return () => clearTimeout(t);
-  }, [filterClient]);
 
-  // Fetch projects with React Query
+  // Fetch all projects with related data
   const {
     data: projects = [] as any[],
     isLoading: loadingProjects,
     isError: errorProjects,
     refetch: refetchProjects
   } = useQuery<any[], Error>({
-    queryKey: [
-      "projects",
-      user?.id,
-      filterStatus,
-      filterClient,
-      sortBy,
-      sortDir,
-      page,
-      pageSize
-    ],
+    queryKey: ["projects", user?.id],
     queryFn: async () => {
       if (!user) return [];
       
-      let query = supabase
+      const { data, error } = await supabase
         .from("projects")
         .select(`
-          id, title, description, status, start_date, end_date, budget, progress, created_at,
+          id, title, description, status, start_date, end_date, budget, created_at, user_id,
           client:clients(id, name, company, contact_email, industry, status), client_id
-        `, { count: "exact" });
-      
-      if (filterStatus && filterStatus !== "all") query = query.eq("status", filterStatus);
-      if (filterClient && filterClient !== "all") query = query.eq("client_id", filterClient);
-      query = query.order(sortBy, { ascending: sortDir === "asc" });
-      // Pagination
-      const from = (page - 1) * pageSize;
-      const to = from + pageSize - 1;
-      query = query.range(from, to);
-      
-      const { data, error, count } = await query;
+        `)
+        .order('created_at', { ascending: false });
       
       if (error) throw new Error(error.message);
-      
-      if (typeof count === 'number') setTotalCount(count);
       return data || [];
     },
     enabled: !!user
   });
 
-  // Fetch clients
+  // Fetch all tasks for member calculation
+  const {
+    data: allTasks = [] as any[],
+    isLoading: loadingTasks
+  } = useQuery<any[], Error>({
+    queryKey: ["all-tasks", user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+      
+      const { data, error } = await supabase
+        .from("tasks")
+        .select("id, project_id, assignee_id, title, status");
+      
+      if (error) throw new Error(error.message);
+      return data || [];
+    },
+    enabled: !!user
+  });
+
+  // Fetch all users for member display
+  const {
+    data: allUsers = [] as any[],
+    isLoading: loadingUsers
+  } = useQuery<any[], Error>({
+    queryKey: ["all-users", user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+      
+      const { data, error } = await supabase
+        .from("users")
+        .select("id, full_name, email")
+        .order('full_name');
+      
+      if (error) throw new Error(error.message);
+      return data || [];
+    },
+    enabled: !!user
+  });
+
+  // Fetch clients for form dropdown
   const {
     data: clients = [] as any[],
     isLoading: loadingClients,
@@ -159,24 +233,82 @@ export default function ProjectsPage() {
     enabled: !!user
   });
 
-  // Fetch users
-  const {
-    data: users = [] as any[],
-    isLoading: loadingUsers,
-    isError: errorUsers
-  } = useQuery<any[], Error>({
-    queryKey: ["users", user?.id],
-    queryFn: async () => {
-      if (!user) return [];
-      const { data, error } = await supabase
-        .from("users")
-        .select("id, full_name")
-        .order("full_name");
-      if (error) throw new Error(error.message);
-      return data || [];
-    },
-    enabled: !!user
-  });
+  // Process data for the new design
+  const processedData = useMemo(() => {
+    if (!projects.length || loadingTasks || loadingUsers) {
+      return { groupedProjects: {}, filteredProjects: [], calendarData: [] };
+    }
+
+    // Create task lookup by project
+    const tasksByProject = allTasks.reduce((acc: Record<string, any[]>, task) => {
+      if (!acc[task.project_id]) acc[task.project_id] = [];
+      acc[task.project_id].push(task);
+      return acc;
+    }, {});
+
+    // Create user lookup
+    const userLookup = allUsers.reduce((acc: Record<string, any>, user) => {
+      acc[user.id] = user;
+      return acc;
+    }, {});
+
+    // Determine project status for grouping
+    const getProjectGroupStatus = (project: any) => {
+      const projectTasks = tasksByProject[project.id] || [];
+      
+      if (project.status === 'completed' || project.status === 'archived') {
+        return 'finished';
+      } else if (project.status === 'cancelled') {
+        return 'cancelled';
+      } else if (project.status === 'on_hold') {
+        return 'on_hold';
+      } else if (project.status === 'active') {
+        return projectTasks.length === 0 ? 'not_started' : 'in_progress';
+      }
+      return 'not_started';
+    };
+
+    // Get project members from tasks
+    const getProjectMembers = (project: any) => {
+      const projectTasks = tasksByProject[project.id] || [];
+      const uniqueAssigneeIds = [...new Set(projectTasks.map(t => t.assignee_id).filter(Boolean))];
+      return uniqueAssigneeIds.map(id => userLookup[id]).filter(Boolean);
+    };
+
+    // Search filtering
+    const searchFiltered = projects.filter(project => {
+      if (!searchQuery) return true;
+      const query = searchQuery.toLowerCase();
+      const projectTasks = tasksByProject[project.id] || [];
+      
+      return (
+        project.title?.toLowerCase().includes(query) ||
+        project.description?.toLowerCase().includes(query) ||
+        project.client?.name?.toLowerCase().includes(query) ||
+        projectTasks.some(task => task.title?.toLowerCase().includes(query))
+      );
+    });
+
+    // Group projects by status
+    const grouped = searchFiltered.reduce((acc: Record<string, any[]>, project) => {
+      const groupStatus = getProjectGroupStatus(project);
+      if (!acc[groupStatus]) acc[groupStatus] = [];
+      
+      acc[groupStatus].push({
+        ...project,
+        groupStatus,
+        members: getProjectMembers(project),
+        taskCount: tasksByProject[project.id]?.length || 0
+      });
+      return acc;
+    }, {});
+
+    return {
+      groupedProjects: grouped,
+      filteredProjects: searchFiltered
+    };
+  }, [projects, allTasks, allUsers, searchQuery, loadingTasks, loadingUsers]);
+
 
   function openCreate() {
     setEditing(null);
@@ -282,31 +414,15 @@ export default function ProjectsPage() {
 
   async function handleDelete(id: string) {
     try {
-      // Get project details before deletion for logging
-      const { data: projectToDelete } = await supabase
-        .from("projects")
-        .select("title")
-        .eq("id", id)
-        .single();
-
       await withRetry(async () => {
-        const { error } = await supabase.from("projects").delete().eq("id", id);
+        const { error } = await supabase
+          .from("projects")
+          .delete()
+          .eq("id", id);
         if (error) throw error;
       }, 3, 1000, 'project deletion');
 
       showSuccessToast("Project deleted successfully");
-      
-      // Log project deletion activity
-      try {
-        await ActivityHelpers.logProjectUpdated(
-          user?.id || '', 
-          `Deleted project: ${projectToDelete?.title || 'Unknown'}`, 
-          id
-        );
-      } catch (logError) {
-        console.error('Error logging project deletion:', logError);
-      }
-
       refetchProjects();
     } catch (error) {
       handleAsyncError(error, 'Project deletion');
@@ -315,230 +431,216 @@ export default function ProjectsPage() {
 
   if (!user) return null;
 
-  return (
-    <div className="space-y-6">
-      {/* Header Section */}
-      <div className="flex flex-col gap-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Projets</h1>
-            <p className="text-gray-600 mt-1">Gérez vos projets et suivez leur progression</p>
-          </div>
-          <Button 
-            onClick={openCreate} 
-            className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 shadow-sm transition-all duration-200"
-          >
-            <Plus className="w-4 h-4" />
-            Nouveau projet
-          </Button>
-        </div>
+  const isLoading = loadingProjects || loadingTasks || loadingUsers;
+  const { groupedProjects } = processedData;
 
-        {/* Filter Bar */}
-        <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-4">
-          <div className="flex flex-wrap items-center gap-4 justify-between">
-            <div className="flex flex-wrap gap-3 items-center">
-              <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
-                <Filter className="w-4 h-4" />
-                Filtres:
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="bg-white border-b border-gray-200 px-8 py-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">Projets</h1>
+              <p className="text-gray-600">Gérez vos projets et suivez leur progression</p>
+            </div>
+            
+            <div className="flex items-center gap-3">
+              <div className="relative">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                <Input
+                  placeholder="Rechercher projets..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10 w-64 border-gray-300 rounded-lg"
+                />
               </div>
-              <Select value={filterClient} onValueChange={setFilterClient}>
-                <SelectTrigger className="w-[160px] bg-white border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                  <SelectValue placeholder="Client" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tous les clients</SelectItem>
-                  {clients.map((c: any) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      <div className="flex flex-col">
-                        <span className="font-medium">{c.name}</span>
-                        {c.company && <span className="text-xs text-gray-500">{c.company}</span>}
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Select value={filterStatus} onValueChange={setFilterStatus}>
-                <SelectTrigger className="w-[140px] bg-white border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                  <SelectValue placeholder="Statut" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tous les statuts</SelectItem>
-                  <SelectItem value="active">Actif</SelectItem>
-                  <SelectItem value="completed">Terminé</SelectItem>
-                  <SelectItem value="archived">Archivé</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select value={sortBy} onValueChange={setSortBy}>
-                <SelectTrigger className="w-[160px] bg-white border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                  <SelectValue placeholder="Trier par" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="created_at">Plus récent</SelectItem>
-                  <SelectItem value="title">Titre</SelectItem>
-                </SelectContent>
-              </Select>
-              <Button
-                variant="outline"
-                size="sm"
-                className="px-3 py-2 border-gray-300 hover:bg-gray-50 transition-all duration-200"
-                onClick={() => setSortDir(d => (d === "asc" ? "desc" : "asc"))}
-                title={`Trier ${sortDir === "asc" ? "décroissant" : "croissant"}`}
+              <Button 
+                onClick={openCreate}
+                className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-6 py-2.5"
               >
-                {sortDir === "asc" ? "↑" : "↓"}
+                <Plus className="w-4 h-4 mr-2" />
+                Nouveau Projet
               </Button>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Project Cards Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-        {loadingProjects ? (
-          <>
-            {[...Array(pageSize)].map((_, i) => (
-              <Card key={i} className="bg-white border border-gray-200 rounded-xl shadow-sm p-6 flex flex-col min-h-[280px] justify-between transition-all duration-200">
-                <div>
-                  <CardHeader className="p-0 mb-4">
-                    <Skeleton className="h-6 w-2/3 mb-2" />
-                    <Skeleton className="h-4 w-full mb-2" />
-                  </CardHeader>
-                  <CardContent className="p-0">
-                    <div className="flex items-center gap-2 mb-3">
-                      <Skeleton className="h-6 w-20 rounded-full" />
+        {/* Project List Content */}
+        <div className="p-8">
+          {isLoading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="bg-white border border-gray-200 rounded-xl p-6">
+                  <div className="space-y-4">
+                    <Skeleton className="h-6 w-3/4" />
+                    <Skeleton className="h-4 w-full" />
+                    <Skeleton className="h-4 w-2/3" />
+                    <div className="flex items-center gap-2">
+                      <Skeleton className="w-8 h-8 rounded-full" />
+                      <Skeleton className="w-8 h-8 rounded-full" />
+                      <Skeleton className="w-8 h-8 rounded-full" />
                     </div>
-                    <Skeleton className="h-4 w-full mb-2" />
-                    <Skeleton className="h-4 w-3/4" />
-                  </CardContent>
-                </div>
-                <div className="flex items-center justify-between mt-4">
-                  <Skeleton className="h-4 w-1/3" />
-                  <div className="flex gap-2">
-                    <Skeleton className="h-8 w-8 rounded-lg" />
-                    <Skeleton className="h-8 w-8 rounded-lg" />
                   </div>
                 </div>
-              </Card>
-            ))}
-          </>
-        ) : errorProjects ? (
-          <div className="col-span-full text-center py-12">
-            <div className="text-red-500 text-lg font-medium">Échec du chargement des projets</div>
-            <p className="text-gray-500 mt-2">Veuillez réessayer plus tard</p>
-          </div>
-        ) : projects.length === 0 ? (
-          <Card
-            className="col-span-full flex flex-col items-center justify-center border-2 border-dashed border-gray-200 bg-gray-50/60 hover:bg-blue-50 transition-all cursor-pointer min-h-[280px] shadow-none"
-            onClick={openCreate}
-            tabIndex={0}
-            role="button"
-            aria-label="Ajouter un nouveau projet"
-          >
-            <div className="flex flex-col items-center justify-center gap-3">
-              <div className="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 text-3xl shadow-sm">
-                <Plus className="w-8 h-8" />
-              </div>
-              <div className="text-center">
-                <h3 className="text-lg font-medium text-gray-900 mb-1">Aucun projet</h3>
-                <p className="text-gray-500">Commencez par créer votre premier projet</p>
-              </div>
+              ))}
             </div>
-          </Card>
-        ) : (
-          <>
-            {projects.map((project: any) => (
-              <Card 
-                key={project.id} 
-                className="bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-md hover:border-gray-300 transition-all duration-200 cursor-pointer group"
-                onClick={() => router.push(`/dashboard/projects/${project.id}`)}
-              >
-                <CardHeader className="flex flex-row items-center justify-between pb-3 space-y-0">
-                  <CardTitle className="text-lg font-semibold text-gray-900 group-hover:text-blue-600 transition-colors line-clamp-1">
-                    {project.title}
-                  </CardTitle>
-                  <StatusBadge status={project.status} />
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {project.status === 'active' && (
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-sm text-gray-600">
-                        <span>Progression</span>
-                        <span className="font-medium">{Math.round((project.progress || 0) * 100)}%</span>
-                      </div>
-                      <div className="w-full bg-gray-200 rounded-full h-2">
-                        <div 
-                          className="bg-blue-600 h-2 rounded-full transition-all duration-300" 
-                          style={{ width: `${Math.round((project.progress || 0) * 100)}%` }}
-                        />
+          ) : (
+            <div className="space-y-8">
+              {/* Status Overview */}
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                {Object.entries(STATUS_CONFIG).map(([key, config]) => {
+                  const count = (groupedProjects as Record<string, any[]>)[key]?.length || 0;
+                  const Icon = config.icon;
+                  return (
+                    <div key={key} className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-sm transition-shadow">
+                      <div className="flex items-center gap-3">
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${config.bgColor}`}>
+                          <Icon className={`w-5 h-5 ${config.textColor}`} />
+                        </div>
+                        <div>
+                          <div className="text-2xl font-bold text-gray-900">{count}</div>
+                          <div className="text-sm text-gray-600">{config.label}</div>
+                        </div>
                       </div>
                     </div>
-                  )}
-                  <p className="text-sm text-gray-600 line-clamp-3 leading-relaxed">
-                    {project.description || "Aucune description"}
-                  </p>
-                  <div className="flex justify-between items-center text-sm text-gray-500 pt-2 border-t border-gray-100">
-                    <span className="font-medium">{project.client?.name || 'Aucun client'}</span>
-                    <span>{new Date(project.created_at).toLocaleDateString('fr-FR')}</span>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-            {/* Add Project Card */}
-            <Card
-              className="flex flex-col items-center justify-center border-2 border-dashed border-gray-200 bg-gray-50/60 hover:bg-blue-50 transition-all cursor-pointer min-h-[280px] shadow-none"
-              onClick={openCreate}
-              tabIndex={0}
-              role="button"
-              aria-label="Ajouter un nouveau projet"
-            >
-              <div className="flex flex-col items-center justify-center gap-3">
-                <div className="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 text-3xl shadow-sm">
-                  <Plus className="w-8 h-8" />
-                </div>
-                <div className="text-center">
-                  <h3 className="text-lg font-medium text-gray-900 mb-1">Nouveau projet</h3>
-                  <p className="text-gray-500">Cliquez pour créer un projet</p>
-                </div>
+                  );
+                })}
               </div>
-            </Card>
-          </>
-        )}
-      </div>
 
-      {/* Pagination Controls */}
-      {totalCount > pageSize && (
-        <div className="flex justify-center mt-8">
-          <div className="flex items-center gap-3 bg-white border border-gray-200 rounded-lg shadow-sm px-4 py-2">
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => setPage(p => Math.max(1, p - 1))} 
-              disabled={page === 1}
-              className="border-gray-300 hover:bg-gray-50 transition-all duration-200"
-            >
-              Précédent
-            </Button>
-            <span className="px-4 py-1 rounded text-gray-700 bg-gray-100 text-sm font-medium">
-              Page {page} sur {Math.ceil(totalCount / pageSize)}
-            </span>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => setPage(p => p + 1)} 
-              disabled={page >= Math.ceil(totalCount / pageSize)}
-              className="border-gray-300 hover:bg-gray-50 transition-all duration-200"
-            >
-              Suivant
-            </Button>
-          </div>
+              {/* Projects Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {Object.values(groupedProjects as Record<string, any[]>).flat().map((project: any) => {
+                  const statusConfig = STATUS_CONFIG[project.groupStatus as keyof typeof STATUS_CONFIG];
+                  const Icon = statusConfig?.icon || FileText;
+                  
+                  return (
+                    <div 
+                      key={project.id} 
+                      className="bg-white border border-gray-200 rounded-xl p-6 hover:shadow-lg transition-all duration-200 cursor-pointer group"
+                      onClick={() => router.push(`/dashboard/projects/${project.id}`)}
+                    >
+                      {/* Project Header */}
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="flex items-center gap-3">
+                          <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${statusConfig?.bgColor || 'bg-gray-100'}`}>
+                            <Icon className={`w-5 h-5 ${statusConfig?.textColor || 'text-gray-600'}`} />
+                          </div>
+                          <div>
+                            <h3 className="font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">
+                              {project.title}
+                            </h3>
+                            <p className="text-sm text-gray-500">{statusConfig?.label}</p>
+                          </div>
+                        </div>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" className="w-40">
+                            <DropdownMenuItem onClick={(e) => {
+                              e.stopPropagation();
+                              openEdit(project);
+                            }}>
+                              Modifier
+                            </DropdownMenuItem>
+                            <DropdownMenuItem 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setDeleteModal({ open: true, projectIds: [project.id] });
+                              }}
+                              className="text-red-600"
+                            >
+                              Supprimer
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+
+                      {/* Project Description */}
+                      {project.description && (
+                        <p className="text-sm text-gray-600 mb-4 line-clamp-2">
+                          {project.description}
+                        </p>
+                      )}
+
+                      {/* Project Stats */}
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-4 text-sm text-gray-500">
+                          {project.taskCount > 0 && (
+                            <span>{project.taskCount} tâche{project.taskCount !== 1 ? 's' : ''}</span>
+                          )}
+                          {project.start_date && (
+                            <span>{formatDate(project.start_date)}</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Project Footer */}
+                      <div className="flex items-center justify-between">
+                        {/* Team Members */}
+                        <div className="flex items-center -space-x-2">
+                          {project.members.slice(0, 3).map((member: any) => (
+                            <div
+                              key={member.id}
+                              className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 text-white text-xs font-medium flex items-center justify-center border-2 border-white"
+                              title={member.full_name}
+                            >
+                              {getInitials(member.full_name)}
+                            </div>
+                          ))}
+                          {project.members.length > 3 && (
+                            <div className="w-8 h-8 rounded-full bg-gray-200 text-gray-600 text-xs font-medium flex items-center justify-center border-2 border-white">
+                              +{project.members.length - 3}
+                            </div>
+                          )}
+                          {project.members.length === 0 && (
+                            <span className="text-xs text-gray-400">Aucun membre</span>
+                          )}
+                        </div>
+
+                        {/* Client Badge */}
+                        {project.client && (
+                          <Badge className="text-xs bg-blue-50 text-blue-700 border-blue-200">
+                            {project.client.name}
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              
+              {/* Empty State */}
+              {Object.values(groupedProjects).every(group => group.length === 0) && (
+                <div className="bg-white border border-gray-200 rounded-xl p-12 text-center">
+                  <FileText className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                  <h3 className="text-xl font-semibold text-gray-900 mb-2">Aucun projet trouvé</h3>
+                  <p className="text-gray-500 mb-6">Commencez par créer votre premier projet</p>
+                  <Button onClick={openCreate} className="bg-blue-600 hover:bg-blue-700 text-white">
+                    <Plus className="w-4 h-4 mr-2" />
+                    Créer un Projet
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
-      )}
+      </div>
 
       {/* Create/Edit Project Dialog */}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="bg-white border border-gray-200 rounded-xl shadow-xl max-w-md">
           <DialogHeader className="space-y-3">
             <DialogTitle className="text-xl font-semibold text-gray-900">
-              {editing ? "Modifier le projet" : "Nouveau projet"}
+              {editing ? "Modifier le Projet" : "Nouveau Projet"}
             </DialogTitle>
             <DialogDescription className="text-gray-600">
               {editing ? "Modifiez les informations du projet ci-dessous." : "Créez un nouveau projet en remplissant les informations ci-dessous."}
@@ -690,19 +792,19 @@ export default function ProjectsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation Dialog */}
-      <Dialog open={deleteModal.open} onOpenChange={open => setDeleteModal(d => ({ ...d, open }))}>
+      {/* Bulk Delete Confirmation Dialog */}
+      <Dialog open={deleteModal.open} onOpenChange={(open) => setDeleteModal(prev => ({ ...prev, open }))}>
         <DialogContent className="bg-white border border-gray-200 rounded-xl shadow-xl max-w-md">
           <DialogHeader className="space-y-3">
-            <DialogTitle className="text-xl font-semibold text-gray-900">Supprimer le projet</DialogTitle>
+            <DialogTitle className="text-xl font-semibold text-gray-900">Supprimer les Projets</DialogTitle>
             <DialogDescription className="text-gray-600">
-              Êtes-vous sûr de vouloir supprimer ce projet ? Cette action est irréversible.
+              Êtes-vous sûr de vouloir supprimer {deleteModal.projectIds.length} projet(s) ? Cette action ne peut pas être annulée.
             </DialogDescription>
           </DialogHeader>
           <div className="flex justify-end gap-3 pt-4">
             <Button 
               variant="outline" 
-              onClick={() => setDeleteModal({ open: false, projectId: null })}
+              onClick={() => setDeleteModal({ open: false, projectIds: [] })}
               className="border-gray-300 hover:bg-gray-50 transition-all duration-200"
             >
               Annuler
@@ -710,10 +812,12 @@ export default function ProjectsPage() {
             <Button 
               variant="destructive" 
               onClick={async () => {
-                if (deleteModal.projectId) {
-                  await handleDelete(deleteModal.projectId);
+                if (deleteModal.projectIds.length > 0) {
+                  for (const projectId of deleteModal.projectIds) {
+                    await handleDelete(projectId);
+                  }
                 }
-                setDeleteModal({ open: false, projectId: null });
+                setDeleteModal({ open: false, projectIds: [] });
               }}
               className="bg-red-600 hover:bg-red-700 text-white font-medium py-2.5 px-4 rounded-lg transition-all duration-200"
             >

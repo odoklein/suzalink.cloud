@@ -13,29 +13,70 @@ export default auth((req) => {
   // Role-based access control
   const userRole = auth.user?.role as string;
   
-  // Admin-only routes
-  const adminRoutes = [
-    "/dashboard/users",
-    "/dashboard/settings",
-    "/api/admin",
-  ];
+  // Define route permissions
+  const routePermissions = {
+    // Client Management - Admin and Dev only
+    clientRoutes: [
+      "/dashboard/clients",
+      "/api/clients"
+    ],
+    
+    // User Management - Admin and Dev only
+    userManagementRoutes: [
+      "/dashboard/utilisateurs",
+      "/api/users/management"
+    ],
+    
+    // Invoice Management - Manager, Admin, Dev only
+    invoiceRoutes: [
+      "/dashboard/invoices",
+      "/api/invoices"
+    ],
+    
+    // Project Management - Everyone (admin, manager, user, commercial, dev)
+    projectRoutes: [
+      "/dashboard/projects"
+    ],
+    
+    // Email Management - Everyone
+    emailRoutes: [
+      "/dashboard/emails",
+      "/api/emails"
+    ],
+    
+    // Prospect Management - Admin, Commercial, Dev (with list-level restrictions)
+    prospectRoutes: [
+      "/dashboard/prospects",
+      "/api/prospects"
+    ]
+  };
   
-  // Manager+ routes (manager and admin)
-  const managerRoutes = [
-    "/dashboard/finance",
-    "/dashboard/analytics",
-  ];
-  
-  // Check admin routes
-  if (adminRoutes.some(route => pathname.startsWith(route))) {
-    if (userRole !== "admin") {
+  // Check Client Management routes (Admin and Dev only)
+  if (routePermissions.clientRoutes.some(route => pathname.startsWith(route))) {
+    if (userRole !== "admin" && userRole !== "dev") {
       return NextResponse.redirect(new URL("/dashboard", req.url));
     }
   }
   
-  // Check manager routes
-  if (managerRoutes.some(route => pathname.startsWith(route))) {
-    if (userRole !== "admin" && userRole !== "manager") {
+  // Check User Management routes (Admin and Dev only)
+  if (routePermissions.userManagementRoutes.some(route => pathname.startsWith(route))) {
+    if (userRole !== "admin" && userRole !== "dev") {
+      return NextResponse.redirect(new URL("/dashboard", req.url));
+    }
+  }
+  
+  // Check Invoice Management routes (Manager, Admin, Dev only)
+  if (routePermissions.invoiceRoutes.some(route => pathname.startsWith(route))) {
+    if (userRole !== "admin" && userRole !== "manager" && userRole !== "dev") {
+      return NextResponse.redirect(new URL("/dashboard", req.url));
+    }
+  }
+  
+  // Project and Email routes are accessible to everyone, no additional checks needed
+  
+  // Prospect routes are accessible to admin, commercial, dev
+  if (routePermissions.prospectRoutes.some(route => pathname.startsWith(route))) {
+    if (userRole !== "admin" && userRole !== "commercial" && userRole !== "dev") {
       return NextResponse.redirect(new URL("/dashboard", req.url));
     }
   }
@@ -74,13 +115,11 @@ export const config = {
      * Match all request paths except for the ones starting with:
      * - api/auth (NextAuth.js routes)
      * - api/lists (list operations - no auth required)
-     * - api/prospects/lists (list operations - no auth required)
-     * - api/prospects/folders (folder/list operations - no auth required)
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
      * - public folder
      */
-    "/((?!api/auth|api/lists|api/prospects/lists|api/prospects/folders|_next/static|_next/image|favicon.ico|public|login|register).*)",
+    "/((?!api/auth|api/lists|_next/static|_next/image|favicon.ico|public|login|register).*)",
   ],
 }; 

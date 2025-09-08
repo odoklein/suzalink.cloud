@@ -4,10 +4,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { useNextAuth } from "@/lib/nextauth-context";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Dialog as Drawer, DialogContent as DrawerContent, DialogHeader as DrawerHeader, DialogTitle as DrawerTitle, DialogDescription as DrawerDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -20,8 +18,8 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { validateTask, validateProject, validateProjectExists, validateUserExists } from "@/lib/validation";
 import { showErrorToast, showSuccessToast, withRetry, handleAsyncError } from "@/lib/error-handling";
+import { notifyTaskAssigned } from "@/lib/notification-utils";
 import { useFormState } from "@/hooks/use-form-state";
-import { CheckCircleIcon, FireIcon, ClipboardIcon } from '@heroicons/react/24/outline';
 import {
   DragDropContext,
   Droppable,
@@ -29,7 +27,7 @@ import {
   DropResult,
 } from "@hello-pangea/dnd";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
-import { PlusIcon, MoreHorizontal, CalendarDaysIcon, UserCircleIcon, FolderKanban, CalendarClock, List, Table, Filter, ArrowLeft } from 'lucide-react';
+import { PlusIcon, MoreHorizontal, CalendarDaysIcon, FolderKanban, List, ArrowLeft } from 'lucide-react';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu';
 
 const TASK_STATUSES = [
@@ -40,31 +38,19 @@ const TASK_STATUSES = [
 
 const STATUS_META: Record<string, any> = {
   todo: {
-    label: 'À faire',
-    icon: ClipboardIcon,
+    label: 'TODO',
     color: 'bg-blue-100 text-blue-600 border-blue-200',
-    border: 'border-l-4 border-blue-500',
   },
   doing: {
-    label: 'En cours',
-    icon: FireIcon,
+    label: 'IN WORK',
     color: 'bg-yellow-100 text-yellow-700 border-yellow-200',
-    border: 'border-l-4 border-yellow-500',
   },
   done: {
-    label: 'Terminé',
-    icon: CheckCircleIcon,
+    label: 'COMPLETED',
     color: 'bg-green-100 text-green-700 border-green-200',
-    border: 'border-l-4 border-green-500',
   },
 };
 
-// Color map for section/status
-const STATUS_COLORS: Record<string, string> = {
-  todo: 'bg-blue-500 text-white',
-  doing: 'bg-yellow-500 text-white',
-  done: 'bg-green-500 text-white',
-};
 
 // Utility functions
 const getPriorityColor = (priority?: string) => {
@@ -102,19 +88,6 @@ export default function ProjectDetailPage() {
     return user?.full_name || 'Inconnu';
   };
 
-  const handleEdit = (task: any) => {
-    setEditing(task);
-    taskForm.reset({
-      id: task.id,
-      title: task.title,
-      description: task.description || '',
-      due_date: task.due_date || '',
-      status: task.status,
-      priority: task.priority || 'medium',
-      assignee_id: task.assignee_id || null
-    });
-    setOpen(true);
-  };
 
   const params = useParams();
   if (!params?.id) {
@@ -166,10 +139,7 @@ export default function ProjectDetailPage() {
   const [deleteModal, setDeleteModal] = useState<{ open: boolean, taskId: string | null }>({ open: false, taskId: null });
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<any>(null);
-  const [view, setView] = useState<'board' | 'timeline' | 'list' | 'table' | 'filter'>('list');
-  // Add state for filters
-  const [filterStatus, setFilterStatus] = useState<string>("");
-  const [filterAssignee, setFilterAssignee] = useState<string>("");
+  const [view, setView] = useState<'board' | 'list'>('board');
 
   const [isProjectEditOpen, setIsProjectEditOpen] = useState(false);
   // Project form state with validation
@@ -258,10 +228,21 @@ export default function ProjectDetailPage() {
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['tasks', id] });
     },
-    onSuccess: () => {
+    onSuccess: async (data: any, variables: any) => {
       showSuccessToast('Task created successfully');
       setOpen(false);
       taskForm.reset();
+      
+      // Send notification if task is assigned to someone other than creator
+      if (variables.assignee_id && variables.assignee_id !== user?.id) {
+        try {
+          const assignerName = user?.name || user?.email || 'Système';
+          await notifyTaskAssigned(data.id, data.title, variables.assignee_id, assignerName);
+        } catch (notificationError) {
+          console.error('Error sending task assignment notification:', notificationError);
+          // Don't fail the task creation if notification fails
+        }
+      }
     }
   });
 
@@ -420,6 +401,17 @@ export default function ProjectDetailPage() {
           if (error) throw error;
         }, 3, 1000, 'task update');
 
+        // Send notification if assignee changed to someone other than current user
+        if (updatePayload.assignee_id && updatePayload.assignee_id !== user?.id && updatePayload.assignee_id !== editing.assignee_id) {
+          try {
+            const assignerName = user?.name || user?.email || 'Système';
+            await notifyTaskAssigned(editing.id, editing.title, updatePayload.assignee_id, assignerName);
+          } catch (notificationError) {
+            console.error('Error sending task assignment notification:', notificationError);
+            // Don't fail the task update if notification fails
+          }
+        }
+
         showSuccessToast('Task updated successfully');
         setOpen(false);
         fetchTasks();
@@ -482,20 +474,6 @@ export default function ProjectDetailPage() {
     }
   };
 
-  // Group tasks by status for sectioned list
-  const groupedTasks = TASK_STATUSES.map(({ value, label }) => ({
-    value,
-    label,
-    tasks: tasks.filter(t => t && t.status === value),
-  }));
-
-  // Filtered tasks for Filter view
-  const filteredTasks = tasks.filter(task => {
-    return (
-      (!filterStatus || task.status === filterStatus) &&
-      (!filterAssignee || task.assignee_id === filterAssignee)
-    );
-  });
 
   const handleTaskClick = (task: any) => {
     setSelectedTask(task);
@@ -518,32 +496,86 @@ export default function ProjectDetailPage() {
         </Button>
       </div>
 
-      {/* Project Header */}
-      <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-8">
+      {/* Project Header - Inspired Design */}
+      <div className="bg-white border border-gray-200 rounded-2xl shadow-sm p-8">
+        {/* Breadcrumb Navigation */}
+        <div className="flex items-center gap-2 text-sm text-gray-500 mb-6">
+          <span>Workspace</span>
+          <span>/</span>
+          <span className="text-gray-900 font-medium">{project?.title || 'Chargement...'}</span>
+          <span>/</span>
+          <span className="text-gray-900 font-medium">Board</span>
+        </div>
+
         <div className="flex justify-between items-start mb-8">
           <div className="flex-1">
-            <h1 className="text-3xl font-bold text-gray-900 mb-3">{project?.title || 'Chargement...'}</h1>
-            <p className="text-gray-600 text-lg leading-relaxed">{project?.description || 'Pas de description'}</p>
+            <div className="flex items-center gap-4 mb-4">
+              <h1 className="text-4xl font-bold text-gray-900">{project?.title || 'Chargement...'}</h1>
+              <div className="flex items-center gap-2">
+                {/* Star Icon */}
+                <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+                  <svg className="w-5 h-5 text-gray-400 hover:text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                  </svg>
+                </button>
+                {/* Lightning Icon */}
+                <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+                  <svg className="w-5 h-5 text-gray-400 hover:text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                </button>
+                {/* Share Icon */}
+                <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors flex items-center gap-1">
+                  <svg className="w-5 h-5 text-gray-400 hover:text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.367 2.684 3 3 0 00-5.367-2.684z" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+            
+            <p className="text-gray-600 text-lg leading-relaxed mb-6">{project?.description || 'Pas de description'}</p>
+            
+            {/* Project Team and Client Info */}
+            <div className="flex items-center gap-6">
             {project?.client && (
-              <div className="mt-4 flex items-center gap-2">
+                <div className="flex items-center gap-3">
                 <span className="text-sm text-gray-500">Client:</span>
-                <span className="text-sm font-medium text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full">
+                  <span className="text-sm font-medium text-blue-700 bg-blue-50 px-3 py-1.5 rounded-full border border-blue-200">
                   {project.client.name}
                 </span>
               </div>
             )}
+              
+              {/* Team Members */}
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-500">Team:</span>
+                <div className="flex -space-x-2">
+                  {usersData.slice(0, 4).map((user: any, index: number) => (
+                    <div key={user.id} className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-xs font-medium border-2 border-white">
+                      {user.full_name.split(' ').map((n: string) => n[0]).join('').toUpperCase()}
           </div>
+                  ))}
+                  {usersData.length > 4 && (
+                    <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 text-xs font-medium border-2 border-white">
+                      +{usersData.length - 4}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+          
           <div className="flex gap-3 ml-6">
             <Button 
               onClick={() => setOpen(true)}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-3 px-6 rounded-lg flex items-center justify-center gap-2 shadow-sm transition-all duration-200"
+              className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-6 rounded-xl flex items-center justify-center gap-2 shadow-lg transition-all duration-200"
             >
               <PlusIcon className="w-5 h-5" />
-              Nouvelle tâche
+              New Task
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="icon" className="border-gray-300 hover:bg-gray-50 transition-all duration-200 p-3">
+                <Button variant="outline" size="icon" className="border-gray-300 hover:bg-gray-50 transition-all duration-200 p-3 rounded-xl">
                   <MoreHorizontal className="h-5 w-5" />
                 </Button>
               </DropdownMenuTrigger>
@@ -573,7 +605,9 @@ export default function ProjectDetailPage() {
           <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-6 hover:shadow-sm transition-all duration-200">
             <div className="flex items-center gap-3 mb-2">
               <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center">
-                <CheckCircleIcon className="w-4 h-4 text-emerald-600" />
+                <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
               </div>
               <p className="text-sm font-medium text-emerald-700">Terminées</p>
             </div>
@@ -582,7 +616,9 @@ export default function ProjectDetailPage() {
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6 hover:shadow-sm transition-all duration-200">
             <div className="flex items-center gap-3 mb-2">
               <div className="w-8 h-8 bg-yellow-100 rounded-lg flex items-center justify-center">
-                <FireIcon className="w-4 h-4 text-yellow-600" />
+                <svg className="w-4 h-4 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z" />
+                </svg>
               </div>
               <p className="text-sm font-medium text-yellow-700">En cours</p>
             </div>
@@ -651,7 +687,9 @@ export default function ProjectDetailPage() {
             {tasks.length === 0 ? (
               <div className="p-12 text-center">
                 <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <ClipboardIcon className="w-8 h-8 text-gray-400" />
+                  <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                  </svg>
                 </div>
                 <h3 className="text-lg font-semibold text-gray-900 mb-2">Aucune tâche trouvée</h3>
                 <p className="text-gray-600 mb-6">Commencez par créer votre première tâche pour ce projet</p>
@@ -718,7 +756,7 @@ export default function ProjectDetailPage() {
                           <MoreHorizontal className="h-4 w-4" />
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-48">
-                          <DropdownMenuItem onClick={() => handleEdit(task)} className="flex items-center gap-2">
+                          <DropdownMenuItem onClick={() => openEdit(task)} className="flex items-center gap-2">
                             <span>Éditer</span>
                           </DropdownMenuItem>
                           <DropdownMenuItem 
@@ -740,6 +778,18 @@ export default function ProjectDetailPage() {
 
         {view === 'board' && (
           <div className="w-full">
+            {/* Filter Bar */}
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-4">
+                <Button 
+                  variant="outline" 
+                  className="border-gray-300 hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg"
+                >
+                  Only My
+                </Button>
+              </div>
+            </div>
+
             <DragDropContext
               onDragEnd={async (result: DropResult) => {
                 const { destination, source, draggableId } = result;
@@ -768,13 +818,12 @@ export default function ProjectDetailPage() {
                       <div 
                         ref={provided.innerRef}
                         {...provided.droppableProps}
-                        className="flex-1 min-w-[320px] bg-gray-50 rounded-xl shadow-sm"
+                        className="flex-1 min-w-[320px] bg-gray-50 rounded-2xl shadow-sm"
                       >
-                        <div className={`sticky top-0 z-10 p-6 ${STATUS_META[status.value].border} bg-white rounded-t-xl flex items-center justify-between border-b border-gray-200`}>
+                        <div className="sticky top-0 z-10 p-6 bg-white rounded-t-2xl flex items-center justify-between border-b border-gray-200">
                           <div className="flex items-center gap-3">
-                            <div className={`w-3 h-3 rounded-full ${STATUS_META[status.value].color.replace('bg-', 'bg-').replace('text-', '')}`} />
-                            <h3 className="font-semibold text-gray-900 text-lg">{status.label}</h3>
-                            <span className="text-xs text-gray-600 bg-gray-100 px-3 py-1.5 rounded-full font-medium">
+                            <h3 className="font-bold text-gray-900 text-lg uppercase tracking-wide">{status.label}</h3>
+                            <span className="text-sm text-gray-500 bg-gray-100 px-3 py-1 rounded-full font-medium">
                               {tasks.filter(t => t.status === status.value).length}
                             </span>
                           </div>
@@ -782,7 +831,7 @@ export default function ProjectDetailPage() {
                                                       onClick={() => {
                             openCreate(status.value);
                           }}
-                            className="text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 p-2 rounded-lg transition-all duration-200"
+                            className="text-gray-400 hover:text-blue-600 hover:bg-blue-50 p-2 rounded-lg transition-all duration-200"
                             aria-label={`Ajouter une tâche à ${status.label}`}
                           >
                             <PlusIcon className="h-5 w-5" />
@@ -798,64 +847,93 @@ export default function ProjectDetailPage() {
                                 <div
                                   ref={provided.innerRef}
                                   {...provided.draggableProps}
-                                  {...provided.dragHandleProps}
-                                  onClick={() => handleTaskClick(task)}
-                                  className={`${snapshot.isDragging ? 'shadow-xl rotate-1 scale-105' : 'shadow-sm hover:shadow-md'} ${STATUS_META[task.status]?.border} bg-white rounded-lg transition-all duration-200 cursor-pointer group`}
+                                  className={`${snapshot.isDragging ? 'shadow-2xl rotate-1 scale-105' : 'shadow-sm hover:shadow-md'} relative cursor-pointer group bg-white rounded-xl border border-gray-200 transition-all duration-200`}
                                   style={{
                                     ...provided.draggableProps.style,
-                                    transform: snapshot.isDragging 
+                                    transform: snapshot.isDragging
                                       ? `${provided.draggableProps.style?.transform} rotate(2deg)`
-                                      : provided.draggableProps.style?.transform
+                                      : provided.draggableProps.style?.transform,
                                   }}
                                 >
-                                  <div className="p-5">
-                                    <div className="flex justify-between items-start gap-3 mb-3">
-                                      <div className="flex items-center gap-3 flex-1 min-w-0">
-                                        <div className={`w-3 h-3 rounded-full ${getPriorityColor(task.priority)}`} />
-                                        <h3 className="font-semibold text-gray-900 group-hover:text-emerald-700 transition-colors line-clamp-1">{task.title}</h3>
-                                      </div>
-                                      <DropdownMenu>
-                                        <DropdownMenuTrigger className="text-gray-400 hover:text-gray-600 transition-colors p-1 rounded-lg hover:bg-gray-100 opacity-0 group-hover:opacity-100">
-                                          <MoreHorizontal className="h-4 w-4" />
-                                        </DropdownMenuTrigger>
-                                        <DropdownMenuContent align="end" className="w-48">
-                                          <DropdownMenuItem onClick={() => handleEdit(task)} className="flex items-center gap-2">
-                                            <span>Éditer</span>
-                                          </DropdownMenuItem>
-                                          <DropdownMenuItem 
-                                            className="text-red-600 flex items-center gap-2"
-                                            onClick={() => setDeleteModal({ open: true, taskId: task.id })}
-                                          >
-                                            <span>Supprimer</span>
-                                          </DropdownMenuItem>
-                                        </DropdownMenuContent>
-                                      </DropdownMenu>
-                                    </div>
-                                    
+                                  {/* Drag Handle Area */}
+                                  <div
+                                    {...provided.dragHandleProps}
+                                    className="absolute inset-0 z-10 rounded-xl"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleTaskClick(task);
+                                    }}
+                                  />
+                                  
+                                  {/* Card Content */}
+                                  <div className="p-4 space-y-3">
+                                    {/* Title */}
+                                    <h3 className="font-semibold text-gray-900 text-base leading-tight group-hover:text-blue-600 transition-colors">
+                                      {task.title}
+                                    </h3>
+
+                                    {/* Description */}
                                     {task.description && (
-                                      <p className="text-sm text-gray-600 line-clamp-2 leading-relaxed mb-4">{task.description}</p>
+                                      <p className="text-sm text-gray-600 leading-relaxed line-clamp-2">
+                                        {task.description}
+                                      </p>
                                     )}
-                                    
-                                    <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
-                                      <div className="flex items-center gap-2 flex-wrap">
+
+
+                                    {/* Task Metadata */}
+                                    <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+                                      {/* Left side - Assignee */}
+                                      <div className="flex items-center gap-2">
+                                      {task.assignee_id ? (
+                                          <div className="flex -space-x-1">
+                                            <div className="w-6 h-6 rounded-full bg-gradient-to-br from-blue-400 to-purple-500 flex items-center justify-center text-white text-xs font-medium border-2 border-white">
+                                            {getAssigneeInitials(task.assignee_id)}
+                                            </div>
+                                        </div>
+                                      ) : (
+                                          <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center">
+                                            <svg className="w-3 h-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                            </svg>
+                                        </div>
+                                      )}
+                                    </div>
+
+                                      {/* Right side - Comments, Attachments, Date */}
+                                      <div className="flex items-center gap-3 text-xs text-gray-500">
+
+                                        {/* Due Date */}
                                         {task.due_date && (
-                                          <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full font-medium ${isOverdue(task.due_date) ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-700'}`}>
-                                            <CalendarDaysIcon className="h-3 w-3" />
-                                            {formatDate(task.due_date)}
-                                          </span>
-                                        )}
-                                        {task.assignee_id && (
-                                          <span className="inline-flex items-center gap-1.5 bg-emerald-100 text-emerald-700 px-3 py-1.5 rounded-full font-medium">
-                                            <UserCircleIcon className="h-3 w-3" />
-                                            {getAssigneeName(task.assignee_id)}
-                                          </span>
+                                    <div className="flex items-center gap-1">
+                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                        </svg>
+                                            <span className={isOverdue(task.due_date) ? 'text-red-500 font-medium' : ''}>
+                                          {formatDate(task.due_date)}
+                                        </span>
+                                          </div>
                                         )}
                                       </div>
-                                      <span className={`px-3 py-1.5 rounded-full text-white font-medium ${STATUS_COLORS[task.status]}`}>
-                                        {STATUS_META[task.status]?.label}
-                                      </span>
                                     </div>
                                   </div>
+
+                                  {/* Dropdown Menu */}
+                                  <DropdownMenu>
+                                    <DropdownMenuTrigger className="absolute top-3 right-3 z-20 text-gray-400 hover:text-gray-600 transition-colors p-1 rounded-lg hover:bg-gray-100 opacity-0 group-hover:opacity-100">
+                                      <MoreHorizontal className="h-4 w-4" />
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="end" className="w-48">
+                                      <DropdownMenuItem onClick={() => openEdit(task)} className="flex items-center gap-2">
+                                        <span>Éditer</span>
+                                      </DropdownMenuItem>
+                                      <DropdownMenuItem
+                                        className="text-red-600 flex items-center gap-2"
+                                        onClick={() => setDeleteModal({ open: true, taskId: task.id })}
+                                      >
+                                        <span>Supprimer</span>
+                                      </DropdownMenuItem>
+                                    </DropdownMenuContent>
+                                  </DropdownMenu>
                                 </div>
                               )}
                             </Draggable>
@@ -872,15 +950,41 @@ export default function ProjectDetailPage() {
       )}
       </div>
 
+      {/* Floating Action Button */}
+      <div className="fixed bottom-8 right-8 z-50">
+        <div className="flex items-center gap-3">
+          {/* More Options Button */}
+          <Button
+            variant="outline"
+            size="icon"
+            className="w-12 h-12 rounded-full border-gray-300 hover:bg-gray-50 shadow-lg"
+          >
+            <div className="flex flex-col gap-1">
+              <div className="w-1 h-1 bg-gray-400 rounded-full"></div>
+              <div className="w-1 h-1 bg-gray-400 rounded-full"></div>
+              <div className="w-1 h-1 bg-gray-400 rounded-full"></div>
+            </div>
+          </Button>
+          
+          {/* New Task Button */}
+          <Button
+            onClick={() => setOpen(true)}
+            className="w-14 h-14 rounded-full bg-blue-600 hover:bg-blue-700 text-white shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center"
+          >
+            <PlusIcon className="w-6 h-6" />
+          </Button>
+        </div>
+      </div>
+
       {/* Create/Edit Task Dialog */}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="bg-white border border-gray-200 rounded-xl shadow-xl max-w-lg">
+        <DialogContent className="bg-white border border-gray-200 rounded-2xl shadow-xl max-w-lg">
           <DialogHeader className="space-y-4 pb-6">
             <DialogTitle className="text-2xl font-bold text-gray-900">
-              {editing ? 'Mettre à jour la tâche' : 'Créer une tâche'}
+              {editing ? 'Mettre à jour la tâche' : 'New Task'}
             </DialogTitle>
             <DialogDescription className="text-gray-600 text-base leading-relaxed">
-              {editing ? 'Modifiez les détails de cette tâche' : 'Ajoutez une nouvelle tâche au projet'}
+              {editing ? 'Modifiez les détails de cette tâche' : 'Add a new task to this project'}
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={taskForm.handleSubmit} className="space-y-6">
@@ -1010,12 +1114,12 @@ export default function ProjectDetailPage() {
               <Button 
                 type="submit"
                 disabled={taskForm.formState.isSubmitting || taskForm.hasAnyError}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-3 px-6 rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-6 rounded-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
                 {taskForm.formState.isSubmitting && (
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                 )}
-                {editing ? "Enregistrer" : "Créer"}
+                {editing ? "Save" : "Create"}
               </Button>
             </div>
           </form>

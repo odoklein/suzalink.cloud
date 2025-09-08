@@ -1,101 +1,113 @@
-import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { NextRequest, NextResponse } from 'next/server';
+import { createServerSupabaseClient } from '@/lib/supabase-server';
+import { ActivityHelpers } from '@/lib/activity-logger';
+import { auth } from '@/auth';
+import { notifyProspectListAssigned } from '@/lib/notification-utils';
 
-// POST: Assign folder or list to a client
+// POST /api/prospects/assign-client - Assign a client to a prospect list
 export async function POST(req: NextRequest) {
   try {
     const supabase = await createServerSupabaseClient();
-    const { type, id, client_id } = await req.json();
-
-    if (!type || !id) {
-      return NextResponse.json(
-        { error: "Type and ID are required" },
-        { status: 400 }
-      );
+    const session = await auth();
+    
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-
-    let tableName: string;
-    if (type === 'folder') {
-      tableName = 'folders';
-    } else if (type === 'list') {
-      tableName = 'lists';
-    } else {
-      return NextResponse.json(
-        { error: "Type must be 'folder' or 'list'" },
-        { status: 400 }
-      );
+    
+    const body = await req.json();
+    const { listId, clientId } = body;
+    
+    if (!listId) {
+      return NextResponse.json({ error: 'List ID is required' }, { status: 400 });
     }
-
-    // Update the folder or list with client_id
-    const { data, error } = await supabase
-      .from(tableName)
-      .update({ client_id: client_id || null })
-      .eq('id', id)
-      .select()
+    
+    // Check if list exists
+    const { data: list, error: listError } = await supabase
+      .from('prospect_lists')
+      .select('id, name, client_id')
+      .eq('id', listId)
       .single();
-
+    
+    if (listError) {
+      if (listError.code === 'PGRST116') {
+        return NextResponse.json({ error: 'List not found' }, { status: 404 });
+      }
+      return NextResponse.json({ error: listError.message }, { status: 500 });
+    }
+    
+    // If clientId is null, we're removing the client assignment
+    if (clientId === null) {
+      const { error } = await supabase
+        .from('prospect_lists')
+        .update({ client_id: null, updated_at: new Date().toISOString() })
+        .eq('id', listId);
+      
+      if (error) {
+        console.error('Error removing client assignment:', error);
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+      
+      // Log activity
+      await ActivityHelpers.logUserActivity(
+        session.user.id,
+        'prospect_list_unassigned',
+        `Removed client assignment from list: ${list.name}`
+      );
+      
+      return NextResponse.json({ success: true, message: 'Client assignment removed' });
+    }
+    
+    // Check if client exists
+    const { data: client, error: clientError } = await supabase
+      .from('clients')
+      .select('id, name')
+      .eq('id', clientId)
+      .single();
+    
+    if (clientError) {
+      if (clientError.code === 'PGRST116') {
+        return NextResponse.json({ error: 'Client not found' }, { status: 404 });
+      }
+      return NextResponse.json({ error: clientError.message }, { status: 500 });
+    }
+    
+    // Assign client to list
+    const { error } = await supabase
+      .from('prospect_lists')
+      .update({ client_id: clientId, updated_at: new Date().toISOString() })
+      .eq('id', listId);
+    
     if (error) {
-      console.error(`Error updating ${type}:`, error);
+      console.error('Error assigning client:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
+    
+    // Log activity
+    await ActivityHelpers.logProspectAssigned(
+      session.user.id,
+      list.name,
+      client.name
+    );
 
-    return NextResponse.json({ 
-      success: true, 
-      message: `${type} assigned successfully`,
-      data 
-    });
-
-  } catch (error) {
-    console.error("Unexpected error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
-  }
-}
-
-// GET: Get folders and lists assigned to a specific client
-export async function GET(req: NextRequest) {
-  try {
-    const supabase = await createServerSupabaseClient();
-    const { searchParams } = new URL(req.url);
-    const client_id = searchParams.get("client_id");
-
-    if (!client_id) {
-      return NextResponse.json(
-        { error: "Client ID is required" },
-        { status: 400 }
+    // Send notification to the assigned client
+    try {
+      await notifyProspectListAssigned(
+        listId,
+        list.name,
+        clientId,
+        session.user.name || session.user.email || 'Système'
       );
-    }
-
-    // Get folders assigned to this client
-    const { data: folders, error: foldersError } = await supabase
-      .from("folders")
-      .select("id, name, created_at, user_id")
-      .eq("client_id", client_id)
-      .order("created_at", { ascending: false });
-
-    if (foldersError) {
-      console.error("Error fetching folders:", foldersError);
-      return NextResponse.json({ error: foldersError.message }, { status: 500 });
-    }
-
-    // Get lists assigned to this client
-    const { data: lists, error: listsError } = await supabase
-      .from("lists")
-      .select("id, name, folder_id, created_at, csv_url, columns")
-      .eq("client_id", client_id)
-      .order("created_at", { ascending: false });
-
-    if (listsError) {
-      console.error("Error fetching lists:", listsError);
-      return NextResponse.json({ error: listsError.message }, { status: 500 });
+    } catch (notificationError) {
+      console.error('Error sending notification:', notificationError);
+      // Don't fail the request if notification fails
     }
 
     return NextResponse.json({
-      folders: folders || [],
-      lists: lists || []
+      success: true,
+      message: `List "${list.name}" assigned to client "${client.name}"`
     });
-
   } catch (error) {
-    console.error("Unexpected error:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    console.error('Error in POST /api/prospects/assign-client:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
-} 
+}

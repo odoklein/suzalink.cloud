@@ -1,0 +1,189 @@
+[1 tool called]
+
+# Complete Email System Implementation Plan
+
+## Phase 1: Database Foundation (Week 1)
+
+### 1.1 Database Schema Design
+**Personal Email Tables:**
+- `user_email_configs` - IMAP/SMTP settings, encryption keys
+- `email_folders` - Personal folders (Inbox, Sent, Drafts, Trash, Custom)
+- `personal_emails` - Individual emails with full content
+- `email_attachments` - File attachments with metadata
+- `email_labels` - Custom labels/tags for organization
+
+**Campaign System Tables:**
+- `email_campaigns` - Campaign definitions, templates, status
+- `email_templates` - Reusable templates with variables
+- `campaign_recipients` - Prospects assigned to campaigns
+- `email_sends` - Individual email sends with tracking IDs
+- `email_tracking_events` - Opens, clicks, replies, calls, bounces
+- `campaign_analytics` - Aggregated statistics per campaign
+- `email_sequences` - Follow-up email sequences
+- `unsubscribes` - Global unsubscribe list
+
+### 1.2 Database Migrations
+- Create all table structures with proper indexes
+- Set up foreign key relationships
+- Add RLS policies for multi-tenancy
+- Create database triggers for analytics updates
+
+## Phase 2: Personal Email System (Week 2-3)
+
+### 2.1 Email Configuration
+- Settings page for IMAP/SMTP configuration
+- Encrypted credential storage
+- Connection testing functionality
+- Multiple email account support
+
+### 2.2 Email Sync Engine
+- IMAP client implementation using `node-imap`
+- Manual sync button with progress indicator
+- Email parsing (HTML/text content)
+- Folder mapping and organization
+- Attachment handling and storage
+
+### 2.3 Inbox Interface
+- Folder navigation sidebar
+- Email list with sorting/filtering
+- Search functionality
+- Email preview pane
+- Responsive design for mobile
+
+### 2.4 Email Viewer
+- Full email display with HTML rendering
+- Attachment download/preview
+- Reply/Forward functionality
+- Email threading/conversation view
+- Print and export options
+
+### 2.5 Email Composition
+- Rich text editor for email composition
+- Attachment upload
+- Draft saving
+- Personal email sending via SMTP
+- Email templates for personal use
+
+## Phase 3: Campaign System Foundation (Week 4-5)
+
+### 3.1 Prospect Integration
+- Add "Create Email Campaign" to prospect multi-select
+- Campaign creation modal with prospect selection
+- Link campaigns to prospect records
+- Prospect email history tracking
+
+### 3.2 Template System
+- Email template editor with WYSIWYG
+- Variable system for prospect data
+- Template categories and organization
+- Template preview functionality
+- Import/export templates
+
+### 3.3 Campaign Dashboard
+- Campaign list with status indicators
+- Basic campaign statistics
+- Campaign management (edit, pause, delete)
+- Campaign performance overview
+- Quick actions and filters
+
+### 3.4 Email Sending Engine
+- Bulk email sending with queue system
+- Rate limiting and throttling
+- SMTP connection pooling
+- Email validation and cleaning
+- Bounce handling
+
+## Phase 4: Tracking & Analytics (Week 6-7)
+
+### 4.1 Email Tracking
+- Open tracking with pixel implementation
+- Click tracking with link rewriting
+- Reply detection via email parsing
+- Call tracking (manual entry + integration)
+- Bounce and delivery status tracking
+
+### 4.2 Analytics Dashboard
+- Real-time campaign statistics
+- Engagement metrics (open rates, click rates)
+- Prospect engagement history
+- Campaign comparison tools
+- Export analytics data
+
+### 4.3 Prospect Integration
+- Update prospect status based on email engagement
+- Email interaction history in prospect records
+- Lead scoring based on email behavior
+- Automated follow-up triggers
+
+## Phase 5: Advanced Features (Week 8-9)
+
+### 5.1 Advanced Campaign Features
+- A/B testing for subject lines and content
+- Email scheduling and automation
+- Follow-up email sequences
+- Drip campaign functionality
+- Campaign segmentation
+
+### 5.2 Email Deliverability
+- SPF, DKIM, DMARC configuration
+- Email reputation monitoring
+- Bounce handling and list cleaning
+- Unsubscribe management
+- Compliance features (GDPR, CAN-SPAM)
+
+### 5.3 Advanced Analytics
+- Cohort analysis
+- Conversion tracking
+- ROI calculations
+- Predictive analytics
+- Custom reporting
+
+## Technical Implementation Details
+
+### Backend Architecture
+- **API Routes:** `/api/emails/*`, `/api/campaigns/*`, `/api/tracking/*`
+- **Queue System:** Bull/BullMQ for email sending
+- **Email Libraries:** `node-imap`, `nodemailer`, `emailjs-imap-client`
+- **Tracking:** Custom pixel and link tracking
+- **Storage:** Supabase for database, file storage for attachments
+
+### Frontend Components
+- **Email Config:** Settings form with validation
+- **Inbox:** Folder tree, email list, viewer
+- **Campaigns:** Dashboard, creation wizard, analytics
+- **Templates:** Editor, preview, management
+- **Tracking:** Real-time analytics, reports
+
+### Security & Performance
+- **Encryption:** AES-256 for stored credentials
+- **Rate Limiting:** Prevent spam and API abuse
+- **Caching:** Redis for frequently accessed data
+- **CDN:** For email images and attachments
+- **Monitoring:** Email delivery and performance metrics
+
+### Integration Points
+- **Prospects:** Seamless integration with existing prospect system
+- **Users:** Role-based access to email features
+- **Notifications:** Real-time updates for email events
+- **Export:** Campaign and email data export
+
+## Development Timeline
+
+**Week 1:** Database schema and migrations
+**Week 2:** Personal email configuration and sync
+**Week 3:** Personal inbox and composition
+**Week 4:** Campaign creation and templates
+**Week 5:** Campaign dashboard and sending
+**Week 6:** Email tracking implementation
+**Week 7:** Analytics dashboard
+**Week 8:** Advanced features and automation
+**Week 9:** Security, compliance, and optimization
+
+## Success Metrics
+- Email sync performance (emails per minute)
+- Campaign delivery rates (>95%)
+- Open/click tracking accuracy
+- User adoption of email features
+- Campaign conversion rates
+
+This plan creates a comprehensive email marketing platform that integrates seamlessly with your existing prospect management system while providing full personal email management capabilities.

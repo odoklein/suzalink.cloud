@@ -102,7 +102,7 @@ RÈGLES IMPORTANTES:
 
 NAVIGATION:
 - Si l'utilisateur demande à aller sur une page spécifique, utilise le format: [NAVIGATE:page_name]
-- Pages disponibles: dashboard, email, bookings, clients, prospects, finance, users, chat
+- Pages disponibles: dashboard, email, bookings, clients, finance, users, chat
 - Exemple: "Allez sur la page [NAVIGATE:email] pour configurer vos emails"
 - Toujours expliquer pourquoi cette page est utile pour leur demande
 
@@ -128,7 +128,6 @@ EXEMPLES DE RÉPONSES:
 
 FONCTIONNALITÉS PRINCIPALES:
 - Gestion complète des clients avec profils détaillés
-- Suivi des prospects avec organisation par dossiers et listes
 - Gestion de projets avec suivi des statuts
 - Système de messagerie en temps réel avec messages vocaux
 - Client email intégré avec support IMAP/POP3
@@ -143,10 +142,6 @@ GESTION DES CLIENTS:
 - Actions disponibles: Appeler, Envoyer email, Prendre RDV, Créer facture
 - Suivi: Historique des interactions, documents associés, notes
 
-GESTION DES PROSPECTS:
-- Organisation: Dossiers > Listes > Prospects
-- Import CSV: Préparer fichier UTF-8 avec colonnes nom, email, téléphone, entreprise
-- Statuts: Nouveau, Contacté, Qualifié, Proposition, Négociation, Converti, Perdu
 - Workflow: Qualification > Contact > Proposition > Négociation > Conversion
 
 SYSTÈME DE MESSAGERIE:
@@ -218,13 +213,6 @@ FONCTIONNALITÉS AVANCÉES:
 - Filtres et recherche avancée
 - Export des données clients`,
       
-      'prospects': `Tu es sur la page Prospects. Tu peux aider avec:
-- Organisation en dossiers et listes
-- Import de prospects via CSV
-- Workflow de qualification et conversion
-- Gestion des statuts de prospect
-- Actions sur les prospects
-- Suivi et reporting`,
       
       'finance': `Tu es sur la page Finance. Tu peux aider avec:
 - Création et gestion des factures

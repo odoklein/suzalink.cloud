@@ -7,7 +7,7 @@ interface UserProfile {
   id: string;
   email: string;
   full_name: string;
-  role: 'admin' | 'manager' | 'user';
+  role: 'admin' | 'manager' | 'user' | 'commercial' | 'dev';
   created_at: string;
   profile_picture_url?: string; // Optional profile picture URL
 }
@@ -17,9 +17,15 @@ interface AuthContextType {
   user: User | null;
   userProfile: UserProfile | null;
   loading: boolean;
-  hasRole: (role: 'admin' | 'manager' | 'user') => boolean;
+  hasRole: (role: 'admin' | 'manager' | 'user' | 'commercial' | 'dev') => boolean;
   isAdmin: () => boolean;
   isManager: () => boolean;
+  isDev: () => boolean;
+  isCommercial: () => boolean;
+  canAccessClients: () => boolean;
+  canAccessInvoices: () => boolean;
+  canAccessUserManagement: () => boolean;
+  canAccessProspects: () => boolean;
   sessionStartTime: string | null;
   sessionDuration: number; // in minutes
 }
@@ -32,6 +38,12 @@ const AuthContext = createContext<AuthContextType>({
   hasRole: () => false,
   isAdmin: () => false,
   isManager: () => false,
+  isDev: () => false,
+  isCommercial: () => false,
+  canAccessClients: () => false,
+  canAccessInvoices: () => false,
+  canAccessUserManagement: () => false,
+  canAccessProspects: () => false,
   sessionStartTime: null,
   sessionDuration: 0,
 });
@@ -115,12 +127,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const hasRole = (role: 'admin' | 'manager' | 'user') => {
+  const hasRole = (role: 'admin' | 'manager' | 'user' | 'commercial' | 'dev') => {
     return userProfile?.role === role;
   };
 
   const isAdmin = () => hasRole('admin');
   const isManager = () => hasRole('manager') || hasRole('admin');
+  const isDev = () => hasRole('dev');
+  const isCommercial = () => hasRole('commercial');
+
+  // Permission helpers based on your requirements
+  const canAccessClients = () => hasRole('admin') || hasRole('dev');
+  const canAccessInvoices = () => hasRole('admin') || hasRole('manager') || hasRole('dev');
+  const canAccessUserManagement = () => hasRole('admin') || hasRole('dev');
+  const canAccessProspects = () => hasRole('admin') || hasRole('commercial') || hasRole('dev');
 
   return (
     <AuthContext.Provider value={{
@@ -131,6 +151,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       hasRole,
       isAdmin,
       isManager,
+      isDev,
+      isCommercial,
+      canAccessClients,
+      canAccessInvoices,
+      canAccessUserManagement,
+      canAccessProspects,
       sessionStartTime,
       sessionDuration,
     }}>

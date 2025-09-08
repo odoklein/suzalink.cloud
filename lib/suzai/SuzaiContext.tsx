@@ -40,7 +40,6 @@ export function SuzaiProvider({ children }: SuzaiProviderProps) {
       'email': ['send_email', 'reply', 'forward', 'delete', 'mark_read', 'search_emails'],
       'bookings': ['create_booking', 'reschedule', 'cancel', 'view_calendar', 'check_availability'],
       'clients': ['create_client', 'update_client', 'find_client', 'send_email_to_client'],
-      'prospects': ['import_prospects', 'assign_prospects', 'create_list', 'export_data'],
       'finance': ['generate_invoice', 'send_invoice', 'track_payments', 'view_reports'],
       'projects': ['create_project', 'update_status', 'assign_tasks', 'view_progress'],
       'dashboard': ['overview', 'quick_actions', 'recent_activity', 'notifications']

@@ -4,6 +4,7 @@ import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import ReactQueryProvider from '@/components/ReactQueryProvider';
 import { SessionProvider } from "@/components/SessionProvider";
+import { NotificationProvider } from "@/lib/notification-context";
 
 const poppins = Poppins({
   variable: "--font-poppins",
@@ -34,8 +35,10 @@ export default function RootLayout({
       <body className={`antialiased bg-[#FFFFFF]`}>
         <SessionProvider>
           <ReactQueryProvider>
-            {children}
-            <Toaster />
+            <NotificationProvider>
+              {children}
+              <Toaster />
+            </NotificationProvider>
           </ReactQueryProvider>
         </SessionProvider>
       </body>

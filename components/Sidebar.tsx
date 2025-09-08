@@ -1,29 +1,25 @@
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { useNextAuth } from "@/lib/nextauth-context";
+import { useNotifications } from "@/lib/notification-context";
 import { Button } from "@/components/ui/button";
+import { NotificationPanel } from "@/components/NotificationPanel";
 import {
   LayoutDashboard,
   Briefcase,
-  FileText,
   BarChart,
-  MessageCircle,
   LogOut,
-  UserCircle,
   ShieldCheck,
-  FolderKanban,
-  FileBarChart,
-  Bot,
   ChevronRight,
   ChevronLeft,
-  Calendar,
-  HelpCircle,
   ChevronUp,
   ChevronDown,
   User,
-  PieChart,
+  Users,
+  Mail,
+  Bell,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -34,15 +30,38 @@ interface SidebarProps {
 export function Sidebar({ onCollapseChange }: SidebarProps) {
   const pathname = usePathname();
   const { userProfile, logout } = useNextAuth();
+  const { unreadCount, setIsPanelOpen, isPanelOpen } = useNotifications();
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
+  const [expandedMenus, setExpandedMenus] = useState<Record<string, boolean>>({});
 
   const toggleSidebar = () => {
     const newCollapsed = !collapsed;
     setCollapsed(newCollapsed);
     onCollapseChange?.(newCollapsed);
   };
+
+  const toggleNotifications = () => {
+    setIsPanelOpen(!isPanelOpen);
+  };
+
+  const toggleMenu = (menuKey: string) => {
+    setExpandedMenus(prev => ({
+      ...prev,
+      [menuKey]: !prev[menuKey]
+    }));
+  };
+
+  // Auto-expand menu when on a clients page
+  useEffect(() => {
+    if (pathname && (pathname.startsWith('/dashboard/clients'))) {
+      setExpandedMenus(prev => ({
+        ...prev,
+        'Clients': true
+      }));
+    }
+  }, [pathname]);
 
   const handleLogout = async () => {
     try {
@@ -59,6 +78,10 @@ export function Sidebar({ onCollapseChange }: SidebarProps) {
         return "bg-emerald-100 text-emerald-700 border-emerald-200";
       case "manager":
         return "bg-blue-100 text-blue-700 border-blue-200";
+      case "dev":
+        return "bg-purple-100 text-purple-700 border-purple-200";
+      case "commercial":
+        return "bg-orange-100 text-orange-700 border-orange-200";
       case "user":
         return "bg-gray-100 text-gray-700 border-gray-200";
       default:
@@ -72,8 +95,12 @@ export function Sidebar({ onCollapseChange }: SidebarProps) {
     label: string;
     icon: React.ComponentType<{ className?: string }>;
     admin?: boolean;
+    manager?: boolean;
+    dev?: boolean;
+    commercial?: boolean;
     target?: string;
     badge?: number;
+    children?: NavLink[];
   }
 
   interface NavGroup {
@@ -87,23 +114,20 @@ export function Sidebar({ onCollapseChange }: SidebarProps) {
       links: [
         { href: "/dashboard", label: "Tableau de bord", icon: LayoutDashboard },
         { href: "/dashboard/projects", label: "Projets", icon: Briefcase },
-        { href: "/dashboard/prospects", label: "Prospects", icon: FolderKanban },
-        { href: "/dashboard/clients/dashboard", label: "Dashboard Clients", icon: BarChart },
-        { href: "/dashboard/bookings", label: "Calendrier", icon: Calendar },
-        { href: "/dashboard/utilisateurs", label: "Utilisateurs", icon: User, admin: true }, 
-      ],
-    },
-    {
-      label: "Communication",
-      links: [
-        { href: "/dashboard/ChatSystem", label: "Messagerie", icon: MessageCircle, badge: 2 },
-      ],
-    },
-    {
-      label: "Finances",
-      links: [
-        { href: "/dashboard/finance", label: "Finances", icon: BarChart },
-        { href: "/dashboard/finance/factures", label: "Factures", icon: FileText },
+        { 
+          href: "#", 
+          label: "Clients", 
+          icon: Users,
+          dev: true, // Admin and Dev can access clients
+          children: [
+            { href: "/dashboard/clients/dashboard", label: "Dashboard", icon: BarChart },
+            { href: "/dashboard/clients", label: "Clients", icon: Users },
+          ]
+        },
+        { href: "/dashboard/prospects", label: "Prospects", icon: Users },
+        { href: "/dashboard/emails", label: "Email", icon: Mail },
+        { href: "/dashboard/invoices", label: "Factures", icon: Briefcase, manager: true }, // Manager, Admin, Dev
+        { href: "/dashboard/utilisateurs", label: "Utilisateurs", icon: User, dev: true }, // Admin and Dev
       ],
     },
     {
@@ -112,12 +136,27 @@ export function Sidebar({ onCollapseChange }: SidebarProps) {
     },
   ];
 
+  // Add notifications item separately (not in navGroups)
+  const notificationsItem = {
+    href: "#",
+    label: "Notifications",
+    icon: Bell,
+    badge: unreadCount,
+    onClick: toggleNotifications,
+  };
+
   // Filter links by role
   const filteredGroups = navGroups.map((group) => ({
     ...group,
     links: group.links.filter((link) => {
       if (!userProfile) return false;
+      
+      // Check specific role requirements
       if (link.admin && userProfile.role !== "admin") return false;
+      if (link.manager && userProfile.role !== "manager" && userProfile.role !== "admin" && userProfile.role !== "dev") return false;
+      if (link.dev && userProfile.role !== "dev" && userProfile.role !== "admin") return false;
+      if (link.commercial && userProfile.role !== "commercial" && userProfile.role !== "admin" && userProfile.role !== "dev") return false;
+      
       return true;
     }),
   })).filter((group) => group.links.length > 0);
@@ -174,37 +213,125 @@ export function Sidebar({ onCollapseChange }: SidebarProps) {
             <ul className="space-y-1">
               {group.links.map((link) => {
                 const isActive = pathname && pathname.startsWith(link.href);
+                const hasChildren = link.children && link.children.length > 0;
+                const isExpanded = expandedMenus[link.label];
+                const menuKey = link.label;
+
+                // Check if any child is active
+                const isChildActive = hasChildren && link.children?.some(child => 
+                  pathname && pathname.startsWith(child.href)
+                );
+
                 return (
                   <li key={link.href}>
-                    <Link
-                      href={link.href}
-                      target={link.target}
-                      className={`flex items-center ${collapsed ? 'justify-center' : ''} gap-3 rounded-lg px-3 py-2.5 font-medium transition-all duration-200 text-sm group relative
-                        ${isActive 
-                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-sm' 
-                          : 'text-gray-700 hover:bg-white hover:text-gray-900 hover:shadow-sm'
-                        }
-                      `}
-                      title={collapsed ? link.label : ''}
-                    >
-                      <link.icon className={`w-5 h-5 ${isActive ? 'text-emerald-600' : 'text-gray-400 group-hover:text-gray-600'}`} />
-                      {!collapsed && (
-                        <div className="flex items-center justify-between w-full">
-                          <span>{link.label}</span>
-                          {link.badge && (
-                            <span className="inline-flex items-center justify-center px-2 py-1 text-xs font-medium bg-emerald-100 text-emerald-700 rounded-full min-w-[20px]">
-                              {link.badge}
-                            </span>
+                    {hasChildren ? (
+                      <>
+                        <button
+                          onClick={() => toggleMenu(menuKey)}
+                          className={`flex items-center ${collapsed ? 'justify-center' : ''} gap-3 rounded-lg px-3 py-2.5 font-medium transition-all duration-200 text-sm group relative w-full
+                            ${isChildActive
+                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-sm'
+                              : 'text-gray-700 hover:bg-white hover:text-gray-900 hover:shadow-sm'
+                            }
+                          `}
+                          title={collapsed ? link.label : ''}
+                        >
+                          <link.icon className={`w-5 h-5 ${isChildActive ? 'text-emerald-600' : 'text-gray-400 group-hover:text-gray-600'}`} />
+                          {!collapsed && (
+                            <div className="flex items-center justify-between w-full">
+                              <span>{link.label}</span>
+                              <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
+                            </div>
                           )}
-                        </div>
-                      )}
-                    </Link>
+                        </button>
+                        
+                        {/* Dropdown Menu */}
+                        {isExpanded && !collapsed && hasChildren && (
+                          <ul className="ml-6 mt-1 space-y-1 animate-in slide-in-from-top-2 duration-200">
+                            {link.children?.map((child) => {
+                              const isChildActive = pathname && pathname.startsWith(child.href);
+                              return (
+                                <li key={child.href}>
+                                  <Link
+                                    href={child.href}
+                                    target={child.target}
+                                    className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200
+                                      ${isChildActive
+                                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-sm'
+                                        : 'text-gray-600 hover:bg-white hover:text-gray-900 hover:shadow-sm'
+                                      }
+                                    `}
+                                  >
+                                    <child.icon className={`w-4 h-4 ${isChildActive ? 'text-emerald-600' : 'text-gray-400'}`} />
+                                    <span>{child.label}</span>
+                                  </Link>
+                                </li>
+                              );
+                            })}
+                          </ul>
+                        )}
+                      </>
+                    ) : (
+                      <Link
+                        href={link.href}
+                        target={link.target}
+                        className={`flex items-center ${collapsed ? 'justify-center' : ''} gap-3 rounded-lg px-3 py-2.5 font-medium transition-all duration-200 text-sm group relative
+                          ${isActive
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-sm'
+                            : 'text-gray-700 hover:bg-white hover:text-gray-900 hover:shadow-sm'
+                          }
+                        `}
+                        title={collapsed ? link.label : ''}
+                      >
+                        <link.icon className={`w-5 h-5 ${isActive ? 'text-emerald-600' : 'text-gray-400 group-hover:text-gray-600'}`} />
+                        {!collapsed && (
+                          <div className="flex items-center justify-between w-full">
+                            <span>{link.label}</span>
+                            {link.badge && (
+                              <span className="inline-flex items-center justify-center px-2 py-1 text-xs font-medium bg-emerald-100 text-emerald-700 rounded-full min-w-[20px]">
+                                {link.badge}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </Link>
+                    )}
                   </li>
                 );
               })}
             </ul>
           </div>
         ))}
+
+        {/* Notifications Item */}
+        <div>
+          <ul className="space-y-1">
+            <li>
+              <button
+                onClick={notificationsItem.onClick}
+                className={`flex items-center ${collapsed ? 'justify-center' : ''} gap-3 rounded-lg px-3 py-2.5 font-medium transition-all duration-200 text-sm group relative w-full
+                  ${isPanelOpen
+                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-sm'
+                    : 'text-gray-700 hover:bg-white hover:text-gray-900 hover:shadow-sm'
+                  }
+                `}
+                title={collapsed ? notificationsItem.label : ''}
+              >
+                <notificationsItem.icon className={`w-5 h-5 ${isPanelOpen ? 'text-emerald-600' : 'text-gray-400 group-hover:text-gray-600'}`} />
+                {!collapsed && (
+                  <div className="flex items-center justify-between w-full">
+                    <span>{notificationsItem.label}</span>
+                    {notificationsItem.badge && notificationsItem.badge > 0 && (
+                      <span className="inline-flex items-center justify-center px-2 py-1 text-xs font-medium bg-red-100 text-red-700 rounded-full min-w-[20px]">
+                        {notificationsItem.badge}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </button>
+            </li>
+          </ul>
+        </div>
       </nav>
 
       {/* User Profile Section */}
@@ -258,6 +385,12 @@ export function Sidebar({ onCollapseChange }: SidebarProps) {
           )}
         </div>
       </div>
+
+      {/* Notification Panel */}
+      <NotificationPanel
+        isOpen={isPanelOpen}
+        onClose={() => setIsPanelOpen(false)}
+      />
     </aside>
   );
 }

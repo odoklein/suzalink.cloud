@@ -53,7 +53,9 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-8">
+    <div className="h-full min-h-0 flex flex-col overflow-hidden">
+      <div className="flex-1 overflow-auto">
+        <div className="container mx-auto p-6 space-y-8">
       {/* Salutation Section */}
       <section className="space-y-6">
         <div className="flex items-center justify-between">
@@ -135,11 +137,8 @@ export default function DashboardPage() {
         </div>
       </section>
 
-
-
-
-
-
+        </div>
+      </div>
     </div>
   );
 } 

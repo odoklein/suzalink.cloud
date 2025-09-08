@@ -12,7 +12,7 @@ interface Folder {
 
 export default function FolderManager() {
   const [folders, setFolders] = useState<Folder[]>([
-    { id: "1", name: "All Prospects", count: 12 },
+    { id: "1", name: "All Folders", count: 12 },
     { id: "2", name: "Initial Contact", count: 4 },
     { id: "3", name: "Follow-up", count: 3 },
     { id: "4", name: "Closed", count: 2 },
