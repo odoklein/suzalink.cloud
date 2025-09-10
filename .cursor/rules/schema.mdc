@@ -1,0 +1,5 @@
+---
+description: never runds sql schema in the terminal , always leave the choice for me to run em manually 
+globs:
+alwaysApply: true
+---

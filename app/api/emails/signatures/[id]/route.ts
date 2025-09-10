@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/auth';
-import { createClient } from '@/lib/supabase-server';
+import { createServerSupabaseClient } from '@/lib/supabase-server';
 
 // GET /api/emails/signatures/[id] - Get a specific email signature
 export async function GET(
@@ -14,7 +14,7 @@ export async function GET(
     }
 
     const { id } = params;
-    const supabase = createClient();
+    const supabase = await createServerSupabaseClient();
     
     const { data, error } = await supabase
       .from('email_signatures')
@@ -57,7 +57,7 @@ export async function PUT(
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    const supabase = createClient();
+    const supabase = await createServerSupabaseClient();
     
     // First verify that the signature belongs to the user
     const { data: existingSignature, error: fetchError } = await supabase
@@ -117,7 +117,7 @@ export async function DELETE(
     }
 
     const { id } = params;
-    const supabase = createClient();
+    const supabase = await createServerSupabaseClient();
     
     const { error } = await supabase
       .from('email_signatures')

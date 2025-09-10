@@ -308,10 +308,20 @@ export function NotificationPanel({ isOpen, onClose }: NotificationPanelProps) {
                           <span className="ml-1 capitalize">{notification.priority}</span>
                         </Badge>
                         <span className="text-xs text-gray-500">
-                          {formatDistanceToNow(new Date(notification.createdAt), {
-                            addSuffix: true,
-                            locale: fr,
-                          })}
+                          {(() => {
+                            try {
+                              const date = new Date(notification.createdAt);
+                              if (isNaN(date.getTime())) {
+                                return 'Date invalide';
+                              }
+                              return formatDistanceToNow(date, {
+                                addSuffix: true,
+                                locale: fr,
+                              });
+                            } catch (error) {
+                              return 'Date invalide';
+                            }
+                          })()}
                         </span>
                       </div>
 

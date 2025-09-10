@@ -3,9 +3,7 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { useNextAuth } from "@/lib/nextauth-context";
-import { useNotifications } from "@/lib/notification-context";
-import { Button } from "@/components/ui/button";
-import { NotificationPanel } from "@/components/NotificationPanel";
+import { NotificationIcon } from "@/components/NotificationIcon";
 import {
   LayoutDashboard,
   Briefcase,
@@ -20,6 +18,8 @@ import {
   Users,
   Mail,
   Bell,
+  MessageCircle,
+  FileText,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -30,7 +30,6 @@ interface SidebarProps {
 export function Sidebar({ onCollapseChange }: SidebarProps) {
   const pathname = usePathname();
   const { userProfile, logout } = useNextAuth();
-  const { unreadCount, setIsPanelOpen, isPanelOpen } = useNotifications();
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
@@ -42,9 +41,6 @@ export function Sidebar({ onCollapseChange }: SidebarProps) {
     onCollapseChange?.(newCollapsed);
   };
 
-  const toggleNotifications = () => {
-    setIsPanelOpen(!isPanelOpen);
-  };
 
   const toggleMenu = (menuKey: string) => {
     setExpandedMenus(prev => ({
@@ -53,12 +49,18 @@ export function Sidebar({ onCollapseChange }: SidebarProps) {
     }));
   };
 
-  // Auto-expand menu when on a clients page
+  // Auto-expand menu when on a clients or emails page
   useEffect(() => {
     if (pathname && (pathname.startsWith('/dashboard/clients'))) {
       setExpandedMenus(prev => ({
         ...prev,
         'Clients': true
+      }));
+    }
+    if (pathname && (pathname.startsWith('/dashboard/emails'))) {
+      setExpandedMenus(prev => ({
+        ...prev,
+        'Email': true
       }));
     }
   }, [pathname]);
@@ -125,7 +127,16 @@ export function Sidebar({ onCollapseChange }: SidebarProps) {
           ]
         },
         { href: "/dashboard/prospects", label: "Prospects", icon: Users },
-        { href: "/dashboard/emails", label: "Email", icon: Mail },
+        {
+          href: "#",
+          label: "Email",
+          icon: Mail,
+          children: [
+            { href: "/dashboard/emails", label: "Inbox", icon: Mail },
+            { href: "/dashboard/emails/templates", label: "Templates", icon: FileText },
+          ]
+        },
+        { href: "/dashboard/messagerie", label: "Messagerie", icon: MessageCircle },
         { href: "/dashboard/invoices", label: "Factures", icon: Briefcase, manager: true }, // Manager, Admin, Dev
         { href: "/dashboard/utilisateurs", label: "Utilisateurs", icon: User, dev: true }, // Admin and Dev
       ],
@@ -136,14 +147,6 @@ export function Sidebar({ onCollapseChange }: SidebarProps) {
     },
   ];
 
-  // Add notifications item separately (not in navGroups)
-  const notificationsItem = {
-    href: "#",
-    label: "Notifications",
-    icon: Bell,
-    badge: unreadCount,
-    onClick: toggleNotifications,
-  };
 
   // Filter links by role
   const filteredGroups = navGroups.map((group) => ({
@@ -178,8 +181,8 @@ export function Sidebar({ onCollapseChange }: SidebarProps) {
 
       {/* Header Section */}
       <div className={`${collapsed ? 'p-4' : 'p-6'} border-b border-gray-200 bg-white`}>
-        {/* Logo */}
-        <div className="flex items-center gap-3 mb-6">
+        {/* Logo and Notifications */}
+        <div className="flex items-center justify-between mb-6">
           <span className="inline-block">
             {collapsed ? (
               <img src="/iconlogo.svg" alt="Suzalink Icon Logo" className="h-8 w-auto" />
@@ -187,6 +190,7 @@ export function Sidebar({ onCollapseChange }: SidebarProps) {
               <img src="/logopng.svg" alt="Suzalink Logo" className="h-8 w-auto" />
             )}
           </span>
+          {!collapsed && <NotificationIcon inSidebar={true} collapsed={false} />}
         </div>
 
         {/* User Role Display */}
@@ -203,6 +207,13 @@ export function Sidebar({ onCollapseChange }: SidebarProps) {
 
       {/* Navigation Groups */}
       <nav className="flex-1 flex flex-col overflow-y-auto p-4 space-y-6">
+        {/* Notifications for collapsed sidebar */}
+        {collapsed && (
+          <div className="flex justify-center mb-4">
+            <NotificationIcon inSidebar={true} collapsed={true} />
+          </div>
+        )}
+        
         {filteredGroups.map((group) => (
           <div key={group.label}>
             {!collapsed && (
@@ -223,7 +234,7 @@ export function Sidebar({ onCollapseChange }: SidebarProps) {
                 );
 
                 return (
-                  <li key={link.href}>
+                  <li key={link.label}>
                     {hasChildren ? (
                       <>
                         <button
@@ -303,35 +314,6 @@ export function Sidebar({ onCollapseChange }: SidebarProps) {
           </div>
         ))}
 
-        {/* Notifications Item */}
-        <div>
-          <ul className="space-y-1">
-            <li>
-              <button
-                onClick={notificationsItem.onClick}
-                className={`flex items-center ${collapsed ? 'justify-center' : ''} gap-3 rounded-lg px-3 py-2.5 font-medium transition-all duration-200 text-sm group relative w-full
-                  ${isPanelOpen
-                    ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-sm'
-                    : 'text-gray-700 hover:bg-white hover:text-gray-900 hover:shadow-sm'
-                  }
-                `}
-                title={collapsed ? notificationsItem.label : ''}
-              >
-                <notificationsItem.icon className={`w-5 h-5 ${isPanelOpen ? 'text-emerald-600' : 'text-gray-400 group-hover:text-gray-600'}`} />
-                {!collapsed && (
-                  <div className="flex items-center justify-between w-full">
-                    <span>{notificationsItem.label}</span>
-                    {notificationsItem.badge && notificationsItem.badge > 0 && (
-                      <span className="inline-flex items-center justify-center px-2 py-1 text-xs font-medium bg-red-100 text-red-700 rounded-full min-w-[20px]">
-                        {notificationsItem.badge}
-                      </span>
-                    )}
-                  </div>
-                )}
-              </button>
-            </li>
-          </ul>
-        </div>
       </nav>
 
       {/* User Profile Section */}
@@ -386,11 +368,6 @@ export function Sidebar({ onCollapseChange }: SidebarProps) {
         </div>
       </div>
 
-      {/* Notification Panel */}
-      <NotificationPanel
-        isOpen={isPanelOpen}
-        onClose={() => setIsPanelOpen(false)}
-      />
     </aside>
   );
 }

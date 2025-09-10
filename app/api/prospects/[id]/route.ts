@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServerSupabaseClient } from '@/lib/supabase-server';
 import { ActivityHelpers } from '@/lib/activity-logger';
 import { auth } from '@/auth';
+import { createNotification } from '@/lib/notification-utils';
+import { NotificationType, NotificationPriority } from '@/types/notification';
 
 // GET /api/prospects/[id] - Get a specific prospect
 export async function GET(
@@ -10,25 +12,43 @@ export async function GET(
 ) {
   try {
     const supabase = await createServerSupabaseClient();
+    const session = await auth();
     const params = await context.params;
     
-    const id = params.id;
+    if (!session?.user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     
-    const { data, error } = await supabase
+    const prospectId = params.id;
+    
+    // Get user profile to check role
+    const { data: userProfile, error: profileError } = await supabase
+      .from('users')
+      .select('role')
+      .eq('id', session.user.id)
+      .single();
+    
+    if (profileError) {
+      console.error('Error fetching user profile:', profileError);
+      return NextResponse.json({ error: 'User profile not found' }, { status: 404 });
+    }
+    
+    const { data: prospect, error } = await supabase
       .from('prospects')
       .select(`
         *,
-        prospect_lists (
-          id,
-          name,
-          client_id,
-          clients (
-            id,
-            name
-          )
+        prospect_interlocuteurs(*),
+        prospect_assignments(
+          user_id,
+          users(id, full_name, email)
+        ),
+        prospect_lists(id, name),
+        prospect_activities(
+          *,
+          users(id, full_name, email)
         )
       `)
-      .eq('id', id)
+      .eq('id', prospectId)
       .single();
     
     if (error) {
@@ -38,7 +58,15 @@ export async function GET(
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
     
-    return NextResponse.json({ prospect: data });
+    // ROLE-BASED ACCESS CONTROL: Commercial users access control
+    // Note: Since assigned_to column is removed, implement list-based access control later
+    if (userProfile.role === 'commercial') {
+      // For now, allow access to all prospects for commercial users
+      // Later implement list-based permissions
+    }
+    // Admin and Dev can see all prospects (no additional check needed)
+    
+    return NextResponse.json({ prospect });
   } catch (error) {
     console.error(`Error in GET /api/prospects/[id]:`, error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -59,91 +87,76 @@ export async function PUT(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     
-    const id = params.id;
+    const prospectId = params.id;
     const body = await req.json();
-    const { data, status, commentaire, rappel_date } = body;
+    const { name, email, phone, industry, website, status, notes, isDataField } = body;
     
-    // Get current prospect data
-    const { data: currentProspect, error: fetchError } = await supabase
-      .from('prospects')
-      .select('*')
-      .eq('id', id)
+    // Get user profile to check role
+    const { data: userProfile, error: profileError } = await supabase
+      .from('users')
+      .select('role')
+      .eq('id', session.user.id)
       .single();
     
-    if (fetchError) {
-      if (fetchError.code === 'PGRST116') {
+    if (profileError) {
+      console.error('Error fetching user profile:', profileError);
+      return NextResponse.json({ error: 'User profile not found' }, { status: 404 });
+    }
+    
+    // Check if prospect exists
+    const { data: existingProspect, error: checkError } = await supabase
+      .from('prospects')
+      .select('id, data, status')
+      .eq('id', prospectId)
+      .single();
+    
+    if (checkError) {
+      if (checkError.code === 'PGRST116') {
         return NextResponse.json({ error: 'Prospect not found' }, { status: 404 });
       }
-      return NextResponse.json({ error: fetchError.message }, { status: 500 });
+      return NextResponse.json({ error: checkError.message }, { status: 500 });
     }
     
-    // Prepare update object
-    const updateData: any = {
-      updated_at: new Date().toISOString()
-    };
-    
-    // Handle data updates (CSV columns)
-    if (data && typeof data === 'object') {
-      // Check for phone numbers in the updated data
-      const phoneRegex = /^\+?[\d\s\-\(\)\.]{7,20}$/;
-      let hasPhone = false;
-      let phoneNumber = null;
-      let phoneColumn = null;
-      
-      // Get columns to identify phone columns
-      const { data: columns } = await supabase
-        .from('prospect_columns')
-        .select('column_name, is_phone')
-        .eq('list_id', currentProspect.list_id);
-      
-      const phoneColumns = columns?.filter(col => col.is_phone) || [];
-      
-      // Check if any of the phone columns have a value in this prospect
-      for (const col of phoneColumns) {
-        if (data[col.column_name] && phoneRegex.test(data[col.column_name])) {
-          hasPhone = true;
-          phoneNumber = data[col.column_name];
-          phoneColumn = col.column_name;
-          break;
-        }
-      }
-      
-      // If no marked phone columns, try to detect phone numbers in any field
-      if (!hasPhone) {
-        for (const [key, value] of Object.entries(data)) {
-          if (typeof value === 'string' && phoneRegex.test(value)) {
-            hasPhone = true;
-            phoneNumber = value;
-            phoneColumn = key;
-            break;
-          }
-        }
-      }
-      
-      updateData.data = data;
-      updateData.has_phone = hasPhone;
-      updateData.phone_number = phoneNumber;
-      updateData.phone_column = phoneColumn;
+    // ROLE-BASED ACCESS CONTROL: Commercial users access control
+    // Note: Since assigned_to column is removed, implement list-based access control later
+    if (userProfile.role === 'commercial') {
+      // For now, allow modification of all prospects for commercial users
+      // Later implement list-based permissions
     }
-    
-    // Handle system column updates
-    if (status !== undefined) {
-      updateData.status = status;
-    }
-    
-    if (commentaire !== undefined) {
-      updateData.commentaire = commentaire;
-    }
-    
-    if (rappel_date !== undefined) {
-      updateData.rappel_date = rappel_date;
-    }
+    // Admin and Dev can modify all prospects (no additional check needed)
     
     // Update the prospect
-    const { data: updatedProspect, error } = await supabase
+    const updateData: any = {};
+
+    // Handle data fields (stored in JSONB)
+    if (isDataField) {
+      const currentData = existingProspect.data || {};
+      const fieldName = Object.keys(body).find(key => key !== 'isDataField');
+      if (fieldName) {
+        updateData.data = { ...currentData, [fieldName]: body[fieldName] };
+      }
+    } else {
+      // Handle direct fields
+      if (status) updateData.status = status;
+
+      // Handle data fields that go into JSONB
+      const dataUpdates: any = {};
+      if (name !== undefined) dataUpdates.name = name;
+      if (email !== undefined) dataUpdates.email = email;
+      if (phone !== undefined) dataUpdates.phone = phone;
+      if (industry !== undefined) dataUpdates.industry = industry;
+      if (website !== undefined) dataUpdates.website = website;
+      if (notes !== undefined) dataUpdates.notes = notes;
+
+      if (Object.keys(dataUpdates).length > 0) {
+        updateData.data = { ...existingProspect.data, ...dataUpdates };
+      }
+    }
+    
+    const { data, error } = await supabase
       .from('prospects')
       .update(updateData)
-      .eq('id', id)
+      .eq('id', prospectId)
       .select()
       .single();
     
@@ -152,19 +165,95 @@ export async function PUT(
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
     
-    // Log activity
-    let activityDetails = 'Updated prospect';
-    if (status) activityDetails += ` status to ${status}`;
-    if (commentaire !== undefined) activityDetails += ', added comment';
-    if (rappel_date) activityDetails += ', set reminder';
-    
-    await ActivityHelpers.logUserActivity(
-      session.user.id,
-      'prospect_updated',
-      activityDetails
-    );
-    
-    return NextResponse.json({ prospect: updatedProspect });
+    // Log activity if status changed
+    if (status && status !== existingProspect.status) {
+      const prospectName = existingProspect.data?.name || 'Unknown Prospect';
+      await ActivityHelpers.logUserActivity(
+        session.user.id,
+        'prospect_status_changed',
+        `Changed prospect status from ${existingProspect.status} to ${status}: ${prospectName}`
+      );
+
+      // Create notification for prospect status change
+      try {
+        // Get users assigned to this prospect's list
+        const { data: assignedUsers, error: assignError } = await supabase
+          .from('prospect_list_assignments')
+          .select(`
+            user_id,
+            users!prospect_list_assignments_user_id_fkey(id, full_name, email)
+          `)
+          .eq('list_id', existingProspect.list_id);
+
+        if (!assignError && assignedUsers) {
+          // Notify all assigned users about the status change
+          for (const assignment of assignedUsers) {
+            if (assignment.user_id !== session.user.id) { // Don't notify the user who made the change
+              await createNotification({
+                userId: assignment.user_id,
+                type: NotificationType.PROSPECT_STATUS_CHANGED,
+                title: 'Statut de prospect modifié',
+                message: `Le statut de "${prospectName}" a changé de "${existingProspect.status}" à "${status}"`,
+                priority: NotificationPriority.MEDIUM,
+                data: {
+                  prospectId: prospectId,
+                  oldStatus: existingProspect.status,
+                  newStatus: status,
+                  changedBy: session.user.id
+                },
+                actionUrl: `/dashboard/prospects?listId=${existingProspect.list_id}`,
+                actionLabel: 'Voir le prospect'
+              });
+            }
+          }
+        }
+      } catch (notificationError) {
+        console.error('Error creating prospect status change notification:', notificationError);
+        // Don't fail the update if notification fails
+      }
+    }
+
+    // Handle rappel date notifications
+    if (body.rappel_date) {
+      try {
+        const rappelDate = new Date(body.rappel_date);
+        const prospectName = existingProspect.data?.name || 'Unknown Prospect';
+
+        // Get users assigned to this prospect's list
+        const { data: assignedUsers, error: assignError } = await supabase
+          .from('prospect_list_assignments')
+          .select(`
+            user_id,
+            users!prospect_list_assignments_user_id_fkey(id, full_name, email)
+          `)
+          .eq('list_id', existingProspect.list_id);
+
+        if (!assignError && assignedUsers) {
+          // Notify all assigned users about the rappel date
+          for (const assignment of assignedUsers) {
+            await createNotification({
+              userId: assignment.user_id,
+              type: NotificationType.PROSPECT_RAPPEL_DUE,
+              title: 'Rappel programmé',
+              message: `Rappel programmé pour "${prospectName}" le ${rappelDate.toLocaleDateString('fr-FR')}`,
+              priority: NotificationPriority.MEDIUM,
+              data: {
+                prospectId: prospectId,
+                rappelDate: rappelDate.toISOString(),
+                prospectName: prospectName
+              },
+              actionUrl: `/dashboard/prospects?listId=${existingProspect.list_id}`,
+              actionLabel: 'Voir le prospect'
+            });
+          }
+        }
+      } catch (notificationError) {
+        console.error('Error creating rappel date notification:', notificationError);
+        // Don't fail the update if notification fails
+      }
+    }
+
+    return NextResponse.json({ prospect: data });
   } catch (error) {
     console.error(`Error in PUT /api/prospects/[id]:`, error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -185,41 +274,59 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     
-    const id = params.id;
+    const prospectId = params.id;
     
-    // Get prospect and list info before deletion
-    const { data: prospect, error: fetchError } = await supabase
-      .from('prospects')
-      .select('list_id')
-      .eq('id', id)
+    // Get user profile to check role
+    const { data: userProfile, error: profileError } = await supabase
+      .from('users')
+      .select('role')
+      .eq('id', session.user.id)
       .single();
     
-    if (fetchError) {
-      if (fetchError.code === 'PGRST116') {
-        return NextResponse.json({ error: 'Prospect not found' }, { status: 404 });
-      }
-      return NextResponse.json({ error: fetchError.message }, { status: 500 });
+    if (profileError) {
+      console.error('Error fetching user profile:', profileError);
+      return NextResponse.json({ error: 'User profile not found' }, { status: 404 });
     }
     
-    // Delete the prospect
+    // Check if prospect exists and get its data for the activity log
+    const { data: existingProspect, error: checkError } = await supabase
+      .from('prospects')
+      .select('id, data')
+      .eq('id', prospectId)
+      .single();
+    
+    if (checkError) {
+      if (checkError.code === 'PGRST116') {
+        return NextResponse.json({ error: 'Prospect not found' }, { status: 404 });
+      }
+      return NextResponse.json({ error: checkError.message }, { status: 500 });
+    }
+    
+    // ROLE-BASED ACCESS CONTROL: Commercial users access control
+    // Note: Since assigned_to column is removed, implement list-based access control later
+    if (userProfile.role === 'commercial') {
+      // For now, allow deletion of all prospects for commercial users
+      // Later implement list-based permissions
+    }
+    // Admin and Dev can delete all prospects (no additional check needed)
+    
+    // Delete the prospect (cascade will delete related data)
     const { error } = await supabase
       .from('prospects')
       .delete()
-      .eq('id', id);
+      .eq('id', prospectId);
     
     if (error) {
       console.error('Error deleting prospect:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
     
-    // Update prospect count in the list
-    await supabase.rpc('decrement_prospect_count', { list_id: prospect.list_id });
-    
     // Log activity
+    const prospectName = existingProspect.data?.name || 'Unknown Prospect';
     await ActivityHelpers.logUserActivity(
       session.user.id,
       'prospect_deleted',
-      `Deleted prospect from list`
+      `Deleted prospect: ${prospectName}`
     );
     
     return NextResponse.json({ success: true });

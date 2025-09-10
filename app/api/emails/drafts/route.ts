@@ -9,7 +9,7 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const supabase = createClient();
+    const supabase = await createClient();
 
     // Get drafts folder
     const { data: draftsFolder } = await supabase
@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
       configId,
     } = body;
 
-    const supabase = createClient();
+    const supabase = await createClient();
 
     // Get drafts folder
     const { data: draftsFolder } = await supabase

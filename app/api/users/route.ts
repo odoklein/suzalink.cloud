@@ -67,7 +67,7 @@ export async function GET(req: NextRequest) {
       // Transform public users to standardized format
       users = (publicUsers || []).map(user => ({
         id: user.id,
-        name: user.name || user.full_name || user.first_name || user.email?.split('@')[0] || 'User',
+        name: user.full_name || user.email?.split('@')[0] || 'User',
         email: user.email
       }));
 

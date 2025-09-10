@@ -8,6 +8,7 @@ import { BellIcon } from "@heroicons/react/24/outline";
 import Link from "next/link";
 import { useRouteRefetch } from '@/lib/use-route-refetch';
 import { SuzaiProvider } from '@/lib/suzai/SuzaiContext';
+import { useNotificationSetup } from '@/lib/notification-realtime';
 
 export default function DashboardLayoutClient({ children }: { children: React.ReactNode }) {
   const { user, loading } = useNextAuth();
@@ -16,6 +17,9 @@ export default function DashboardLayoutClient({ children }: { children: React.Re
 
   // Handle route changes and refetch data
   useRouteRefetch();
+
+  // Set up notification permissions and handlers
+  useNotificationSetup();
 
   useEffect(() => {
     if (!loading && !user) {

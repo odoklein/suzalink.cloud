@@ -44,11 +44,12 @@ export default auth((req) => {
       "/api/emails"
     ],
     
-    // Prospect Management - Admin, Commercial, Dev (with list-level restrictions)
+    // Prospect Management - Everyone (with role-based filtering in API)
     prospectRoutes: [
       "/dashboard/prospects",
       "/api/prospects"
-    ]
+    ],
+    
   };
   
   // Check Client Management routes (Admin and Dev only)
@@ -73,13 +74,6 @@ export default auth((req) => {
   }
   
   // Project and Email routes are accessible to everyone, no additional checks needed
-  
-  // Prospect routes are accessible to admin, commercial, dev
-  if (routePermissions.prospectRoutes.some(route => pathname.startsWith(route))) {
-    if (userRole !== "admin" && userRole !== "commercial" && userRole !== "dev") {
-      return NextResponse.redirect(new URL("/dashboard", req.url));
-    }
-  }
 
   // Add security headers
   const response = NextResponse.next();

@@ -1,0 +1,410 @@
+"use client";
+
+import React, { useState, useEffect } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Search,
+  Plus,
+  Grid3X3,
+  List,
+  RefreshCw,
+  FileText,
+  User
+} from 'lucide-react';
+import { toast } from 'sonner';
+import { TemplateList } from './TemplateList';
+import { TemplateForm } from './TemplateForm';
+
+interface EmailTemplateCategory {
+  id: string;
+  name: string;
+  color: string;
+  is_default: boolean;
+}
+
+interface EmailTemplate {
+  id: string;
+  name: string;
+  subject: string;
+  content: string;
+  category_id?: string;
+  created_at: string;
+  updated_at: string;
+  email_template_categories?: EmailTemplateCategory;
+}
+
+export function TemplatesPage() {
+  const [templates, setTemplates] = useState<EmailTemplate[]>([]);
+  const [categories, setCategories] = useState<EmailTemplateCategory[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [showForm, setShowForm] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState<EmailTemplate | null>(null);
+  const [selectedTemplates, setSelectedTemplates] = useState<Set<string>>(new Set());
+  const [showBulkActions, setShowBulkActions] = useState(false);
+
+  // Load templates and categories on component mount
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const [templatesResponse, categoriesResponse] = await Promise.all([
+        fetch('/api/emails/templates'),
+        fetch('/api/emails/templates/categories')
+      ]);
+
+      if (templatesResponse.ok) {
+        const templatesData = await templatesResponse.json();
+        setTemplates(templatesData);
+      } else {
+        toast.error('Failed to load templates');
+      }
+
+      if (categoriesResponse.ok) {
+        const categoriesData = await categoriesResponse.json();
+        setCategories(categoriesData);
+      } else {
+        toast.error('Failed to load categories');
+      }
+    } catch (error) {
+      console.error('Error loading data:', error);
+      toast.error('Error loading data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadTemplates = async () => {
+    try {
+      const response = await fetch('/api/emails/templates');
+      if (response.ok) {
+        const data = await response.json();
+        setTemplates(data);
+      } else {
+        toast.error('Failed to load templates');
+      }
+    } catch (error) {
+      console.error('Error loading templates:', error);
+      toast.error('Error loading templates');
+    }
+  };
+
+  const handleCreateTemplate = () => {
+    setEditingTemplate(null);
+    setShowForm(true);
+  };
+
+  const handleEditTemplate = (template: EmailTemplate) => {
+    setEditingTemplate(template);
+    setShowForm(true);
+  };
+
+  const handleDeleteTemplate = async (templateId: string) => {
+    if (!confirm('Are you sure you want to delete this template?')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/emails/templates/${templateId}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        toast.success('Template deleted successfully');
+        loadTemplates();
+      } else {
+        toast.error('Failed to delete template');
+      }
+    } catch (error) {
+      console.error('Error deleting template:', error);
+      toast.error('Error deleting template');
+    }
+  };
+
+  const handleFormSuccess = () => {
+    setShowForm(false);
+    setEditingTemplate(null);
+    loadData();
+  };
+
+  const handleFormCancel = () => {
+    setShowForm(false);
+    setEditingTemplate(null);
+  };
+
+  // Bulk selection functions
+  const handleSelectTemplate = (templateId: string, isSelected: boolean) => {
+    setSelectedTemplates(prev => {
+      const newSet = new Set(prev);
+      if (isSelected) {
+        newSet.add(templateId);
+      } else {
+        newSet.delete(templateId);
+      }
+      setShowBulkActions(newSet.size > 0);
+      return newSet;
+    });
+  };
+
+  const handleSelectAll = () => {
+    const allIds = filteredTemplates.map(template => template.id);
+    setSelectedTemplates(new Set(allIds));
+    setShowBulkActions(true);
+  };
+
+  const handleDeselectAll = () => {
+    setSelectedTemplates(new Set());
+    setShowBulkActions(false);
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedTemplates.size === 0) return;
+
+    const confirmMessage = `Are you sure you want to delete ${selectedTemplates.size} template${selectedTemplates.size > 1 ? 's' : ''}? This action cannot be undone.`;
+
+    if (!confirm(confirmMessage)) return;
+
+    try {
+      const deletePromises = Array.from(selectedTemplates).map(templateId =>
+        fetch(`/api/emails/templates/${templateId}`, {
+          method: 'DELETE',
+        })
+      );
+
+      const results = await Promise.allSettled(deletePromises);
+      const successfulDeletes = results.filter(result => result.status === 'fulfilled').length;
+      const failedDeletes = results.length - successfulDeletes;
+
+      if (successfulDeletes > 0) {
+        toast.success(`Successfully deleted ${successfulDeletes} template${successfulDeletes > 1 ? 's' : ''}`);
+      }
+
+      if (failedDeletes > 0) {
+        toast.error(`Failed to delete ${failedDeletes} template${failedDeletes > 1 ? 's' : ''}`);
+      }
+
+      // Clear selection and reload data
+      setSelectedTemplates(new Set());
+      setShowBulkActions(false);
+      loadData();
+    } catch (error) {
+      console.error('Error in bulk delete:', error);
+      toast.error('Error performing bulk delete');
+    }
+  };
+
+  // Filter templates based on search query and category
+  const filteredTemplates = templates.filter(template => {
+    const matchesSearch = template.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         template.subject.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                         template.content.toLowerCase().includes(searchQuery.toLowerCase());
+
+    const matchesCategory = selectedCategory === 'all' ||
+                           template.category_id === selectedCategory ||
+                           (!template.category_id && selectedCategory === 'uncategorized');
+
+    return matchesSearch && matchesCategory;
+  });
+
+  if (showForm) {
+    return (
+      <div className="container mx-auto px-4 py-6">
+        <TemplateForm
+          template={editingTemplate}
+          categories={categories}
+          onSuccess={handleFormSuccess}
+          onCancel={handleFormCancel}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="container mx-auto px-4 py-6">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Email Templates</h1>
+          <p className="text-gray-600 mt-1">
+            Create and manage reusable email templates for your prospects
+          </p>
+        </div>
+        <Button
+          onClick={handleCreateTemplate}
+          className="flex items-center gap-2"
+        >
+          <Plus className="w-4 h-4" />
+          Create Template
+        </Button>
+      </div>
+
+      {/* Sharing Info Card */}
+      <Card className="mb-6 border-green-200 bg-green-50">
+        <CardContent className="pt-6">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+              <User className="w-5 h-5 text-green-600" />
+            </div>
+            <div className="flex-1">
+              <h3 className="font-semibold text-green-900">Shared Workspace</h3>
+              <p className="text-sm text-green-700 mt-1">
+                All templates are shared with your entire organization.
+                You can edit and delete only the templates you created.
+              </p>
+            </div>
+            <div className="text-right">
+              <div className="text-2xl font-bold text-green-900">{templates.length}</div>
+              <div className="text-xs text-green-700">Total Templates</div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Search and Filters */}
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-4 flex-1">
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+            <Input
+              placeholder="Search templates..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={loadTemplates}
+            disabled={loading}
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          </Button>
+
+          <div className="flex border rounded-lg">
+            <Button
+              variant={viewMode === 'grid' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setViewMode('grid')}
+              className="rounded-r-none"
+            >
+              <Grid3X3 className="w-4 h-4" />
+            </Button>
+            <Button
+              variant={viewMode === 'list' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setViewMode('list')}
+              className="rounded-l-none"
+            >
+              <List className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* Templates Grid/List */}
+      {loading ? (
+        <div className="flex items-center justify-center py-12">
+          <div className="flex items-center gap-2">
+            <RefreshCw className="w-5 h-5 animate-spin text-gray-400" />
+            <span className="text-gray-600">Loading templates...</span>
+          </div>
+        </div>
+      ) : filteredTemplates.length === 0 ? (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <FileText className="w-12 h-12 text-gray-300 mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">
+              {searchQuery ? 'No templates found' : 'No templates yet'}
+            </h3>
+            <p className="text-gray-600 mb-6 text-center max-w-md">
+              {searchQuery
+                ? 'Try adjusting your search terms or create a new template.'
+                : 'Get started by creating your first email template to streamline your prospect communication.'
+              }
+            </p>
+            {!searchQuery && (
+              <Button onClick={handleCreateTemplate} className="flex items-center gap-2">
+                <Plus className="w-4 h-4" />
+                Create Your First Template
+              </Button>
+            )}
+          </CardContent>
+        </Card>
+      ) : (
+        <>
+          {/* Bulk Actions Toolbar */}
+          {showBulkActions && (
+            <Card className="mb-4 border-blue-200 bg-blue-50">
+              <CardContent className="py-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    <span className="text-sm font-medium text-blue-900">
+                      {selectedTemplates.size} template{selectedTemplates.size > 1 ? 's' : ''} selected
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleSelectAll}
+                      className="text-xs"
+                    >
+                      Select All
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleDeselectAll}
+                      className="text-xs"
+                    >
+                      Deselect All
+                    </Button>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleDeselectAll}
+                      className="text-xs"
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={handleBulkDelete}
+                      className="text-xs"
+                    >
+                      Delete Selected
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          <TemplateList
+            templates={filteredTemplates}
+            categories={categories}
+            viewMode={viewMode}
+            selectedCategory={selectedCategory}
+            onCategoryChange={setSelectedCategory}
+            selectedTemplates={selectedTemplates}
+            onTemplateSelect={handleSelectTemplate}
+            onEdit={handleEditTemplate}
+            onDelete={handleDeleteTemplate}
+          />
+        </>
+      )}
+    </div>
+  );
+}

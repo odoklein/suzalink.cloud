@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/auth';
-import { createClient } from '@/lib/supabase-server';
+import { createServerSupabaseClient } from '@/lib/supabase-server';
 
 // GET /api/emails/templates - Get all email templates for the current user
 export async function GET(req: NextRequest) {
@@ -10,11 +10,19 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const supabase = createClient();
+    const supabase = await createServerSupabaseClient();
     
     const { data, error } = await supabase
       .from('email_templates')
-      .select('*')
+      .select(`
+        *,
+        email_template_categories (
+          id,
+          name,
+          color,
+          is_default
+        )
+      `)
       .eq('user_id', session.user.id)
       .order('created_at', { ascending: false });
     
@@ -38,23 +46,46 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { name, subject, content } = await req.json();
-    
+    const { name, subject, content, category_id } = await req.json();
+
     if (!name || !subject || !content) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    const supabase = createClient();
-    
+    const supabase = await createServerSupabaseClient();
+
+    // Validate category if provided
+    if (category_id) {
+      const { data: category } = await supabase
+        .from('email_template_categories')
+        .select('id')
+        .eq('id', category_id)
+        .eq('user_id', session.user.id)
+        .single();
+
+      if (!category) {
+        return NextResponse.json({ error: 'Invalid category' }, { status: 400 });
+      }
+    }
+
     const { data, error } = await supabase
       .from('email_templates')
       .insert({
         user_id: session.user.id,
         name,
         subject,
-        content
+        content,
+        category_id: category_id || null
       })
-      .select()
+      .select(`
+        *,
+        email_template_categories (
+          id,
+          name,
+          color,
+          is_default
+        )
+      `)
       .single();
     
     if (error) {

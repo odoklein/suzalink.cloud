@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const limit = parseInt(searchParams.get('limit') || '50');
+    const limit = parseInt(searchParams.get('limit') || '20'); // Reduced default limit for better performance
     const offset = parseInt(searchParams.get('offset') || '0');
 
     const { data, error } = await supabase

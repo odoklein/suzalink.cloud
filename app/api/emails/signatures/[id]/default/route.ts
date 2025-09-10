@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/auth';
-import { createClient } from '@/lib/supabase-server';
+import { createServerSupabaseClient } from '@/lib/supabase-server';
 
 // PUT /api/emails/signatures/[id]/default - Set a signature as default
 export async function PUT(
@@ -14,7 +14,7 @@ export async function PUT(
     }
 
     const { id } = params;
-    const supabase = createClient();
+    const supabase = await createServerSupabaseClient();
     
     // First verify that the signature belongs to the user
     const { data: existingSignature, error: fetchError } = await supabase

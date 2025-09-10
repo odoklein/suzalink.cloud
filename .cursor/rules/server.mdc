@@ -1,0 +1,5 @@
+---
+description: never run the localhost server or run build automatically  
+globs:
+alwaysApply: true
+---

@@ -21,7 +21,9 @@ import {
   CheckCircle2,
   Clock,
   Info,
-  TestTube
+  TestTube,
+  Target,
+  BarChart3
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { EmailConfigModal } from './components/EmailConfigModal';
@@ -32,6 +34,7 @@ import { EmailPreviewPane } from './components/EmailPreviewPane';
 import { EmailBulkActions } from './components/EmailBulkActions';
 import { SyncDiagnosticModal } from './components/SyncDiagnosticModal';
 import { translations as t } from './translations';
+import { useRouter } from 'next/navigation';
 
 // Types
 interface EmailConfig {
@@ -73,6 +76,7 @@ interface EmailMessage {
 }
 
 function EmailsPageContent() {
+  const router = useRouter();
   const [emailConfigs, setEmailConfigs] = useState<EmailConfig[]>([]);
   const [folders, setFolders] = useState<EmailFolder[]>([]);
   const [messages, setMessages] = useState<EmailMessage[]>([]);
@@ -632,6 +636,20 @@ function EmailsPageContent() {
             </div>
           </div>
         )}
+
+        {/* Email Features */}
+        <div className="p-4 border-b border-gray-200">
+          <h3 className="text-sm font-medium text-gray-700 mb-2">Features</h3>
+          <div className="space-y-1">
+            <button
+              onClick={() => router.push('/dashboard/emails/templates')}
+              className="w-full flex items-center gap-2 p-2 rounded-lg text-left transition-colors hover:bg-gray-50 text-gray-700"
+            >
+              <FileText className="w-4 h-4" />
+              <span className="text-sm font-medium">Templates</span>
+            </button>
+          </div>
+        </div>
 
         {/* Folders */}
         <div className="flex-1 p-4 overflow-hidden">

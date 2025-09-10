@@ -18,7 +18,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { validateTask, validateProject, validateProjectExists, validateUserExists } from "@/lib/validation";
 import { showErrorToast, showSuccessToast, withRetry, handleAsyncError } from "@/lib/error-handling";
-import { notifyTaskAssigned } from "@/lib/notification-utils";
+import { notifyTaskAssigned, notifyTaskStatusChanged } from "@/lib/notification-utils";
 import { useFormState } from "@/hooks/use-form-state";
 import {
   DragDropContext,
@@ -98,6 +98,58 @@ export default function ProjectDetailPage() {
   const [project, setProject] = useState<any>(null);
   const [tasks, setTasks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // React Query for tasks
+  const {
+    data: tasksData = [],
+    isLoading: tasksLoading,
+    error: tasksError,
+    refetch: refetchTasks
+  } = useQuery<any[], Error>({
+    queryKey: ['tasks', id],
+    queryFn: async () => {
+      if (!id) return [];
+      
+      // First check if project exists
+      const { data: projectExists } = await supabase
+        .from("projects")
+        .select("id")
+        .eq("id", id)
+        .single();
+      
+      if (!projectExists) {
+        toast.error("Le projet n'existe plus");
+        router.push("/dashboard/projects");
+        return [];
+      }
+      
+      const { data, error } = await supabase
+        .from("tasks")
+        .select("id, title, description, status, assignee_id, due_date, priority, created_at")
+        .eq("project_id", id)
+        .order("created_at", { ascending: true });
+      
+      if (error) {
+        toast.error("Échec de récupération des tâches", { description: error.message });
+        return [];
+      }
+      
+      // Validate task data and filter out any invalid entries
+      const validTasks = (data || []).filter(task => {
+        if (!task || !task.id || !task.title) {
+          return false;
+        }
+        const validStatus = TASK_STATUSES.find(s => s.value === task.status);
+        if (!validStatus) {
+          return false;
+        }
+        return true;
+      });
+      
+      return validTasks;
+    },
+    enabled: !!id && !!user
+  });
 
   const [clients, setClients] = useState<Array<{
     id: string;
@@ -246,13 +298,148 @@ export default function ProjectDetailPage() {
     }
   });
 
+  // Mutation for task updates with optimistic updates
+  const updateMutation = useMutation({
+    mutationFn: async (payload: { id: string; updates: any }) => {
+      const { error, data } = await supabase
+        .from('tasks')
+        .update(payload.updates)
+        .eq('id', payload.id)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onMutate: async (variables) => {
+      await queryClient.cancelQueries({ queryKey: ['tasks', id] });
+      const prevTasks = queryClient.getQueryData(['tasks', id]) || [];
+      queryClient.setQueryData(['tasks', id], (old: any[] = []) => 
+        old.map(task => 
+          task.id === variables.id 
+            ? { ...task, ...variables.updates }
+            : task
+        )
+      );
+      return { prevTasks };
+    },
+    onError: (err: any, variables: any, context: any) => {
+      queryClient.setQueryData(['tasks', id], context.prevTasks);
+      showErrorToast(err, 'Task update failed');
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks', id] });
+    },
+    onSuccess: () => {
+      showSuccessToast('Task updated successfully');
+    }
+  });
+
+  // Mutation for task deletion with optimistic updates
+  const deleteMutation = useMutation({
+    mutationFn: async (taskId: string) => {
+      const { error } = await supabase
+        .from('tasks')
+        .delete()
+        .eq('id', taskId);
+      if (error) throw error;
+      return taskId;
+    },
+    onMutate: async (taskId) => {
+      await queryClient.cancelQueries({ queryKey: ['tasks', id] });
+      const prevTasks = queryClient.getQueryData(['tasks', id]) || [];
+      queryClient.setQueryData(['tasks', id], (old: any[] = []) => 
+        old.filter(task => task.id !== taskId)
+      );
+      return { prevTasks };
+    },
+    onError: (err: any, taskId: any, context: any) => {
+      queryClient.setQueryData(['tasks', id], context.prevTasks);
+      showErrorToast(err, 'Task deletion failed');
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks', id] });
+    },
+    onSuccess: () => {
+      showSuccessToast('Task deleted successfully');
+    }
+  });
+
+  // Mutation for task status updates (drag and drop) with optimistic updates
+  const statusUpdateMutation = useMutation({
+    mutationFn: async (payload: { taskId: string; status: string; oldStatus: string }) => {
+      const { error } = await supabase
+        .from('tasks')
+        .update({ status: payload.status })
+        .eq('id', payload.taskId);
+      if (error) throw error;
+      return payload;
+    },
+    onMutate: async (variables) => {
+      await queryClient.cancelQueries({ queryKey: ['tasks', id] });
+      const prevTasks = queryClient.getQueryData(['tasks', id]) || [];
+      queryClient.setQueryData(['tasks', id], (old: any[] = []) => 
+        old.map(task => 
+          task.id === variables.taskId 
+            ? { ...task, status: variables.status }
+            : task
+        )
+      );
+      return { prevTasks };
+    },
+    onSuccess: async (variables) => {
+      // Send notification to task assignee if status changed
+      try {
+        const task = tasks.find(t => t.id === variables.taskId);
+        if (task && task.assigned_to && task.assigned_to !== user?.id) {
+          const changedBy = user?.name || user?.email || 'Système';
+          await notifyTaskStatusChanged(
+            variables.taskId,
+            task.title,
+            task.assigned_to,
+            variables.oldStatus,
+            variables.status,
+            changedBy,
+            id // Pass the project ID
+          );
+        }
+      } catch (notificationError) {
+        console.error('Error sending task status change notification:', notificationError);
+        // Don't fail the operation if notification fails
+      }
+    },
+    onError: (err: any, variables: any, context: any) => {
+      queryClient.setQueryData(['tasks', id], context.prevTasks);
+      showErrorToast(err, 'Status update failed');
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks', id] });
+    }
+  });
+
   useEffect(() => {
     if (!id) return;
     fetchProject();
-    fetchTasks();
     fetchClients();
     // eslint-disable-next-line
   }, [id]);
+
+  // Update tasks state when React Query data changes
+  useEffect(() => {
+    // Only update if the data has actually changed to prevent infinite loops
+    setTasks(prevTasks => {
+      const hasChanged = prevTasks.length !== tasksData.length ||
+        prevTasks.some((task, index) => task.id !== tasksData[index]?.id);
+      return hasChanged ? tasksData : prevTasks;
+    });
+    setLoading(tasksLoading);
+  }, [tasksData, tasksLoading]);
+
+  // Add smooth animation classes for task cards
+  const getTaskCardClasses = (task: any) => {
+    const baseClasses = "bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-3 transition-all duration-300 ease-in-out hover:shadow-md";
+    const priorityClasses = getPriorityColor(task.priority);
+    return `${baseClasses} ${priorityClasses}`;
+  };
 
   async function fetchProject() {
     const { data, error } = await supabase
@@ -291,49 +478,6 @@ export default function ProjectDetailPage() {
     setClients(data || []);
   }
 
-  async function fetchTasks() {
-    setLoading(true);
-    
-    // First check if project exists
-    const { data: projectExists } = await supabase
-      .from("projects")
-      .select("id")
-      .eq("id", id)
-      .single();
-    
-    if (!projectExists) {
-      toast.error("Le projet n'existe plus");
-      router.push("/dashboard/projects");
-      return;
-    }
-    
-    const { data, error } = await supabase
-      .from("tasks")
-      .select("id, title, description, status, assignee_id, due_date, priority, created_at")
-      .eq("project_id", id)
-      .order("created_at", { ascending: true });
-    
-    if (error) {
-      toast.error("Échec de récupération des tâches", { description: error.message });
-      setLoading(false);
-      return;
-    }
-    
-    // Validate task data and filter out any invalid entries
-    const validTasks = (data || []).filter(task => {
-      if (!task || !task.id || !task.title) {
-        return false;
-      }
-      const validStatus = TASK_STATUSES.find(s => s.value === task.status);
-      if (!validStatus) {
-        return false;
-      }
-      return true;
-    });
-    
-    setTasks(validTasks);
-    setLoading(false);
-  }
 
   function openCreate(status: string) {
     setEditing(null);
@@ -393,13 +537,8 @@ export default function ProjectDetailPage() {
         delete updatePayload.created_by; // Don't update creator
         delete updatePayload.project_id; // Don't update project
 
-        await withRetry(async () => {
-          const { error } = await supabase
-            .from('tasks')
-            .update(updatePayload)
-            .eq('id', editing.id);
-          if (error) throw error;
-        }, 3, 1000, 'task update');
+        // Use the update mutation with optimistic updates
+        updateMutation.mutate({ id: editing.id, updates: updatePayload });
 
         // Send notification if assignee changed to someone other than current user
         if (updatePayload.assignee_id && updatePayload.assignee_id !== user?.id && updatePayload.assignee_id !== editing.assignee_id) {
@@ -412,9 +551,7 @@ export default function ProjectDetailPage() {
           }
         }
 
-        showSuccessToast('Task updated successfully');
         setOpen(false);
-        fetchTasks();
       } else {
         // Create new task
         mutation.mutate(payload);
@@ -435,14 +572,8 @@ export default function ProjectDetailPage() {
 
   async function handleDeleteConfirmed() {
     if (!deleteModal.taskId) return;
-    const { error } = await supabase.from("tasks").delete().eq("id", deleteModal.taskId);
-    if (error) {
-      toast.error("Échec de la suppression de la tâche", { description: error.message });
-    } else {
-      toast.success("Tâche supprimée avec succès");
-    }
+    deleteMutation.mutate(deleteModal.taskId);
     closeDelete();
-    fetchTasks();
   }
 
   const handleProjectEditSubmit = async (formValues: any) => {
@@ -803,11 +934,11 @@ export default function ProjectDetailPage() {
                 const task = tasks.find((t) => t.id === draggableId);
                 if (!task) return;
                 if (task.status !== destination.droppableId) {
-                  await supabase
-                    .from("tasks")
-                    .update({ status: destination.droppableId })
-                    .eq("id", task.id);
-                  fetchTasks();
+                  statusUpdateMutation.mutate({ 
+                    taskId: task.id, 
+                    status: destination.droppableId,
+                    oldStatus: task.status
+                  });
                 }
               }}
             >
@@ -847,7 +978,7 @@ export default function ProjectDetailPage() {
                                 <div
                                   ref={provided.innerRef}
                                   {...provided.draggableProps}
-                                  className={`${snapshot.isDragging ? 'shadow-2xl rotate-1 scale-105' : 'shadow-sm hover:shadow-md'} relative cursor-pointer group bg-white rounded-xl border border-gray-200 transition-all duration-200`}
+                                  className={`${snapshot.isDragging ? 'shadow-2xl rotate-1 scale-105' : 'shadow-sm hover:shadow-md'} relative cursor-pointer group bg-white rounded-xl border border-gray-200 transition-all duration-300 ease-in-out animate-in fade-in-0 slide-in-from-bottom-2`}
                                   style={{
                                     ...provided.draggableProps.style,
                                     transform: snapshot.isDragging
@@ -1113,10 +1244,10 @@ export default function ProjectDetailPage() {
               </Button>
               <Button 
                 type="submit"
-                disabled={taskForm.formState.isSubmitting || taskForm.hasAnyError}
+                disabled={taskForm.formState.isSubmitting || taskForm.hasAnyError || mutation.isPending || updateMutation.isPending}
                 className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-6 rounded-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
-                {taskForm.formState.isSubmitting && (
+                {(taskForm.formState.isSubmitting || mutation.isPending || updateMutation.isPending) && (
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
                 )}
                 {editing ? "Save" : "Create"}

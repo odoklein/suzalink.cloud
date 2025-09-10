@@ -1,8 +1,9 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, ReactNode } from 'react';
 import { Notification, NotificationFilters, NotificationSort, NotificationType, NotificationPriority } from '@/types/notification';
 import { toast } from 'sonner';
+import { useRealtimeNotifications } from '@/lib/notification-realtime';
 
 interface NotificationContextType {
   notifications: Notification[];
@@ -48,7 +49,10 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const [sort, setSort] = useState<NotificationSort>({ field: 'createdAt', direction: 'desc' });
   const [isPanelOpen, setIsPanelOpen] = useState(false);
 
-  const unreadCount = notifications.filter(n => !n.isRead).length;
+  const unreadCount = useMemo(() => 
+    notifications.filter(n => !n.isRead).length, 
+    [notifications]
+  );
 
   const fetchNotifications = async () => {
     try {
@@ -56,7 +60,20 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
       const response = await fetch('/api/notifications');
       if (!response.ok) throw new Error('Failed to fetch notifications');
       const data = await response.json();
-      setNotifications(data);
+      
+      // Convert date strings to Date objects
+      const notificationsWithDates = data.map((notification: any) => ({
+        ...notification,
+        id: notification.id,
+        userId: notification.user_id,
+        createdAt: new Date(notification.created_at),
+        expiresAt: notification.expires_at ? new Date(notification.expires_at) : undefined,
+        isRead: notification.is_read,
+        actionUrl: notification.action_url,
+        actionLabel: notification.action_label,
+      }));
+      
+      setNotifications(notificationsWithDates);
     } catch (error) {
       console.error('Error fetching notifications:', error);
       toast.error('Failed to load notifications');
@@ -125,17 +142,11 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
 
     setNotifications(prev => [newNotification, ...prev]);
 
-    // Show toast for high priority notifications
-    if (notification.priority === NotificationPriority.HIGH || notification.priority === NotificationPriority.URGENT) {
-      toast(notification.title, {
-        description: notification.message,
-        duration: 5000,
-      });
-    }
+    // Toast is now handled by the realtime hook, no need to duplicate here
   };
 
-  // Filter and sort notifications
-  const getFilteredAndSortedNotifications = () => {
+  // Filter and sort notifications (memoized for better performance)
+  const getFilteredAndSortedNotifications = useMemo(() => {
     let filtered = notifications;
 
     if (filters.type?.length) {
@@ -193,21 +204,18 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
     });
 
     return filtered;
-  };
+  }, [notifications, filters, sort]);
 
   // Load notifications on mount
   useEffect(() => {
     fetchNotifications();
   }, []);
 
-  // Set up polling for real-time updates
-  useEffect(() => {
-    const interval = setInterval(fetchNotifications, 30000); // Poll every 30 seconds
-    return () => clearInterval(interval);
-  }, []);
+  // Set up real-time notifications
+  useRealtimeNotifications();
 
   const value: NotificationContextType = {
-    notifications: getFilteredAndSortedNotifications(),
+    notifications: getFilteredAndSortedNotifications,
     unreadCount,
     isLoading,
     filters,

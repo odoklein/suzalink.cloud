@@ -3,8 +3,6 @@ import {
   notifyTaskDueSoon,
   notifyTaskOverdue,
   notifyForgottenTask,
-  notifyProspectRappelDue,
-  notifyProspectRappelOverdue,
   notifyDeadlineApproaching,
   notifyDeadlinePassed,
 } from '@/lib/notification-utils';
@@ -92,64 +90,6 @@ export async function checkForgottenTasks() {
   }
 }
 
-// Check for prospect rappels due soon (within 24 hours)
-export async function checkProspectRappels() {
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-
-  const { data: prospects, error } = await supabase
-    .from('prospects')
-    .select('id, name, rappel_date, assigned_to')
-    .lte('rappel_date', tomorrow.toISOString())
-    .gt('rappel_date', new Date().toISOString())
-    .not('rappel_date', 'is', null);
-
-  if (error) {
-    console.error('Error fetching prospect rappels:', error);
-    return;
-  }
-
-  for (const prospect of prospects) {
-    try {
-      await notifyProspectRappelDue(
-        prospect.id,
-        prospect.name,
-        prospect.assigned_to,
-        new Date(prospect.rappel_date)
-      );
-    } catch (error) {
-      console.error(`Error notifying prospect rappel ${prospect.id}:`, error);
-    }
-  }
-}
-
-// Check for overdue prospect rappels
-export async function checkOverdueProspectRappels() {
-  const now = new Date();
-
-  const { data: prospects, error } = await supabase
-    .from('prospects')
-    .select('id, name, rappel_date, assigned_to')
-    .lt('rappel_date', now.toISOString())
-    .not('rappel_date', 'is', null);
-
-  if (error) {
-    console.error('Error fetching overdue prospect rappels:', error);
-    return;
-  }
-
-  for (const prospect of prospects) {
-    try {
-      await notifyProspectRappelOverdue(
-        prospect.id,
-        prospect.name,
-        prospect.assigned_to
-      );
-    } catch (error) {
-      console.error(`Error notifying overdue prospect rappel ${prospect.id}:`, error);
-    }
-  }
-}
 
 // Check for general deadlines (projects, etc.)
 export async function checkGeneralDeadlines() {
@@ -216,8 +156,6 @@ export async function runNotificationChecks() {
       checkTaskDeadlines(),
       checkOverdueTasks(),
       checkForgottenTasks(),
-      checkProspectRappels(),
-      checkOverdueProspectRappels(),
       checkGeneralDeadlines(),
     ]);
 

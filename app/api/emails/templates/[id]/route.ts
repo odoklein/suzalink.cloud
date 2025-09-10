@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/auth';
-import { createClient } from '@/lib/supabase-server';
+import { createServerSupabaseClient } from '@/lib/supabase-server';
 
 // GET /api/emails/templates/[id] - Get a specific email template
 export async function GET(
@@ -14,11 +14,19 @@ export async function GET(
     }
 
     const { id } = params;
-    const supabase = createClient();
+    const supabase = await createServerSupabaseClient();
     
     const { data, error } = await supabase
       .from('email_templates')
-      .select('*')
+      .select(`
+        *,
+        email_template_categories (
+          id,
+          name,
+          color,
+          is_default
+        )
+      `)
       .eq('id', id)
       .eq('user_id', session.user.id)
       .single();
@@ -51,14 +59,14 @@ export async function PUT(
     }
 
     const { id } = params;
-    const { name, subject, content } = await req.json();
-    
+    const { name, subject, content, category_id } = await req.json();
+
     if (!name || !subject || !content) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
-    const supabase = createClient();
-    
+    const supabase = await createServerSupabaseClient();
+
     // First verify that the template belongs to the user
     const { data: existingTemplate, error: fetchError } = await supabase
       .from('email_templates')
@@ -66,22 +74,45 @@ export async function PUT(
       .eq('id', id)
       .eq('user_id', session.user.id)
       .single();
-    
+
     if (fetchError || !existingTemplate) {
       return NextResponse.json({ error: 'Template not found or access denied' }, { status: 404 });
     }
-    
+
+    // Validate category if provided
+    if (category_id) {
+      const { data: category } = await supabase
+        .from('email_template_categories')
+        .select('id')
+        .eq('id', category_id)
+        .eq('user_id', session.user.id)
+        .single();
+
+      if (!category) {
+        return NextResponse.json({ error: 'Invalid category' }, { status: 400 });
+      }
+    }
+
     const { data, error } = await supabase
       .from('email_templates')
       .update({
         name,
         subject,
         content,
+        category_id: category_id || null,
         updated_at: new Date().toISOString()
       })
       .eq('id', id)
       .eq('user_id', session.user.id)
-      .select()
+      .select(`
+        *,
+        email_template_categories (
+          id,
+          name,
+          color,
+          is_default
+        )
+      `)
       .single();
     
     if (error) {
@@ -108,7 +139,7 @@ export async function DELETE(
     }
 
     const { id } = params;
-    const supabase = createClient();
+    const supabase = await createServerSupabaseClient();
     
     const { error } = await supabase
       .from('email_templates')

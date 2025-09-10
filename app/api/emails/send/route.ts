@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase-server';
+import { createServerSupabaseClient } from '@/lib/supabase-server';
 import { auth } from '@/auth';
 import * as nodemailer from 'nodemailer';
 import CryptoJS from 'crypto-js';
@@ -20,9 +20,11 @@ export async function POST(request: NextRequest) {
       content,
       attachments,
       configId, // Optional: specific email config to use
+      prospectId, // Optional: prospect ID for activity tracking
+      prospectEmail, // Optional: prospect email for activity tracking
     } = body;
 
-    const supabase = createClient();
+    const supabase = await createServerSupabaseClient();
 
     // Get user's email configurations
     let configQuery = supabase
@@ -63,7 +65,7 @@ export async function POST(request: NextRequest) {
     });
 
     // Prepare email data
-    const mailOptions = {
+    const mailOptions: any = {
       from: `"${config.display_name}" <${config.email_address}>`,
       to: to,
       subject: subject,
@@ -133,6 +135,34 @@ export async function POST(request: NextRequest) {
     if (saveError) {
       console.error('Error saving sent email:', saveError);
       // Don't fail the send operation for database errors
+    }
+
+    // Log activity if this email was sent to a prospect
+    if (prospectId && prospectEmail) {
+      try {
+        const { error: activityError } = await supabase
+          .from('prospect_activities')
+          .insert({
+            prospect_id: prospectId,
+            user_id: session.user.id,
+            activity_type: 'email',
+            description: `Email sent to ${prospectEmail}`,
+            metadata: {
+              subject: subject,
+              recipient_email: prospectEmail,
+              message_id: info.messageId,
+              email_config_id: config.id,
+            },
+          });
+
+        if (activityError) {
+          console.error('Error logging prospect activity:', activityError);
+          // Don't fail the send operation for activity logging errors
+        }
+      } catch (activityError) {
+        console.error('Error logging prospect activity:', activityError);
+        // Don't fail the send operation for activity logging errors
+      }
     }
 
     return NextResponse.json({

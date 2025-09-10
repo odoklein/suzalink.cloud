@@ -357,12 +357,6 @@ export default function ClientDashboardPage() {
                   Factures
                 </Button>
               </Link>
-              <Link href="/dashboard/prospects">
-                <Button variant="outline" className="w-full justify-start gap-2 h-12">
-                  <MapPin className="h-4 w-4" />
-                  Prospects
-                </Button>
-              </Link>
             </div>
           </CardContent>
         </Card>
