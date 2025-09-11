@@ -6,7 +6,18 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, Users, Building, Phone, Mail, Calendar, Filter, Download, Upload, BarChart3, Table, UserPlus, MoreHorizontal, Settings, Target } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Plus, Users, Building, Phone, Mail, Calendar, Filter, Download, Upload, BarChart3, Table, UserPlus, MoreHorizontal, Settings, Target, Edit, Trash2, MoreVertical } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -46,6 +57,10 @@ export default function ProspectsPage() {
   const [assignListModalOpen, setAssignListModalOpen] = useState(false);
   const [selectedListForAssignment, setSelectedListForAssignment] = useState<{ id: string; name: string } | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [deletingList, setDeletingList] = useState<string | null>(null);
+  const [editingList, setEditingList] = useState<ProspectList | null>(null);
+  const [editListName, setEditListName] = useState('');
+  const [editListDescription, setEditListDescription] = useState('');
 
   // Export prospects to CSV
   const handleExport = async () => {
@@ -74,6 +89,78 @@ export default function ProspectsPage() {
       toast.error("Erreur lors de l'export");
     } finally {
       setExporting(false);
+    }
+  };
+
+  // Delete prospect list
+  const handleDeleteList = async (listId: string, listName: string) => {
+    if (!confirm(`Êtes-vous sûr de vouloir supprimer la liste "${listName}" ? Cette action est irréversible et supprimera tous les prospects associés.`)) {
+      return;
+    }
+
+    setDeletingList(listId);
+    try {
+      const res = await fetch(`/api/prospects/lists/${listId}`, {
+        method: 'DELETE',
+      });
+
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || 'Erreur lors de la suppression');
+      }
+
+      toast.success(`Liste "${listName}" supprimée avec succès`);
+      setLists(prev => prev.filter(list => list.id !== listId));
+
+      // If the deleted list was selected, clear selection
+      if (selectedList === listId) {
+        setSelectedList(null);
+      }
+
+    } catch (error) {
+      console.error('Error deleting list:', error);
+      toast.error(error instanceof Error ? error.message : 'Erreur lors de la suppression');
+    } finally {
+      setDeletingList(null);
+    }
+  };
+
+  // Edit prospect list
+  const handleEditList = (list: ProspectList) => {
+    setEditingList(list);
+    setEditListName(list.name);
+    setEditListDescription(list.description || '');
+  };
+
+  const handleSaveEditList = async () => {
+    if (!editingList) return;
+
+    try {
+      const res = await fetch(`/api/prospects/lists/${editingList.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: editListName.trim(),
+          description: editListDescription.trim() || null,
+        }),
+      });
+
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || 'Erreur lors de la modification');
+      }
+
+      toast.success(`Liste "${editListName}" modifiée avec succès`);
+      setEditingList(null);
+      setEditListName('');
+      setEditListDescription('');
+      fetchLists(); // Refresh the lists
+
+    } catch (error) {
+      console.error('Error editing list:', error);
+      toast.error(error instanceof Error ? error.message : 'Erreur lors de la modification');
     }
   };
 
@@ -138,6 +225,14 @@ export default function ProspectsPage() {
       </div>
 
       {/* Lists Overview */}
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h2 className="text-lg font-semibold">Gestion des listes</h2>
+          <p className="text-sm text-muted-foreground">
+            Cliquez sur une liste pour la gérer, ou utilisez le menu ⋮ pour modifier/supprimer
+          </p>
+        </div>
+      </div>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {loading ? (
           Array.from({ length: 3 }).map((_, i) => (
@@ -177,6 +272,44 @@ export default function ProspectsPage() {
                     >
                       <UserPlus className="h-3 w-3" />
                     </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 w-6 p-0"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <MoreVertical className="h-3 w-3" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-48">
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleEditList(list);
+                          }}
+                          className="flex items-center gap-2"
+                        >
+                          <Edit className="h-4 w-4" />
+                          <span>Modifier la liste</span>
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteList(list.id, list.name);
+                          }}
+                          disabled={deletingList === list.id}
+                          className="flex items-center gap-2 text-red-600 focus:text-red-600"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          <span>
+                            {deletingList === list.id ? 'Suppression...' : 'Supprimer la liste'}
+                          </span>
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                     <Badge
                       variant={list.status === 'active' ? 'default' : 'draft'}
                       className="text-xs"
@@ -343,6 +476,57 @@ export default function ProspectsPage() {
         listId={selectedListForAssignment?.id || ''}
         listName={selectedListForAssignment?.name || ''}
       />
+
+      {/* Edit List Modal */}
+      <Dialog open={!!editingList} onOpenChange={() => setEditingList(null)}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Modifier la liste</DialogTitle>
+            <DialogDescription>
+              Modifiez les informations de la liste de prospects
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="edit-name">Nom de la liste</Label>
+              <Input
+                id="edit-name"
+                value={editListName}
+                onChange={(e) => setEditListName(e.target.value)}
+                placeholder="Nom de la liste"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="edit-description">Description</Label>
+              <Textarea
+                id="edit-description"
+                value={editListDescription}
+                onChange={(e) => setEditListDescription(e.target.value)}
+                placeholder="Description de la liste (optionnel)"
+                rows={3}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setEditingList(null);
+                setEditListName('');
+                setEditListDescription('');
+              }}
+            >
+              Annuler
+            </Button>
+            <Button
+              onClick={handleSaveEditList}
+              disabled={!editListName.trim()}
+            >
+              Sauvegarder
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

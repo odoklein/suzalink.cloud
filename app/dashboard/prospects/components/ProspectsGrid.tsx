@@ -21,6 +21,8 @@ import { ChangeStatusModal } from "./ChangeStatusModal";
 import { AddNoteModal } from "./AddNoteModal";
 import { ProspectEmailDialog } from "./ProspectEmailDialog";
 import { BulkCampaignModal } from "./BulkCampaignModal";
+import { EmailHistoryModal } from "./EmailHistoryModal";
+
 
 // Column types
 type ColumnType = "text" | "number" | "select" | "checkbox" | "date" | "action";
@@ -55,8 +57,10 @@ interface Prospect {
     industry?: string;
     website?: string;
     notes?: string;
+    rappel?: string;
   };
   status: string;
+  rappel_date?: string;
   created_at: string;
   updated_at: string;
   prospect_interlocuteurs?: Interlocuteur[];
@@ -74,16 +78,16 @@ interface ProspectsGridProps {
   listId: string;
 }
 
-// Define our fixed columns for prospects
-const prospectColumns: Column[] = [
+// Define our base columns for prospects
+const baseProspectColumns: Column[] = [
   { id: "name", name: "Nom de l'entreprise", type: "text", width: 200, editable: true },
   { id: "email", name: "Email", type: "text", width: 180, editable: true },
   { id: "phone", name: "Téléphone", type: "text", width: 150, editable: true },
   { id: "industry", name: "Secteur", type: "text", width: 150, editable: true },
   { id: "website", name: "Site web", type: "text", width: 150, editable: true },
+  { id: "rappel", name: "Rappel", type: "date", width: 150, editable: true },
   { id: "status", name: "Statut", type: "select", width: 150, editable: true, options: ["nouveau", "contacte", "interesse", "non_interesse", "rappel", "ferme"] },
   { id: "interlocuteurs", name: "Interlocuteurs", type: "text", width: 180, editable: false },
-  { id: "activities", name: "Activités", type: "text", width: 200, editable: false },
   { id: "actions", name: "Actions", type: "action", width: 100, editable: false },
 ];
 
@@ -95,7 +99,18 @@ export function ProspectsGrid({ listId }: ProspectsGridProps) {
   const [resizingColumn, setResizingColumn] = useState<string | null>(null);
   const [hoveredRow, setHoveredRow] = useState<string | null>(null);
   const [hoveredColumn, setHoveredColumn] = useState<string | null>(null);
-  const [columns, setColumns] = useState<Column[]>(prospectColumns);
+  const [columns, setColumns] = useState<Column[]>(() => {
+    const savedColumns = localStorage.getItem(`prospects-columns-${listId}`);
+    if (savedColumns) {
+      try {
+        const parsed = JSON.parse(savedColumns);
+        return [...baseProspectColumns, ...parsed];
+      } catch (error) {
+        console.error('Error parsing saved columns:', error);
+      }
+    }
+    return [...baseProspectColumns];
+  });
   const [showAddInterlocuteurModal, setShowAddInterlocuteurModal] = useState(false);
   const [selectedProspectForInterlocuteur, setSelectedProspectForInterlocuteur] = useState<string | null>(null);
   const [showChangeStatusModal, setShowChangeStatusModal] = useState(false);
@@ -106,6 +121,11 @@ export function ProspectsGrid({ listId }: ProspectsGridProps) {
   const [selectedProspectForEmail, setSelectedProspectForEmail] = useState<Prospect | null>(null);
   const [selectedProspects, setSelectedProspects] = useState<Set<string>>(new Set());
   const [showBulkCampaignModal, setShowBulkCampaignModal] = useState(false);
+  const [showColumnManager, setShowColumnManager] = useState(false);
+  const [newColumnName, setNewColumnName] = useState('');
+  const [newColumnType, setNewColumnType] = useState<ColumnType>('text');
+  const [showEmailHistory, setShowEmailHistory] = useState(false);
+  const [selectedProspectForHistory, setSelectedProspectForHistory] = useState<Prospect | null>(null);
 
   const tableRef = useRef<HTMLDivElement>(null);
   const resizeStartX = useRef<number>(0);
@@ -237,9 +257,12 @@ export function ProspectsGrid({ listId }: ProspectsGridProps) {
         if (prospect.id === rowId) {
           if (columnId === 'status') {
             return { ...prospect, [columnId]: value };
+          } else if (columnId === 'rappel') {
+            // Handle rappel date specially - store in separate field
+            return { ...prospect, rappel_date: value };
           } else {
-            return { 
-              ...prospect, 
+            return {
+              ...prospect,
               data: { ...prospect.data, [columnId]: value }
             };
           }
@@ -250,15 +273,22 @@ export function ProspectsGrid({ listId }: ProspectsGridProps) {
 
     // Update on server
     try {
+      const requestBody: any = {};
+      if (columnId === 'rappel') {
+        // Send rappel date as separate field
+        requestBody.rappel_date = value;
+        requestBody.isDataField = false;
+      } else {
+        requestBody[columnId] = value;
+        requestBody.isDataField = columnId !== 'status' || columnId.startsWith('custom_');
+      }
+
       const res = await fetch(`/api/prospects/${rowId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ 
-          [columnId]: value,
-          isDataField: columnId !== 'status'
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       if (!res.ok) {
@@ -301,11 +331,116 @@ export function ProspectsGrid({ listId }: ProspectsGridProps) {
     }
   };
 
+  // Bulk delete selected prospects
+  const deleteSelectedProspects = async () => {
+    const selectedIds = Array.from(selectedProspects);
+    if (selectedIds.length === 0) return;
+
+    const confirmMessage = `Êtes-vous sûr de vouloir supprimer ${selectedIds.length} prospect${selectedIds.length > 1 ? 's' : ''} ?`;
+    if (!confirm(confirmMessage)) {
+      return;
+    }
+
+    try {
+      const deletePromises = selectedIds.map(id =>
+        fetch(`/api/prospects/${id}`, { method: 'DELETE' })
+      );
+
+      const results = await Promise.allSettled(deletePromises);
+      const successful = results.filter(result =>
+        result.status === 'fulfilled' &&
+        result.value.ok
+      ).length;
+
+      if (successful > 0) {
+        setProspects(prev => prev.filter(p => !selectedProspects.has(p.id)));
+        setSelectedProspects(new Set());
+        toast.success(`${successful} prospect${successful > 1 ? 's' : ''} supprimé${successful > 1 ? 's' : ''}`);
+      }
+
+      if (successful < selectedIds.length) {
+        toast.error(`${selectedIds.length - successful} suppression${selectedIds.length - successful > 1 ? 's' : ''} échouée${selectedIds.length - successful > 1 ? 's' : ''}`);
+      }
+    } catch (error) {
+      console.error('Error bulk deleting prospects:', error);
+      toast.error("Erreur lors de la suppression en masse");
+    }
+  };
+
+  // Column management functions
+  const addColumn = () => {
+    if (!newColumnName.trim()) return;
+
+    const newColumn: Column = {
+      id: `custom_${Date.now()}`,
+      name: newColumnName.trim(),
+      type: newColumnType,
+      width: 150,
+      editable: true,
+    };
+
+    const newColumns = [...columns, newColumn];
+    setColumns(newColumns);
+
+    // Save to localStorage
+    const customColumns = newColumns.filter(col =>
+      !baseProspectColumns.some(baseCol => baseCol.id === col.id)
+    );
+    localStorage.setItem(`prospects-columns-${listId}`, JSON.stringify(customColumns));
+
+    // Reset form
+    setNewColumnName('');
+    setNewColumnType('text');
+
+    toast.success(`Colonne "${newColumn.name}" ajoutée`);
+  };
+
+  const handleAddColumn = (name: string, type: ColumnType) => {
+    const newColumn: Column = {
+      id: `custom_${Date.now()}`,
+      name,
+      type,
+      width: 150,
+      editable: true,
+    };
+
+    const newColumns = [...columns, newColumn];
+    setColumns(newColumns);
+
+    // Save to localStorage
+    const customColumns = newColumns.filter(col =>
+      !baseProspectColumns.some(baseCol => baseCol.id === col.id)
+    );
+    localStorage.setItem(`prospects-columns-${listId}`, JSON.stringify(customColumns));
+  };
+
+  const removeColumn = (columnId: string) => {
+    const columnToRemove = columns.find(col => col.id === columnId);
+    const newColumns = columns.filter(col => col.id !== columnId);
+    setColumns(newColumns);
+
+    // Save to localStorage
+    const customColumns = newColumns.filter(col =>
+      !baseProspectColumns.some(baseCol => baseCol.id === col.id)
+    );
+    localStorage.setItem(`prospects-columns-${listId}`, JSON.stringify(customColumns));
+
+    if (columnToRemove) {
+      toast.success(`Colonne "${columnToRemove.name}" supprimée`);
+    }
+  };
+
   // Render cell content based on type
   const renderCell = (prospect: Prospect, column: Column) => {
     let value: any;
     if (column.id === 'status') {
       value = prospect[column.id as keyof Prospect];
+    } else if (column.id === 'rappel') {
+      // Handle rappel date - stored in separate field
+      value = prospect.rappel_date;
+    } else if (column.id.startsWith('custom_')) {
+      // Handle custom columns - store in prospect data
+      value = prospect.data[column.id as keyof typeof prospect.data];
     } else {
       value = prospect.data[column.id as keyof typeof prospect.data];
     }
@@ -323,7 +458,7 @@ export function ProspectsGrid({ listId }: ProspectsGridProps) {
               <MoreVertical className="h-3 w-3" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuContent align="end" className="w-48">
             {/* Communication Actions */}
             <DropdownMenuItem
               onClick={() => window.open(`tel:${prospect.data.phone}`, '_self')}
@@ -342,7 +477,32 @@ export function ProspectsGrid({ listId }: ProspectsGridProps) {
               className="flex items-center gap-2"
             >
               <Mail className="h-4 w-4" />
-              <span>Send Email</span>
+              <span>Envoyer un email</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={async () => {
+                // Fetch latest email history from API
+                try {
+                  const res = await fetch(`/api/prospects/${prospect.id}/activities?type=email`);
+                  const data = await res.json();
+                  if (data.activities) {
+                    // Update prospect data with fresh activities
+                    const updatedProspect = { ...prospect, prospect_activities: data.activities };
+                    setSelectedProspectForHistory(updatedProspect);
+                  } else {
+                    setSelectedProspectForHistory(prospect);
+                  }
+                  setShowEmailHistory(true);
+                } catch (error) {
+                  console.error('Error fetching email history:', error);
+                  setSelectedProspectForHistory(prospect);
+                  setShowEmailHistory(true);
+                }
+              }}
+              className="flex items-center gap-2"
+            >
+              <Mail className="h-4 w-4" />
+              <span>Historique des emails</span>
             </DropdownMenuItem>
 
             <DropdownMenuSeparator />
@@ -475,36 +635,6 @@ export function ProspectsGrid({ listId }: ProspectsGridProps) {
             ))}
           </div>
         );
-      case "activities":
-        const activities = prospect.prospect_activities;
-        if (!activities || activities.length === 0) {
-          return <span className="text-muted-foreground text-sm">Aucune activité</span>;
-        }
-        // Sort activities by most recent first and show only recent activities (last 3)
-        const sortedActivities = [...activities].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-        const recentActivities = sortedActivities.slice(0, 3);
-        return (
-          <div className="flex flex-col gap-1">
-            {recentActivities.map((activity, index) => (
-              <div key={activity.id} className="flex items-center gap-1">
-                {activity.activity_type === 'email' && <Mail className="h-3 w-3 text-blue-600" />}
-                {activity.activity_type === 'call' && <Phone className="h-3 w-3 text-green-600" />}
-                {activity.activity_type === 'meeting' && <Calendar className="h-3 w-3 text-purple-600" />}
-                {activity.activity_type === 'note' && <StickyNote className="h-3 w-3 text-yellow-600" />}
-                {activity.activity_type === 'status_change' && <Check className="h-3 w-3 text-orange-600" />}
-                {!['email', 'call', 'meeting', 'note', 'status_change'].includes(activity.activity_type) && <MoreHorizontal className="h-3 w-3 text-muted-foreground" />}
-                <span className="text-xs truncate" title={activity.description}>
-                  {activity.description}
-                </span>
-              </div>
-            ))}
-            {sortedActivities.length > 3 && (
-              <span className="text-xs text-muted-foreground">
-                +{sortedActivities.length - 3} autres
-              </span>
-            )}
-          </div>
-        );
       default:
         return <span className="truncate">{value as string || ""}</span>;
     }
@@ -541,6 +671,18 @@ export function ProspectsGrid({ listId }: ProspectsGridProps) {
 
   return (
     <div className="w-full bg-background">
+      {/* Column Manager */}
+      <div className="flex justify-end mb-4 gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setShowColumnManager(true)}
+        >
+          <Plus className="h-4 w-4 mr-2" />
+          Gérer les colonnes
+        </Button>
+      </div>
+
       {/* Table Container */}
       <div className="flex-1 overflow-auto" ref={tableRef}>
         <div className="min-w-full">
@@ -689,6 +831,14 @@ export function ProspectsGrid({ listId }: ProspectsGridProps) {
               Annuler
             </Button>
             <Button
+              variant="destructive"
+              size="sm"
+              onClick={deleteSelectedProspects}
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Supprimer
+            </Button>
+            <Button
               size="sm"
               onClick={() => setShowBulkCampaignModal(true)}
               className="bg-blue-600 hover:bg-blue-700"
@@ -758,6 +908,100 @@ export function ProspectsGrid({ listId }: ProspectsGridProps) {
           toast.success('Campaign created successfully');
         }}
       />
+
+      <EmailHistoryModal
+        isOpen={showEmailHistory}
+        onClose={() => {
+          setShowEmailHistory(false);
+          setSelectedProspectForHistory(null);
+        }}
+        prospect={selectedProspectForHistory}
+      />
+
+      {/* Column Manager Modal */}
+      {showColumnManager && (
+        <div
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50"
+          onClick={() => setShowColumnManager(false)}
+        >
+          <div
+            className="bg-white rounded-lg p-6 w-full max-w-md mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-lg font-semibold mb-4">Gérer les colonnes</h3>
+
+            <div className="space-y-4">
+              {/* Add New Column */}
+              <div>
+                <label className="block text-sm font-medium mb-2">Ajouter une colonne</label>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Nom de la colonne"
+                    value={newColumnName}
+                    onChange={(e) => setNewColumnName(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        addColumn();
+                      }
+                    }}
+                  />
+                  <Select value={newColumnType} onValueChange={(type: ColumnType) => setNewColumnType(type)}>
+                    <SelectTrigger className="w-32">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="text">Texte</SelectItem>
+                      <SelectItem value="number">Nombre</SelectItem>
+                      <SelectItem value="date">Date</SelectItem>
+                      <SelectItem value="checkbox">Case</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button onClick={addColumn} disabled={!newColumnName.trim()}>
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+
+              {/* Existing Custom Columns */}
+              <div>
+                <label className="block text-sm font-medium mb-2">Colonnes personnalisées</label>
+                <div className="space-y-2 max-h-48 overflow-y-auto">
+                  {columns
+                    .filter(col => !baseProspectColumns.some(baseCol => baseCol.id === col.id))
+                    .map(column => (
+                      <div key={column.id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                        <div className="flex items-center gap-2">
+                          {getColumnTypeIcon(column.type)}
+                          <span className="text-sm">{column.name}</span>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeColumn(column.id)}
+                          className="text-red-600 hover:text-red-700"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  {columns.filter(col => !baseProspectColumns.some(baseCol => baseCol.id === col.id)).length === 0 && (
+                    <p className="text-sm text-gray-500 text-center py-4">Aucune colonne personnalisée</p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 mt-6">
+              <Button
+                variant="outline"
+                onClick={() => setShowColumnManager(false)}
+              >
+                Fermer
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
