@@ -35,7 +35,7 @@ export function CreateProspectModal({ open, onOpenChange, listId, onSuccess }: C
   const [phone, setPhone] = useState("");
   const [industry, setIndustry] = useState("");
   const [website, setWebsite] = useState("");
-  const [status, setStatus] = useState("nouveau");
+  const [status, setStatus] = useState("none");
   const [assignedTo, setAssignedTo] = useState("unassigned");
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(false);
@@ -87,7 +87,7 @@ export function CreateProspectModal({ open, onOpenChange, listId, onSuccess }: C
           phone: phone.trim() || null,
           industry: industry.trim() || null,
           website: website.trim() || null,
-          status,
+          status: status === "none" ? null : status,
           assignedTo: assignedTo === "unassigned" ? null : assignedTo || null,
           notes: notes.trim() || null,
         }),
@@ -105,7 +105,7 @@ export function CreateProspectModal({ open, onOpenChange, listId, onSuccess }: C
       setPhone("");
       setIndustry("");
       setWebsite("");
-      setStatus("nouveau");
+      setStatus("none");
       setAssignedTo("unassigned");
       setNotes("");
       onOpenChange(false);
@@ -186,16 +186,19 @@ export function CreateProspectModal({ open, onOpenChange, listId, onSuccess }: C
               <div className="grid gap-2">
                 <Label htmlFor="status">Statut</Label>
                 <Select value={status} onValueChange={setStatus}>
-                  <SelectTrigger>
+                  <SelectTrigger className="bg-white/50 border-gray-200/50 hover:bg-white/70 focus:ring-0">
                     <SelectValue />
                   </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="nouveau">Nouveau</SelectItem>
-                    <SelectItem value="contacte">Contacté</SelectItem>
-                    <SelectItem value="interesse">Intéressé</SelectItem>
-                    <SelectItem value="rappel">Rappel</SelectItem>
-                    <SelectItem value="ferme">Client</SelectItem>
-                    <SelectItem value="non_interesse">Pas intéressé</SelectItem>
+                  <SelectContent className="bg-white/95 backdrop-blur-sm border border-gray-200/50 shadow-lg">
+                    <SelectItem value="none" className="hover:bg-gray-50/50 focus:bg-gray-50/50">Status</SelectItem>
+                    <SelectItem value="NRP" className="hover:bg-gray-50/50 focus:bg-gray-50/50">NRP</SelectItem>
+                    <SelectItem value="Rappel" className="hover:bg-gray-50/50 focus:bg-gray-50/50">Rappel</SelectItem>
+                    <SelectItem value="Relance" className="hover:bg-gray-50/50 focus:bg-gray-50/50">Relance</SelectItem>
+                    <SelectItem value="Mail" className="hover:bg-gray-50/50 focus:bg-gray-50/50">Mail</SelectItem>
+                    <SelectItem value="pas interessé" className="hover:bg-gray-50/50 focus:bg-gray-50/50">Pas intéressé</SelectItem>
+                    <SelectItem value="barrage" className="hover:bg-gray-50/50 focus:bg-gray-50/50">Barrage</SelectItem>
+                    <SelectItem value="devis" className="hover:bg-gray-50/50 focus:bg-gray-50/50">Devis</SelectItem>
+                    <SelectItem value="rdv" className="hover:bg-gray-50/50 focus:bg-gray-50/50">RDV</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

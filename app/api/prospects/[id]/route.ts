@@ -40,7 +40,8 @@ export async function GET(
         prospect_interlocuteurs(*),
         prospect_assignments(
           user_id,
-          users(id, full_name, email)
+          assigned_by,
+          assigned_at
         ),
         prospect_lists(id, name),
         prospect_activities(
@@ -90,6 +91,8 @@ export async function PUT(
     const prospectId = params.id;
     const body = await req.json();
     const { name, email, phone, industry, website, status, notes, isDataField } = body;
+    
+    console.log('Updating prospect:', prospectId, 'with data:', body);
     
     // Get user profile to check role
     const { data: userProfile, error: profileError } = await supabase
@@ -153,6 +156,14 @@ export async function PUT(
       }
     }
     
+    console.log('Update data constructed:', updateData);
+    
+    // Check if there's anything to update
+    if (Object.keys(updateData).length === 0) {
+      console.log('No data to update, returning 400');
+      return NextResponse.json({ error: 'No data to update' }, { status: 400 });
+    }
+
     const { data, error } = await supabase
       .from('prospects')
       .update(updateData)
@@ -162,7 +173,14 @@ export async function PUT(
     
     if (error) {
       console.error('Error updating prospect:', error);
+      if (error.code === 'PGRST116') {
+        return NextResponse.json({ error: 'Prospect not found or no changes made' }, { status: 404 });
+      }
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    if (!data) {
+      return NextResponse.json({ error: 'Prospect not found' }, { status: 404 });
     }
     
     // Log activity if status changed

@@ -97,7 +97,14 @@ export async function POST(req: NextRequest) {
     }
     
     const body = await req.json();
-    const { name, description } = body;
+    const { 
+      name, 
+      description, 
+      defaultInterlocuteurName, 
+      defaultInterlocuteurEmail, 
+      defaultInterlocuteurPhone, 
+      defaultInterlocuteurPosition 
+    } = body;
     
     if (!name) {
       return NextResponse.json({ error: 'Name is required' }, { status: 400 });
@@ -108,6 +115,10 @@ export async function POST(req: NextRequest) {
       .insert({
         name,
         description,
+        default_interlocuteur_name: defaultInterlocuteurName,
+        default_interlocuteur_email: defaultInterlocuteurEmail,
+        default_interlocuteur_phone: defaultInterlocuteurPhone,
+        default_interlocuteur_position: defaultInterlocuteurPosition,
         created_by: session.user.id,
         status: 'active',
         prospect_count: 0

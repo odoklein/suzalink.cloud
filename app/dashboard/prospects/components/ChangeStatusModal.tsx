@@ -25,12 +25,15 @@ interface ChangeStatusModalProps {
 }
 
 const statusOptions = [
-  { value: 'nouveau', label: 'Nouveau', color: 'bg-blue-100 text-blue-800' },
-  { value: 'contacte', label: 'Contacté', color: 'bg-yellow-100 text-yellow-800' },
-  { value: 'interesse', label: 'Intéressé', color: 'bg-green-100 text-green-800' },
-  { value: 'rappel', label: 'Rappel', color: 'bg-purple-100 text-purple-800' },
-  { value: 'ferme', label: 'Client', color: 'bg-emerald-100 text-emerald-800' },
-  { value: 'non_interesse', label: 'Pas intéressé', color: 'bg-red-100 text-red-800' },
+  { value: 'none', label: 'Status', color: 'bg-gray-100 text-gray-800' },
+  { value: 'NRP', label: 'NRP', color: 'bg-gray-100 text-gray-800' },
+  { value: 'Rappel', label: 'Rappel', color: 'bg-purple-100 text-purple-800' },
+  { value: 'Relance', label: 'Relance', color: 'bg-orange-100 text-orange-800' },
+  { value: 'Mail', label: 'Mail', color: 'bg-blue-100 text-blue-800' },
+  { value: 'pas interessé', label: 'Pas intéressé', color: 'bg-red-100 text-red-800' },
+  { value: 'barrage', label: 'Barrage', color: 'bg-red-200 text-red-900' },
+  { value: 'devis', label: 'Devis', color: 'bg-green-100 text-green-800' },
+  { value: 'rdv', label: 'RDV', color: 'bg-emerald-100 text-emerald-800' },
 ];
 
 export function ChangeStatusModal({ 
@@ -41,7 +44,7 @@ export function ChangeStatusModal({
   prospectName,
   onSuccess 
 }: ChangeStatusModalProps) {
-  const [newStatus, setNewStatus] = useState(currentStatus);
+  const [newStatus, setNewStatus] = useState(currentStatus || "none");
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -56,7 +59,7 @@ export function ChangeStatusModal({
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ 
-          status: newStatus,
+          status: newStatus === "none" ? null : newStatus,
           isDataField: false
         }),
       });
@@ -107,12 +110,12 @@ export function ChangeStatusModal({
           <div className="space-y-2">
             <Label htmlFor="status">Nouveau statut</Label>
             <Select value={newStatus} onValueChange={setNewStatus}>
-              <SelectTrigger>
+              <SelectTrigger className="bg-white/50 border-gray-200/50 hover:bg-white/70 focus:ring-0">
                 <SelectValue placeholder="Sélectionner un statut" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="bg-white/95 backdrop-blur-sm border border-gray-200/50 shadow-lg">
                 {statusOptions.map((status) => (
-                  <SelectItem key={status.value} value={status.value}>
+                  <SelectItem key={status.value} value={status.value} className="hover:bg-gray-50/50 focus:bg-gray-50/50">
                     <div className="flex items-center gap-2">
                       <span className={`px-2 py-1 rounded-full text-xs ${status.color}`}>
                         {status.label}

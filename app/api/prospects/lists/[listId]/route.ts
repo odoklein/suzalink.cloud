@@ -56,7 +56,8 @@ export async function GET(
     const limit = parseInt(url.searchParams.get('limit') || '50');
     const offset = (page - 1) * limit;
 
-    const { data: prospects, error: prospectsError, count } = await supabase
+    // Build query with optional sorting
+    let prospectsQuery = supabase
       .from('prospects')
       .select(`
         *,
@@ -78,9 +79,22 @@ export async function GET(
           created_at
         )
       `, { count: 'exact' })
-      .eq('list_id', listId)
-      .order('created_at', { ascending: false })
-      .range(offset, offset + limit - 1);
+      .eq('list_id', listId);
+
+    // Allow frontend to handle sorting - only apply order if explicitly requested
+    const sortBy = url.searchParams.get('sortBy');
+    const sortOrder = url.searchParams.get('sortOrder');
+
+    if (sortBy && sortOrder) {
+      prospectsQuery = prospectsQuery.order(sortBy, { ascending: sortOrder === 'asc' });
+    } else {
+      // Default sort by created_at desc for backward compatibility
+      prospectsQuery = prospectsQuery.order('created_at', { ascending: false });
+    }
+
+    prospectsQuery = prospectsQuery.range(offset, offset + limit - 1);
+
+    const { data: prospects, error: prospectsError, count } = await prospectsQuery;
 
     // ROLE-BASED FILTERING: For now, show all prospects for testing
     // TODO: Implement proper role-based filtering later

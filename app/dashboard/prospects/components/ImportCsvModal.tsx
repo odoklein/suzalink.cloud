@@ -51,6 +51,14 @@ export function ImportCsvModal({ open, onOpenChange, listId, onSuccess }: Import
     { id: 'notes', label: 'Notes', required: false },
   ];
 
+  // Available interlocuteur columns
+  const interlocuteurColumns = [
+    { id: 'interlocuteur_name', label: 'Nom de l\'interlocuteur', required: false },
+    { id: 'interlocuteur_email', label: 'Email de l\'interlocuteur', required: false },
+    { id: 'interlocuteur_phone', label: 'Téléphone de l\'interlocuteur', required: false },
+    { id: 'interlocuteur_position', label: 'Poste de l\'interlocuteur', required: false },
+  ];
+
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const uploadedFile = event.target.files?.[0];
     if (!uploadedFile) return;
@@ -97,17 +105,34 @@ export function ImportCsvModal({ open, onOpenChange, listId, onSuccess }: Import
       csvHeaders.forEach(header => {
           const lowerHeader = header.toLowerCase();
         if (lowerHeader.includes('nom') || lowerHeader.includes('name') || lowerHeader.includes('entreprise')) {
-          autoMapping[header] = 'name';
+          // Check if it's interlocuteur name or company name
+          if (lowerHeader.includes('interlocuteur') || lowerHeader.includes('contact') || lowerHeader.includes('responsable')) {
+            autoMapping[header] = 'interlocuteur_name';
+          } else {
+            autoMapping[header] = 'name';
+          }
         } else if (lowerHeader.includes('email') || lowerHeader.includes('mail')) {
-          autoMapping[header] = 'email';
+          // Check if it's interlocuteur email or company email
+          if (lowerHeader.includes('interlocuteur') || lowerHeader.includes('contact') || lowerHeader.includes('responsable')) {
+            autoMapping[header] = 'interlocuteur_email';
+          } else {
+            autoMapping[header] = 'email';
+          }
         } else if (lowerHeader.includes('tel') || lowerHeader.includes('phone') || lowerHeader.includes('téléphone')) {
-          autoMapping[header] = 'phone';
+          // Check if it's interlocuteur phone or company phone
+          if (lowerHeader.includes('interlocuteur') || lowerHeader.includes('contact') || lowerHeader.includes('responsable')) {
+            autoMapping[header] = 'interlocuteur_phone';
+          } else {
+            autoMapping[header] = 'phone';
+          }
         } else if (lowerHeader.includes('secteur') || lowerHeader.includes('industry') || lowerHeader.includes('activité')) {
           autoMapping[header] = 'industry';
         } else if (lowerHeader.includes('site') || lowerHeader.includes('website') || lowerHeader.includes('web')) {
           autoMapping[header] = 'website';
         } else if (lowerHeader.includes('note') || lowerHeader.includes('comment')) {
           autoMapping[header] = 'notes';
+        } else if (lowerHeader.includes('poste') || lowerHeader.includes('position') || lowerHeader.includes('fonction')) {
+          autoMapping[header] = 'interlocuteur_position';
         }
       });
       setColumnMapping(autoMapping);
@@ -142,8 +167,11 @@ export function ImportCsvModal({ open, onOpenChange, listId, onSuccess }: Import
           // Map CSV data to prospect format
           const prospect: any = {
             listId,
-            status: 'nouveau',
+            status: 'none',
           };
+
+          // Separate interlocuteur data
+          const interlocuteurData: any = {};
 
           Object.entries(columnMapping).forEach(([csvColumn, prospectColumn]) => {
             if (prospectColumn && row[csvColumn]) {
@@ -151,14 +179,28 @@ export function ImportCsvModal({ open, onOpenChange, listId, onSuccess }: Import
                 // Multiple CSV columns mapped to one prospect field
                 const values = prospectColumn.map(col => row[col]).filter(val => val && val.trim());
                 if (values.length > 0) {
-                  prospect[prospectColumn[0]] = values.join(' ').trim();
+                  const value = values.join(' ').trim();
+                  if (prospectColumn[0].startsWith('interlocuteur_')) {
+                    interlocuteurData[prospectColumn[0]] = value;
+                  } else {
+                    prospect[prospectColumn[0]] = value;
+                  }
                 }
               } else {
                 // Single CSV column mapped to one prospect field
-                prospect[prospectColumn] = row[csvColumn];
+                if (prospectColumn.startsWith('interlocuteur_')) {
+                  interlocuteurData[prospectColumn] = row[csvColumn];
+                } else {
+                  prospect[prospectColumn] = row[csvColumn];
+                }
               }
             }
           });
+
+          // Add interlocuteur data if any exists
+          if (Object.keys(interlocuteurData).length > 0) {
+            prospect.interlocuteur = interlocuteurData;
+          }
 
           console.log('Mapped prospect:', prospect);
           console.log('Column mapping:', columnMapping);
@@ -325,6 +367,14 @@ export function ImportCsvModal({ open, onOpenChange, listId, onSuccess }: Import
                           {prospectColumns.map(col => (
                             <SelectItem key={col.id} value={col.id}>
                               {col.label} {col.required && '*'}
+                              {isMappedToMultiple && currentMapping.includes(col.id) && ' ✓'}
+                            </SelectItem>
+                          ))}
+                          <div className="border-t my-1"></div>
+                          <div className="px-2 py-1 text-xs font-medium text-gray-500">Interlocuteur</div>
+                          {interlocuteurColumns.map(col => (
+                            <SelectItem key={col.id} value={col.id}>
+                              {col.label}
                               {isMappedToMultiple && currentMapping.includes(col.id) && ' ✓'}
                             </SelectItem>
                           ))}

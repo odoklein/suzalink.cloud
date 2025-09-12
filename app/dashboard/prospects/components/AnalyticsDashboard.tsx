@@ -70,12 +70,15 @@ export function AnalyticsDashboard({ listId }: AnalyticsDashboardProps) {
   if (!analytics) return null;
 
   const statusColors = {
-    nouveau: 'bg-blue-100 text-blue-800',
-    contacte: 'bg-yellow-100 text-yellow-800',
-    interesse: 'bg-green-100 text-green-800',
-    rappel: 'bg-purple-100 text-purple-800',
-    ferme: 'bg-emerald-100 text-emerald-800',
-    non_interesse: 'bg-red-100 text-red-800'
+    '': 'bg-gray-100 text-gray-800',
+    'NRP': 'bg-gray-100 text-gray-800',
+    'Rappel': 'bg-purple-100 text-purple-800',
+    'Relance': 'bg-orange-100 text-orange-800',
+    'Mail': 'bg-blue-100 text-blue-800',
+    'pas interessé': 'bg-red-100 text-red-800',
+    'barrage': 'bg-red-200 text-red-900',
+    'devis': 'bg-green-100 text-green-800',
+    'rdv': 'bg-emerald-100 text-emerald-800'
   };
 
   return (
@@ -98,7 +101,7 @@ export function AnalyticsDashboard({ listId }: AnalyticsDashboardProps) {
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{analytics.prospectsByStatus.nouveau || 0}</div>
+            <div className="text-2xl font-bold">{analytics.prospectsByStatus[''] || analytics.prospectsByStatus['none'] || 0}</div>
           </CardContent>
         </Card>
 

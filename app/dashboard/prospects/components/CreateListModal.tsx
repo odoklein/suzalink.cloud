@@ -14,6 +14,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
+import { User } from "lucide-react";
 
 interface CreateListModalProps {
   open: boolean;
@@ -24,6 +25,10 @@ interface CreateListModalProps {
 export function CreateListModal({ open, onOpenChange, onSuccess }: CreateListModalProps) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [defaultInterlocuteurName, setDefaultInterlocuteurName] = useState("");
+  const [defaultInterlocuteurEmail, setDefaultInterlocuteurEmail] = useState("");
+  const [defaultInterlocuteurPhone, setDefaultInterlocuteurPhone] = useState("");
+  const [defaultInterlocuteurPosition, setDefaultInterlocuteurPosition] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -44,6 +49,10 @@ export function CreateListModal({ open, onOpenChange, onSuccess }: CreateListMod
         body: JSON.stringify({
           name: name.trim(),
           description: description.trim() || null,
+          defaultInterlocuteurName: defaultInterlocuteurName.trim() || null,
+          defaultInterlocuteurEmail: defaultInterlocuteurEmail.trim() || null,
+          defaultInterlocuteurPhone: defaultInterlocuteurPhone.trim() || null,
+          defaultInterlocuteurPosition: defaultInterlocuteurPosition.trim() || null,
         }),
       });
 
@@ -55,6 +64,10 @@ export function CreateListModal({ open, onOpenChange, onSuccess }: CreateListMod
       toast.success("Liste créée avec succès");
       setName("");
       setDescription("");
+      setDefaultInterlocuteurName("");
+      setDefaultInterlocuteurEmail("");
+      setDefaultInterlocuteurPhone("");
+      setDefaultInterlocuteurPosition("");
       onOpenChange(false);
       onSuccess();
     } catch (error) {
@@ -67,7 +80,7 @@ export function CreateListModal({ open, onOpenChange, onSuccess }: CreateListMod
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Créer une nouvelle liste</DialogTitle>
           <DialogDescription>
@@ -96,6 +109,60 @@ export function CreateListModal({ open, onOpenChange, onSuccess }: CreateListMod
                 rows={3}
             />
                       </div>
+            
+            {/* Interlocuteur Section */}
+            <div className="space-y-4 border-t pt-4">
+              <div className="flex items-center gap-2">
+                <User className="h-4 w-4 text-muted-foreground" />
+                <Label className="text-sm font-medium">Interlocuteur par défaut (optionnel)</Label>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Définissez un interlocuteur par défaut qui sera automatiquement ajouté aux nouveaux prospects de cette liste.
+              </p>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="interlocuteur-name">Nom</Label>
+                  <Input
+                    id="interlocuteur-name"
+                    value={defaultInterlocuteurName}
+                    onChange={(e) => setDefaultInterlocuteurName(e.target.value)}
+                    placeholder="Ex: Jean Dupont"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="interlocuteur-position">Poste</Label>
+                  <Input
+                    id="interlocuteur-position"
+                    value={defaultInterlocuteurPosition}
+                    onChange={(e) => setDefaultInterlocuteurPosition(e.target.value)}
+                    placeholder="Ex: Directeur Commercial"
+                  />
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="interlocuteur-email">Email</Label>
+                  <Input
+                    id="interlocuteur-email"
+                    type="email"
+                    value={defaultInterlocuteurEmail}
+                    onChange={(e) => setDefaultInterlocuteurEmail(e.target.value)}
+                    placeholder="jean.dupont@entreprise.com"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="interlocuteur-phone">Téléphone</Label>
+                  <Input
+                    id="interlocuteur-phone"
+                    value={defaultInterlocuteurPhone}
+                    onChange={(e) => setDefaultInterlocuteurPhone(e.target.value)}
+                    placeholder="06 12 34 56 78"
+                  />
+                </div>
+              </div>
+            </div>
                     </div>
             <DialogFooter>
               <Button

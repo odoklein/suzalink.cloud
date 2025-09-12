@@ -78,7 +78,7 @@ export async function GET(req: NextRequest) {
 
     // Group by status
     prospects.forEach(prospect => {
-      const status = prospect.status || 'nouveau';
+      const status = prospect.status || null;
       analytics.prospectsByStatus[status] = (analytics.prospectsByStatus[status] || 0) + 1;
     });
 
@@ -100,7 +100,7 @@ export async function GET(req: NextRequest) {
     userGroups.forEach((data, userId) => {
       const byStatus: Record<string, number> = {};
       data.prospects.forEach(prospect => {
-        const status = prospect.status || 'nouveau';
+        const status = prospect.status || null;
         byStatus[status] = (byStatus[status] || 0) + 1;
       });
 
@@ -127,7 +127,7 @@ export async function GET(req: NextRequest) {
     listGroups.forEach((data, listId) => {
       const byStatus: Record<string, number> = {};
       data.prospects.forEach(prospect => {
-        const status = prospect.status || 'nouveau';
+        const status = prospect.status || null;
         byStatus[status] = (byStatus[status] || 0) + 1;
       });
 

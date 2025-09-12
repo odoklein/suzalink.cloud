@@ -27,14 +27,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { ProspectsGrid } from "./components/ProspectsGrid";
 import { CreateListModal } from "./components/CreateListModal";
 import { CreateProspectModal } from "./components/CreateProspectModal";
 import { ImportCsvModal } from "./components/ImportCsvModal";
-import { AnalyticsDashboard } from "./components/AnalyticsDashboard";
-import { EmailTemplates } from "./components/EmailTemplates";
 import { AssignListModal } from "./components/AssignListModal";
-import { CampaignsTab } from "./components/CampaignsTab";
 
 interface ProspectList {
   id: string;
@@ -49,48 +45,17 @@ interface ProspectList {
 export default function ProspectsPage() {
   const router = useRouter();
   const [lists, setLists] = useState<ProspectList[]>([]);
-  const [selectedList, setSelectedList] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [createListModalOpen, setCreateListModalOpen] = useState(false);
   const [createProspectModalOpen, setCreateProspectModalOpen] = useState(false);
   const [importCsvModalOpen, setImportCsvModalOpen] = useState(false);
   const [assignListModalOpen, setAssignListModalOpen] = useState(false);
   const [selectedListForAssignment, setSelectedListForAssignment] = useState<{ id: string; name: string } | null>(null);
-  const [exporting, setExporting] = useState(false);
   const [deletingList, setDeletingList] = useState<string | null>(null);
   const [editingList, setEditingList] = useState<ProspectList | null>(null);
   const [editListName, setEditListName] = useState('');
   const [editListDescription, setEditListDescription] = useState('');
 
-  // Export prospects to CSV
-  const handleExport = async () => {
-    if (!selectedList) return;
-
-    setExporting(true);
-    try {
-      const res = await fetch(`/api/prospects/export?listId=${selectedList}`);
-      if (!res.ok) {
-        throw new Error('Failed to export prospects');
-      }
-
-      const blob = await res.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `prospects_${new Date().toISOString().split('T')[0]}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-
-      toast.success("Export réussi");
-    } catch (error) {
-      console.error('Error exporting prospects:', error);
-      toast.error("Erreur lors de l'export");
-    } finally {
-      setExporting(false);
-    }
-  };
 
   // Delete prospect list
   const handleDeleteList = async (listId: string, listName: string) => {
@@ -111,11 +76,6 @@ export default function ProspectsPage() {
 
       toast.success(`Liste "${listName}" supprimée avec succès`);
       setLists(prev => prev.filter(list => list.id !== listId));
-
-      // If the deleted list was selected, clear selection
-      if (selectedList === listId) {
-        setSelectedList(null);
-      }
 
     } catch (error) {
       console.error('Error deleting list:', error);
@@ -176,10 +136,6 @@ export default function ProspectsPage() {
       if (data.lists) {
         console.log("Setting lists:", data.lists);
         setLists(data.lists);
-        // Auto-select first list if none selected
-        if (!selectedList && data.lists.length > 0) {
-          setSelectedList(data.lists[0].id);
-        }
       } else {
         console.log("No lists in response");
       }
@@ -194,7 +150,6 @@ export default function ProspectsPage() {
     fetchLists();
   }, []);
 
-  const selectedListData = lists.find(list => list.id === selectedList);
 
   return (
     <div className="w-full py-6 space-y-6">
@@ -216,7 +171,6 @@ export default function ProspectsPage() {
           </Button>
           <Button
             onClick={() => setCreateProspectModalOpen(true)}
-            disabled={!selectedList}
           >
             <Plus className="h-4 w-4 mr-2" />
             Nouveau Prospect
@@ -229,7 +183,7 @@ export default function ProspectsPage() {
         <div>
           <h2 className="text-lg font-semibold">Gestion des listes</h2>
           <p className="text-sm text-muted-foreground">
-            Cliquez sur une liste pour la gérer, ou utilisez le menu ⋮ pour modifier/supprimer
+            Cliquez sur une liste pour ouvrir l'interface de gestion des prospects, ou utilisez le menu ⋮ pour modifier/supprimer
           </p>
         </div>
       </div>
@@ -250,10 +204,8 @@ export default function ProspectsPage() {
           lists.map((list) => (
             <Card
               key={list.id}
-              className={`cursor-pointer transition-all hover:shadow-md ${
-                selectedList === list.id ? 'ring-2 ring-primary' : ''
-              }`}
-              onClick={() => setSelectedList(list.id)}
+              className="cursor-pointer transition-all hover:shadow-md"
+              onClick={() => window.open(`/dashboard/prospects/${list.id}`, '_blank')}
             >
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
@@ -338,90 +290,6 @@ export default function ProspectsPage() {
         )}
       </div>
 
-      {/* Prospects Grid */}
-      {selectedList && selectedListData && (
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-xl">{selectedListData.name}</CardTitle>
-                <CardDescription>
-                  {selectedListData.prospect_count} prospects • 
-                  Créé le {new Date(selectedListData.created_at).toLocaleDateString('fr-FR')}
-                </CardDescription>
-              </div>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm">
-                    <Settings className="h-4 w-4 mr-2" />
-                    Actions
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-48">
-                  <DropdownMenuItem className="flex items-center gap-2">
-                    <Filter className="h-4 w-4" />
-                    <span>Filtres</span>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={handleExport}
-                    disabled={!selectedList || exporting}
-                    className="flex items-center gap-2"
-                  >
-                    <Download className="h-4 w-4" />
-                    <span>{exporting ? 'Export...' : 'Exporter CSV'}</span>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onClick={() => setImportCsvModalOpen(true)}
-                    disabled={!selectedList}
-                    className="flex items-center gap-2"
-                  >
-                    <Upload className="h-4 w-4" />
-                    <span>Importer CSV</span>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          </CardHeader>
-          <CardContent className="p-0">
-            <Tabs defaultValue="grid" className="w-full">
-              <TabsList className="grid w-full grid-cols-4">
-                <TabsTrigger value="grid" className="flex items-center gap-2">
-                  <Table className="h-4 w-4" />
-                  Prospects
-                </TabsTrigger>
-                <TabsTrigger value="analytics" className="flex items-center gap-2">
-                  <BarChart3 className="h-4 w-4" />
-                  Analytics
-                </TabsTrigger>
-                <TabsTrigger value="campaigns" className="flex items-center gap-2">
-                  <Target className="h-4 w-4" />
-                  Campaigns
-                </TabsTrigger>
-                <TabsTrigger value="templates" className="flex items-center gap-2">
-                  <Mail className="h-4 w-4" />
-                  Templates
-                </TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="grid" className="mt-0">
-                <ProspectsGrid listId={selectedList} />
-              </TabsContent>
-
-              <TabsContent value="analytics" className="mt-0 p-6">
-                <AnalyticsDashboard listId={selectedList} />
-              </TabsContent>
-
-              <TabsContent value="campaigns" className="mt-0 p-6">
-                <CampaignsTab />
-              </TabsContent>
-
-              <TabsContent value="templates" className="mt-0 p-6">
-                <EmailTemplates />
-              </TabsContent>
-            </Tabs>
-          </CardContent>
-        </Card>
-      )}
 
       {/* Empty State */}
       {!loading && lists.length === 0 && (
@@ -452,21 +320,20 @@ export default function ProspectsPage() {
       <CreateProspectModal
         open={createProspectModalOpen}
         onOpenChange={setCreateProspectModalOpen}
-        listId={selectedList}
+        listId={null}
         onSuccess={() => {
-          // Refresh the grid
-          window.location.reload();
+          // Refresh the lists
+          fetchLists();
         }}
       />
 
       <ImportCsvModal
         open={importCsvModalOpen}
         onOpenChange={setImportCsvModalOpen}
-        listId={selectedList || ''}
+        listId={''}
         onSuccess={() => {
-          // Refresh the grid and lists
+          // Refresh the lists
           fetchLists();
-          window.location.reload();
         }}
       />
 

@@ -58,8 +58,9 @@ export async function POST(req: NextRequest) {
       const prospectData: any = {
         list_id: prospect.listId,
         data: data,
-        status: prospect.status || 'nouveau',
-        created_by: session.user.id
+        status: prospect.status === 'none' ? null : (prospect.status || null),
+        created_by: session.user.id,
+        interlocuteur: prospect.interlocuteur || null
       };
       
       // Note: assigned_to column has been removed from prospects table
@@ -76,9 +77,15 @@ export async function POST(req: NextRequest) {
     for (let i = 0; i < prospectsToInsert.length; i += batchSize) {
       const batch = prospectsToInsert.slice(i, i + batchSize);
       
+      // Remove interlocuteur data from prospect data before insertion
+      const prospectsForInsertion = batch.map(prospect => {
+        const { interlocuteur, ...prospectData } = prospect;
+        return prospectData;
+      });
+      
       const { data, error } = await supabase
         .from('prospects')
-        .insert(batch)
+        .insert(prospectsForInsertion)
         .select('id');
       
       if (error) {
@@ -86,6 +93,40 @@ export async function POST(req: NextRequest) {
         errors += batch.length;
       } else {
         imported += data?.length || 0;
+        
+        // Create interlocuteur records for prospects that have interlocuteur data
+        const interlocuteurInserts = [];
+        for (let j = 0; j < batch.length; j++) {
+          const prospect = batch[j];
+          const insertedProspect = data[j];
+          
+          if (prospect.interlocuteur && insertedProspect?.id) {
+            const interlocuteurData = {
+              prospect_id: insertedProspect.id,
+              name: prospect.interlocuteur.interlocuteur_name || '',
+              email: prospect.interlocuteur.interlocuteur_email || null,
+              phone: prospect.interlocuteur.interlocuteur_phone || null,
+              position: prospect.interlocuteur.interlocuteur_position || null,
+              notes: null
+            };
+            
+            // Only add if there's at least a name
+            if (interlocuteurData.name.trim()) {
+              interlocuteurInserts.push(interlocuteurData);
+            }
+          }
+        }
+        
+        // Insert interlocuteurs if any exist
+        if (interlocuteurInserts.length > 0) {
+          const { error: interlocuteurError } = await supabase
+            .from('prospect_interlocuteurs')
+            .insert(interlocuteurInserts);
+          
+          if (interlocuteurError) {
+            console.error('Error inserting interlocuteurs:', interlocuteurError);
+          }
+        }
       }
     }
     
