@@ -40,6 +40,59 @@ export function ImportCsvModal({ open, onOpenChange, listId, onSuccess }: Import
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState<'upload' | 'mapping' | 'preview' | 'importing'>('upload');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Function to clean phone numbers - converts all to French format (+33)
+  const cleanPhoneNumber = (phone: string): string => {
+    if (!phone || typeof phone !== 'string') return '';
+    
+    // Remove all non-digit characters
+    let cleaned = phone.replace(/[^\d]/g, '');
+    
+    // Handle different formats and convert all to French format (+33)
+    if (cleaned.startsWith('33')) {
+      // Already has 33, add +
+      cleaned = '+' + cleaned;
+    } else if (cleaned.startsWith('0')) {
+      // French number starting with 0, replace with +33
+      cleaned = '+33' + cleaned.substring(1);
+    } else if (cleaned.length >= 10) {
+      // Any other number format, convert to French format
+      // Remove any existing country code and add +33
+      if (cleaned.length > 10) {
+        // Remove country code (first 1-3 digits) and add +33
+        cleaned = '+33' + cleaned.substring(cleaned.length - 10);
+      } else {
+        // 10 digits, add +33
+        cleaned = '+33' + cleaned;
+      }
+    }
+    
+    // Final validation - should be +33 followed by 9 digits
+    if (cleaned.startsWith('+33') && cleaned.length === 12) {
+      return cleaned;
+    }
+    
+    // If it doesn't match expected format, return original
+    return phone;
+  };
+
+  // Function to remove duplicate prospects based on email or phone
+  const removeDuplicates = (prospects: any[]): any[] => {
+    const seen = new Set<string>();
+    const unique: any[] = [];
+    
+    for (const prospect of prospects) {
+      // Create a unique key based on email or phone
+      const key = prospect.email || prospect.phone || prospect.name;
+      
+      if (key && !seen.has(key)) {
+        seen.add(key);
+        unique.push(prospect);
+      }
+    }
+    
+    return unique;
+  };
   
   // Available prospect columns
   const prospectColumns = [
@@ -179,7 +232,13 @@ export function ImportCsvModal({ open, onOpenChange, listId, onSuccess }: Import
                 // Multiple CSV columns mapped to one prospect field
                 const values = prospectColumn.map(col => row[col]).filter(val => val && val.trim());
                 if (values.length > 0) {
-                  const value = values.join(' ').trim();
+                  let value = values.join(' ').trim();
+                  
+                  // Clean phone numbers for combined values
+                  if (prospectColumn[0] === 'phone' || prospectColumn[0] === 'interlocuteur_phone') {
+                    value = cleanPhoneNumber(value);
+                  }
+                  
                   if (prospectColumn[0].startsWith('interlocuteur_')) {
                     interlocuteurData[prospectColumn[0]] = value;
                   } else {
@@ -188,10 +247,17 @@ export function ImportCsvModal({ open, onOpenChange, listId, onSuccess }: Import
                 }
               } else {
                 // Single CSV column mapped to one prospect field
+                let value = row[csvColumn];
+                
+                // Clean phone numbers
+                if (prospectColumn === 'phone' || prospectColumn === 'interlocuteur_phone') {
+                  value = cleanPhoneNumber(value);
+                }
+                
                 if (prospectColumn.startsWith('interlocuteur_')) {
-                  interlocuteurData[prospectColumn] = row[csvColumn];
+                  interlocuteurData[prospectColumn] = value;
                 } else {
-                  prospect[prospectColumn] = row[csvColumn];
+                  prospect[prospectColumn] = value;
                 }
               }
             }
@@ -214,8 +280,16 @@ export function ImportCsvModal({ open, onOpenChange, listId, onSuccess }: Import
           }
         }
 
-        console.log('Sending prospects to API:', prospects.length, 'prospects');
-        console.log('First prospect being sent:', prospects[0]);
+        // Remove duplicates before importing
+        const uniqueProspects = removeDuplicates(prospects);
+        const duplicatesRemoved = prospects.length - uniqueProspects.length;
+        
+        if (duplicatesRemoved > 0) {
+          toast.info(`${duplicatesRemoved} doublon(s) supprimé(s). ${uniqueProspects.length} prospects uniques à importer.`);
+        }
+
+        console.log('Sending prospects to API:', uniqueProspects.length, 'prospects');
+        console.log('First prospect being sent:', uniqueProspects[0]);
 
         // Import prospects
         const res = await fetch('/api/prospects/import-csv', {
@@ -223,7 +297,7 @@ export function ImportCsvModal({ open, onOpenChange, listId, onSuccess }: Import
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ prospects }),
+          body: JSON.stringify({ prospects: uniqueProspects }),
         });
 
         if (!res.ok) {
@@ -404,6 +478,11 @@ export function ImportCsvModal({ open, onOpenChange, listId, onSuccess }: Import
               <p className="text-sm text-gray-600 mb-4">
                 Vérifiez que les données sont correctement mappées
               </p>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+                <p className="text-sm text-blue-800">
+                  <strong>Note:</strong> Les numéros de téléphone seront automatiquement nettoyés et les doublons seront supprimés lors de l'importation.
+                </p>
+              </div>
             </div>
             <div className="max-h-64 overflow-auto border rounded-lg">
               <table className="w-full text-sm">
@@ -437,9 +516,19 @@ export function ImportCsvModal({ open, onOpenChange, listId, onSuccess }: Import
                           // Multiple columns combined
                           const values = prospectCol.map(col => row[col]).filter(val => val && val.trim());
                           displayValue = values.join(' ').trim();
+                          
+                          // Clean phone numbers for combined values
+                          if (prospectCol[0] === 'phone' || prospectCol[0] === 'interlocuteur_phone') {
+                            displayValue = cleanPhoneNumber(displayValue);
+                          }
                         } else {
                           // Single column
                           displayValue = row[csvCol] || '';
+                          
+                          // Clean phone numbers
+                          if (prospectCol === 'phone' || prospectCol === 'interlocuteur_phone') {
+                            displayValue = cleanPhoneNumber(displayValue);
+                          }
                         }
                         
                         return (

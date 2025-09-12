@@ -110,59 +110,62 @@ export function CreateListModal({ open, onOpenChange, onSuccess }: CreateListMod
             />
                       </div>
             
-            {/* Interlocuteur Section */}
-            <div className="space-y-4 border-t pt-4">
-              <div className="flex items-center gap-2">
-                <User className="h-4 w-4 text-muted-foreground" />
-                <Label className="text-sm font-medium">Interlocuteur par défaut (optionnel)</Label>
+            {/* Interlocuteur Section - Hidden by default since it's optional */}
+            {/* You can uncomment this section if you want to show the interlocuteur fields */}
+            {false && (
+              <div className="space-y-4 border-t pt-4">
+                <div className="flex items-center gap-2">
+                  <User className="h-4 w-4 text-muted-foreground" />
+                  <Label className="text-sm font-medium">Interlocuteur par défaut (optionnel)</Label>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Définissez un interlocuteur par défaut qui sera automatiquement ajouté aux nouveaux prospects de cette liste.
+                </p>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="interlocuteur-name">Nom</Label>
+                    <Input
+                      id="interlocuteur-name"
+                      value={defaultInterlocuteurName}
+                      onChange={(e) => setDefaultInterlocuteurName(e.target.value)}
+                      placeholder="Ex: Jean Dupont"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="interlocuteur-position">Poste</Label>
+                    <Input
+                      id="interlocuteur-position"
+                      value={defaultInterlocuteurPosition}
+                      onChange={(e) => setDefaultInterlocuteurPosition(e.target.value)}
+                      placeholder="Ex: Directeur Commercial"
+                    />
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="interlocuteur-email">Email</Label>
+                    <Input
+                      id="interlocuteur-email"
+                      type="email"
+                      value={defaultInterlocuteurEmail}
+                      onChange={(e) => setDefaultInterlocuteurEmail(e.target.value)}
+                      placeholder="jean.dupont@entreprise.com"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="interlocuteur-phone">Téléphone</Label>
+                    <Input
+                      id="interlocuteur-phone"
+                      value={defaultInterlocuteurPhone}
+                      onChange={(e) => setDefaultInterlocuteurPhone(e.target.value)}
+                      placeholder="06 12 34 56 78"
+                    />
+                  </div>
+                </div>
               </div>
-              <p className="text-xs text-muted-foreground">
-                Définissez un interlocuteur par défaut qui sera automatiquement ajouté aux nouveaux prospects de cette liste.
-              </p>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="interlocuteur-name">Nom</Label>
-                  <Input
-                    id="interlocuteur-name"
-                    value={defaultInterlocuteurName}
-                    onChange={(e) => setDefaultInterlocuteurName(e.target.value)}
-                    placeholder="Ex: Jean Dupont"
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="interlocuteur-position">Poste</Label>
-                  <Input
-                    id="interlocuteur-position"
-                    value={defaultInterlocuteurPosition}
-                    onChange={(e) => setDefaultInterlocuteurPosition(e.target.value)}
-                    placeholder="Ex: Directeur Commercial"
-                  />
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="interlocuteur-email">Email</Label>
-                  <Input
-                    id="interlocuteur-email"
-                    type="email"
-                    value={defaultInterlocuteurEmail}
-                    onChange={(e) => setDefaultInterlocuteurEmail(e.target.value)}
-                    placeholder="jean.dupont@entreprise.com"
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="interlocuteur-phone">Téléphone</Label>
-                  <Input
-                    id="interlocuteur-phone"
-                    value={defaultInterlocuteurPhone}
-                    onChange={(e) => setDefaultInterlocuteurPhone(e.target.value)}
-                    placeholder="06 12 34 56 78"
-                  />
-                </div>
-              </div>
-            </div>
+            )}
                     </div>
             <DialogFooter>
               <Button

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useCallback, useEffect } from "react";
-import { ChevronDown, GripVertical, Plus, Trash2, Calendar, Hash, Type, Check, Phone, Mail, User, Building, Edit, MoreHorizontal, UserPlus, StickyNote, MoreVertical, ArrowUpDown, Grid3X3, List, Settings, Pin, Palette } from "lucide-react";
+import { ChevronDown, GripVertical, Plus, Trash2, Calendar, Hash, Type, Check, Phone, Mail, User, Building, Edit, MoreHorizontal, UserPlus, StickyNote, MoreVertical, ArrowUpDown, Grid3X3, List, Settings, Pin, Palette, Upload } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -25,6 +25,7 @@ import { ProspectEmailDialog } from "./ProspectEmailDialog";
 import { BulkCampaignModal } from "./BulkCampaignModal";
 import { EmailHistoryModal } from "./EmailHistoryModal";
 import { StatusManagementModal } from "./StatusManagementModal";
+import { ImportCsvModal } from "./ImportCsvModal";
 
 // Prospect Overview Card Component
 function ProspectOverviewCard({
@@ -349,6 +350,7 @@ export function ProspectsGrid({ listId }: ProspectsGridProps) {
   const [selectedProspectForHistory, setSelectedProspectForHistory] = useState<Prospect | null>(null);
   const [interlocuteurPopoverOpen, setInterlocuteurPopoverOpen] = useState<string | null>(null);
   const [showStatusManagement, setShowStatusManagement] = useState(false);
+  const [showImportCsv, setShowImportCsv] = useState(false);
   const [editingInterlocuteur, setEditingInterlocuteur] = useState<string | null>(null);
   const [editInterlocuteurData, setEditInterlocuteurData] = useState<Partial<Interlocuteur>>({});
   const [rowHeight, setRowHeight] = useState<number>(() => {
@@ -971,17 +973,6 @@ export function ProspectsGrid({ listId }: ProspectsGridProps) {
 
             <DropdownMenuSeparator />
 
-            {/* Prospect Actions */}
-            <DropdownMenuItem
-              onClick={() => {
-                setSelectedProspectForInterlocuteur(prospect.id);
-                setShowAddInterlocuteurModal(true);
-              }}
-              className="flex items-center gap-2"
-            >
-              <UserPlus className="h-4 w-4" />
-              <span>Ajouter interlocuteur</span>
-            </DropdownMenuItem>
             <DropdownMenuItem
               onClick={() => {
                 setSelectedProspectForStatus({
@@ -1333,7 +1324,7 @@ export function ProspectsGrid({ listId }: ProspectsGridProps) {
   }
 
   return (
-    <div className="w-full bg-white min-h-screen">
+    <div className="w-full bg-white h-full flex flex-col">
       {/* Toolbar - Google Sheets style */}
       <div className="flex items-center justify-between px-4 py-2 bg-white border-b border-gray-200">
         <div className="flex items-center gap-4">
@@ -1350,6 +1341,29 @@ export function ProspectsGrid({ listId }: ProspectsGridProps) {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {/* Quick Actions */}
+          <Button
+            size="sm"
+            onClick={() => {
+              // TODO: Add create prospect functionality
+              toast.info("Fonctionnalité d'ajout de prospect à venir");
+            }}
+            className="h-8"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Ajouter prospect
+          </Button>
+          
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowImportCsv(true)}
+            className="h-8"
+          >
+            <Upload className="h-4 w-4 mr-2" />
+            Importer CSV
+          </Button>
+          
           {/* View Mode Toggle */}
           <div className="flex items-center border border-gray-300 rounded-md overflow-hidden">
             <Button
@@ -1371,6 +1385,7 @@ export function ProspectsGrid({ listId }: ProspectsGridProps) {
               Cartes
             </Button>
           </div>
+          
           <Button
             variant={headerFrozen ? "default" : "outline"}
             size="sm"
@@ -1381,6 +1396,7 @@ export function ProspectsGrid({ listId }: ProspectsGridProps) {
             <Pin className="h-4 w-4 mr-2" />
             En-tête fixe
           </Button>
+          
           <Button
             variant="outline"
             size="sm"
@@ -1390,6 +1406,7 @@ export function ProspectsGrid({ listId }: ProspectsGridProps) {
             <Palette className="h-4 w-4 mr-2" />
             Gérer les statuts
           </Button>
+          
           <Button
             variant="outline"
             size="sm"
@@ -1478,13 +1495,13 @@ export function ProspectsGrid({ listId }: ProspectsGridProps) {
           )}
 
           {/* Scrollable Content */}
-          <div className="flex-1 overflow-auto" ref={tableRef}>
+          <div className="flex-1 overflow-y-auto h-0" ref={tableRef}>
             <div className="min-w-full">
               {/* Header Row - only shown when not frozen */}
               {!headerFrozen && (
-                <div className="flex bg-gray-50 border-b border-gray-300" style={{ height: rowHeight }}>
+                <div className="flex bg-gray-50 border-b border-gray-300 sticky top-0 z-10" style={{ height: rowHeight }}>
                   {/* Selection header */}
-                  <div className="w-12 min-w-12 flex items-center justify-center border-r border-gray-300 bg-gray-50" style={{ height: rowHeight }}>
+                  <div className="w-12 min-w-12 flex items-center justify-center border-r border-gray-300 bg-gray-50 sticky top-0 z-10" style={{ height: rowHeight }}>
                     <Checkbox
                       checked={isAllSelected}
                       ref={(el) => {
@@ -1497,12 +1514,12 @@ export function ProspectsGrid({ listId }: ProspectsGridProps) {
                   </div>
 
                   {/* Phone CTA header */}
-                  <div className="w-12 min-w-12 flex items-center justify-center border-r border-gray-300 bg-gray-50" style={{ height: rowHeight }}>
+                  <div className="w-12 min-w-12 flex items-center justify-center border-r border-gray-300 bg-gray-50 sticky top-0 z-10" style={{ height: rowHeight }}>
                     <Phone className="h-4 w-4 text-gray-600" />
                   </div>
 
                   {/* Row number header */}
-                  <div className="w-12 min-w-12 flex items-center justify-center border-r border-gray-300 bg-gray-50" style={{ height: rowHeight }}>
+                  <div className="w-12 min-w-12 flex items-center justify-center border-r border-gray-300 bg-gray-50 sticky top-0 z-10" style={{ height: rowHeight }}>
                     <span className="text-xs text-gray-600 font-medium">#</span>
                   </div>
 
@@ -1510,7 +1527,7 @@ export function ProspectsGrid({ listId }: ProspectsGridProps) {
                 <div
                   key={column.id}
                   className={cn(
-                    "relative flex items-center border-r border-gray-300 bg-gray-50 transition-colors",
+                    "relative flex items-center border-r border-gray-300 bg-gray-50 transition-colors sticky top-0 z-10",
                     hoveredColumn === column.id && "bg-gray-100",
                   )}
                   style={{ width: column.width, minWidth: column.width, height: rowHeight }}
@@ -1824,6 +1841,15 @@ export function ProspectsGrid({ listId }: ProspectsGridProps) {
         onClose={() => setShowStatusManagement(false)}
         onStatusOptionsChange={() => {
           fetchStatusOptions();
+        }}
+      />
+
+      <ImportCsvModal
+        open={showImportCsv}
+        onOpenChange={setShowImportCsv}
+        listId={listId}
+        onSuccess={() => {
+          fetchProspects();
         }}
       />
 

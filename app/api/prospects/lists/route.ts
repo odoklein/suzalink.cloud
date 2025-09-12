@@ -110,19 +110,24 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Name is required' }, { status: 400 });
     }
     
+    // Build insert data with only provided fields
+    const insertData: any = {
+      name,
+      description,
+      created_by: session.user.id,
+      status: 'active',
+      prospect_count: 0
+    };
+
+    // Only add default interlocuteur fields if they are provided
+    if (defaultInterlocuteurName) insertData.default_interlocuteur_name = defaultInterlocuteurName;
+    if (defaultInterlocuteurEmail) insertData.default_interlocuteur_email = defaultInterlocuteurEmail;
+    if (defaultInterlocuteurPhone) insertData.default_interlocuteur_phone = defaultInterlocuteurPhone;
+    if (defaultInterlocuteurPosition) insertData.default_interlocuteur_position = defaultInterlocuteurPosition;
+
     const { data, error } = await supabase
       .from('prospect_lists')
-      .insert({
-        name,
-        description,
-        default_interlocuteur_name: defaultInterlocuteurName,
-        default_interlocuteur_email: defaultInterlocuteurEmail,
-        default_interlocuteur_phone: defaultInterlocuteurPhone,
-        default_interlocuteur_position: defaultInterlocuteurPosition,
-        created_by: session.user.id,
-        status: 'active',
-        prospect_count: 0
-      })
+      .insert(insertData)
       .select()
       .single();
     
