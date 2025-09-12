@@ -36,8 +36,8 @@ export default function ProspectsListLayout({ children }: { children: React.Reac
 
   return (
     <SuzaiProvider>
-      <div className="min-h-screen overflow-hidden bg-white">
-        <main className="min-h-screen overflow-hidden">
+      <div className="min-h-screen w-full overflow-hidden bg-white">
+        <main className="min-h-screen w-full overflow-hidden">
           {children}
         </main>
         {/* SUZai Widget - Always accessible */}

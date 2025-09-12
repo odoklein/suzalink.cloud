@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useCallback, useEffect } from "react";
-import { ChevronDown, GripVertical, Plus, Trash2, Calendar, Hash, Type, Check, Phone, Mail, User, Building, Edit, MoreHorizontal, UserPlus, StickyNote, MoreVertical, ArrowUpDown, Grid3X3, List, Settings, Pin } from "lucide-react";
+import { ChevronDown, GripVertical, Plus, Trash2, Calendar, Hash, Type, Check, Phone, Mail, User, Building, Edit, MoreHorizontal, UserPlus, StickyNote, MoreVertical, ArrowUpDown, Grid3X3, List, Settings, Pin, Palette } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,6 +24,7 @@ import { AddNoteModal } from "./AddNoteModal";
 import { ProspectEmailDialog } from "./ProspectEmailDialog";
 import { BulkCampaignModal } from "./BulkCampaignModal";
 import { EmailHistoryModal } from "./EmailHistoryModal";
+import { StatusManagementModal } from "./StatusManagementModal";
 
 // Prospect Overview Card Component
 function ProspectOverviewCard({
@@ -33,7 +34,8 @@ function ProspectOverviewCard({
   onEmail,
   onNote,
   onStatusChange,
-  onDelete
+  onDelete,
+  statusOptions
 }: {
   prospect: Prospect;
   onEdit: () => void;
@@ -42,16 +44,29 @@ function ProspectOverviewCard({
   onNote: () => void;
   onStatusChange: () => void;
   onDelete: () => void;
+  statusOptions: StatusOption[];
 }) {
-  const statusColors = {
-    "NRP": "bg-gray-100 text-gray-800",
-    "Rappel": "bg-purple-100 text-purple-800",
-    "Relance": "bg-orange-100 text-orange-800",
-    "Mail": "bg-blue-100 text-blue-800",
-    "pas interessé": "bg-red-100 text-red-800",
-    "barrage": "bg-red-200 text-red-900",
-    "devis": "bg-green-100 text-green-800",
-    "rdv": "bg-emerald-100 text-emerald-800",
+  // Get status color from status options
+  const getStatusColor = (statusName: string) => {
+    const statusOption = statusOptions.find(option => option.name === statusName);
+    if (statusOption) {
+      // Convert hex color to Tailwind classes
+      const color = statusOption.color;
+      // For now, return a simple mapping. In a real implementation, you might want to
+      // dynamically generate Tailwind classes or use inline styles
+      const colorMap: Record<string, string> = {
+        '#6B7280': 'bg-gray-100 text-gray-800',
+        '#8B5CF6': 'bg-purple-100 text-purple-800',
+        '#F59E0B': 'bg-orange-100 text-orange-800',
+        '#3B82F6': 'bg-blue-100 text-blue-800',
+        '#EF4444': 'bg-red-100 text-red-800',
+        '#DC2626': 'bg-red-200 text-red-900',
+        '#10B981': 'bg-green-100 text-green-800',
+        '#059669': 'bg-emerald-100 text-emerald-800',
+      };
+      return colorMap[color] || 'bg-gray-100 text-gray-800';
+    }
+    return 'bg-gray-100 text-gray-800';
   };
 
   return (
@@ -75,8 +90,7 @@ function ProspectOverviewCard({
             {prospect.status && (
               <Badge className={cn(
                 "animate-pulse text-xs font-medium",
-                statusColors[prospect.status as keyof typeof statusColors] || "bg-gray-100 text-gray-800",
-                "bg-gradient-to-r from-blue-500/80 to-purple-600/80"
+                getStatusColor(prospect.status)
               )}>
                 {prospect.status === "none" || !prospect.status ? "Status" : prospect.status}
               </Badge>
@@ -249,6 +263,17 @@ interface Prospect {
   }[];
 }
 
+interface StatusOption {
+  id: string;
+  name: string;
+  color: string;
+  description?: string;
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
 interface ProspectsGridProps {
   listId: string;
 }
@@ -261,13 +286,14 @@ const baseProspectColumns: Column[] = [
   { id: "industry", name: "Secteur", type: "text", width: 150, editable: true, visible: true, isBase: true },
   { id: "website", name: "Site web", type: "text", width: 150, editable: true, visible: true, isBase: true },
   { id: "rappel", name: "Rappel", type: "date", width: 150, editable: true, visible: true, isBase: true },
-  { id: "status", name: "Statut", type: "select", width: 150, editable: true, visible: true, isBase: true, options: ["none", "NRP", "Rappel", "Relance", "Mail", "pas interessé", "barrage", "devis", "rdv"] },
+  { id: "status", name: "Statut", type: "select", width: 150, editable: true, visible: true, isBase: true, options: [] }, // Will be populated dynamically
   { id: "interlocuteurs", name: "Interlocuteurs", type: "text", width: 180, editable: false, visible: true, isBase: true },
   { id: "actions", name: "Actions", type: "action", width: 100, editable: false, visible: true, isBase: true },
 ];
 
 export function ProspectsGrid({ listId }: ProspectsGridProps) {
   const [prospects, setProspects] = useState<Prospect[]>([]);
+  const [statusOptions, setStatusOptions] = useState<StatusOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingCell, setEditingCell] = useState<{ rowId: string; columnId: string } | null>(null);
   const [selectedRow, setSelectedRow] = useState<string | null>(null);
@@ -322,6 +348,7 @@ export function ProspectsGrid({ listId }: ProspectsGridProps) {
   const [showEmailHistory, setShowEmailHistory] = useState(false);
   const [selectedProspectForHistory, setSelectedProspectForHistory] = useState<Prospect | null>(null);
   const [interlocuteurPopoverOpen, setInterlocuteurPopoverOpen] = useState<string | null>(null);
+  const [showStatusManagement, setShowStatusManagement] = useState(false);
   const [editingInterlocuteur, setEditingInterlocuteur] = useState<string | null>(null);
   const [editInterlocuteurData, setEditInterlocuteurData] = useState<Partial<Interlocuteur>>({});
   const [rowHeight, setRowHeight] = useState<number>(() => {
@@ -360,6 +387,32 @@ export function ProspectsGrid({ listId }: ProspectsGridProps) {
   const resizeStartX = useRef<number>(0);
   const resizeStartWidth = useRef<number>(0);
 
+  // Fetch status options
+  const fetchStatusOptions = async () => {
+    try {
+      const res = await fetch('/api/prospects/status-options');
+      const data = await res.json();
+      
+      if (data.statusOptions) {
+        setStatusOptions(data.statusOptions);
+        
+        // Update the status column options
+        setColumns(prev => prev.map(col => {
+          if (col.id === 'status') {
+            return {
+              ...col,
+              options: ['none', ...data.statusOptions.map((option: StatusOption) => option.name)]
+            };
+          }
+          return col;
+        }));
+      }
+    } catch (error) {
+      console.error("Error fetching status options:", error);
+      toast.error("Erreur lors du chargement des options de statut");
+    }
+  };
+
   // Fetch prospects
   const fetchProspects = async () => {
     setLoading(true);
@@ -380,6 +433,7 @@ export function ProspectsGrid({ listId }: ProspectsGridProps) {
 
   useEffect(() => {
     if (listId) {
+      fetchStatusOptions();
       fetchProspects();
     }
   }, [listId]);
@@ -1014,18 +1068,28 @@ export function ProspectsGrid({ listId }: ProspectsGridProps) {
     // Display mode
     switch (column.id) {
       case "status":
-        const statusColors = {
-          "NRP": "bg-gray-100 text-gray-800",
-          "Rappel": "bg-purple-100 text-purple-800",
-          "Relance": "bg-orange-100 text-orange-800",
-          "Mail": "bg-blue-100 text-blue-800",
-          "pas interessé": "bg-red-100 text-red-800",
-          "barrage": "bg-red-200 text-red-900",
-          "devis": "bg-green-100 text-green-800",
-          "rdv": "bg-emerald-100 text-emerald-800",
+        // Get status color from status options
+        const getStatusColor = (statusName: string) => {
+          const statusOption = statusOptions.find(option => option.name === statusName);
+          if (statusOption) {
+            // Convert hex color to Tailwind classes
+            const color = statusOption.color;
+            const colorMap: Record<string, string> = {
+              '#6B7280': 'bg-gray-100 text-gray-800',
+              '#8B5CF6': 'bg-purple-100 text-purple-800',
+              '#F59E0B': 'bg-orange-100 text-orange-800',
+              '#3B82F6': 'bg-blue-100 text-blue-800',
+              '#EF4444': 'bg-red-100 text-red-800',
+              '#DC2626': 'bg-red-200 text-red-900',
+              '#10B981': 'bg-green-100 text-green-800',
+              '#059669': 'bg-emerald-100 text-emerald-800',
+            };
+            return colorMap[color] || 'bg-gray-100 text-gray-800';
+          }
+          return 'bg-gray-100 text-gray-800';
         };
         return (
-          <Badge className={cn("text-xs", statusColors[value as keyof typeof statusColors] || "bg-gray-100 text-gray-800")}>
+          <Badge className={cn("text-xs", getStatusColor(value as string))}>
             {value === "none" || !value ? "Status" : value as string}
           </Badge>
         );
@@ -1320,6 +1384,15 @@ export function ProspectsGrid({ listId }: ProspectsGridProps) {
           <Button
             variant="outline"
             size="sm"
+            onClick={() => setShowStatusManagement(true)}
+            className="h-8"
+          >
+            <Palette className="h-4 w-4 mr-2" />
+            Gérer les statuts
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => setShowColumnManager(true)}
             className="h-8"
           >
@@ -1602,6 +1675,7 @@ export function ProspectsGrid({ listId }: ProspectsGridProps) {
                 <ProspectOverviewCard
                   key={prospect.id}
                   prospect={prospect}
+                  statusOptions={statusOptions}
                   onEdit={() => {
                     // Handle edit - could open a modal or navigate to edit page
                     console.log('Edit prospect:', prospect.id);
@@ -1743,6 +1817,14 @@ export function ProspectsGrid({ listId }: ProspectsGridProps) {
           setSelectedProspectForHistory(null);
         }}
         prospect={selectedProspectForHistory}
+      />
+
+      <StatusManagementModal
+        isOpen={showStatusManagement}
+        onClose={() => setShowStatusManagement(false)}
+        onStatusOptionsChange={() => {
+          fetchStatusOptions();
+        }}
       />
 
       {/* Column Manager Modal */}
